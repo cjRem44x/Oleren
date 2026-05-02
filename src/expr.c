@@ -28,7 +28,7 @@ void resize(struct ExprList * slf)
 void add(struct ExprList * slf, Expr e)
 {
     resize(slf);
-    slf->dat[slf->dat++] = e;
+    slf->dat[slf->size++] = e;
 }
 
 Expr * get(struct ExprList * slf, size_t idx)
