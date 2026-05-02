@@ -10,13 +10,18 @@
 #define LABEL_CHAR   '@'
 #define COMMENT_CHAR '#'
 
-void proc_tokens(const char * t)
+ExprList * exprs;
+
+void proc_expr(Expr tmp)
 {
-    printf("TOKEN: %s\n", t);
+    //printf("TOKEN: %s\n", tmp.token);
+    exprs->add(exprs, tmp);
 }
 
 int main(int argc, char ** argv)
 {
+    exprs = init_ExprList(1024);
+
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <file>\n", argv[0]);
         return 1;
@@ -39,7 +44,8 @@ int main(int argc, char ** argv)
         if (c == INSTRUC_CHAR) {
             buf[idx] = '\0';
             if (idx > 0 ) {
-                proc_tokens(buf);
+                Expr tmp = {buf, INSTRUC};
+                proc_expr(tmp);
                 idx = 0;
             }
             continue;
@@ -55,8 +61,9 @@ int main(int argc, char ** argv)
 
     if (idx > 0) {
         buf[idx] = '\0';
-        proc_tokens(buf);
     }
     fclose(f);
+
+    exprs->_free(exprs);
     return 0;
 }

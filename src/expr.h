@@ -24,6 +24,7 @@ typedef struct ExprList {
     void   (*add)   (struct ExprList * slf, Expr e);
     Expr * (*get)   (struct ExprList * slf, size_t idx);
     void   (*rmv)   (struct ExprList * slf, size_t idx);
+    void   (*print) (struct ExprList * slf);
     void   (*_free) (struct ExprList * slf);
 } ExprList;
 
@@ -32,6 +33,7 @@ void resize(struct ExprList * slf);
 void add(struct ExprList * slf, Expr e);
 Expr * get(struct ExprList * slf, size_t idx);
 void rmv(struct ExprList * slf, size_t idx);
+void print(struct ExprList * slf);
 void _free(struct ExprList * slf);
 
 #endif // !EXPR_H
