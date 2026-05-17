@@ -12,6 +12,12 @@
 
 ExprList * exprs;
 
+
+int check_ext(const char * filePath)
+{
+    return 
+}
+
 void proc_expr(Expr tmp)
 {
     printf("TOKEN: %s\n", tmp.token);
@@ -27,7 +33,7 @@ int main(int argc, char ** argv)
         return 1;
     }
 
-    FILE * f = fopen(argv[1], "r");
+    FILE * f = fopen(argv[1], "r"); // file path
     if (!f) {
         perror("fopen");
         return 1;
