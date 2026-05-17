@@ -1,1 +1,5 @@
-# LOL
+# THIS IS A COMMENT
+
+@main
+| ldi: r1, 1
+| end
