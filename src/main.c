@@ -39,8 +39,10 @@ int main(int argc, char ** argv)
 
     if (check_ext(argv[1], OLEREN_SRC_EXT)) {
         compType = SRC;
+    } else if (check_ext(argv[1], OLEREN_ASM_EXT)) {
+        compType = ASM;
         begin_olnas(argv[1]);
-    } else if (check_ext(argv[1], OLEREN_ASM_EXT)) compType = ASM;
+    }
     printf("Compiling Type = %d\n", compType);
     return 0;
 }
