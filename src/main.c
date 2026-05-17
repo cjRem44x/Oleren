@@ -10,12 +10,33 @@
 #define LABEL_CHAR   '@'
 #define COMMENT_CHAR '#'
 
+#define OLEREN_SRC_EXT "oln"   // SRC
+#define OLEREN_ASM_EXT "olnas" // ASM SCRIPT
+
 ExprList * exprs;
 
+typedef enum CompilingType {
+    UNDEF, SRC, ASM,
+} CompilingType;
 
-int check_ext(const char * filePath)
+CompilingType compType;
+
+// ... = check_ext(file, "ext") NOT DOT
+int check_ext(const char * filePath, const char * ext)
 {
-    return 
+    const char * dot = strrchr(filePath, '.');
+    if (!dot || dot == filePath) return 0;
+
+    dot++; // skip
+    while (*dot && *ext)
+    {
+        if (tolower((unsigned char)*dot) != tolower((unsigned char)*ext)) {
+            return 0;
+        }
+        dot++;
+        ext++;
+    }
+    return *dot == '\0' && *ext == '\0';
 }
 
 void proc_expr(Expr tmp)
@@ -38,6 +59,10 @@ int main(int argc, char ** argv)
         perror("fopen");
         return 1;
     }
+
+    if (check_ext(argv[1], OLEREN_SRC_EXT)) compType = SRC;
+    else if (check_ext(argv[1], OLEREN_ASM_EXT)) compType = ASM;
+    printf("Compiling Type = %d\n", compType);
 
     char buf[BUF_SIZE];
     size_t idx = 0;
