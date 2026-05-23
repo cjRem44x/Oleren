@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
-#include "olnas.h"
+#include "oln.h"
 
-#define OLEREN_SRC_EXT "oln"   // SRC
-#define OLEREN_ASM_EXT "olnas" // ASM SCRIPT
+#define OLEREN_SRC_EXT "olnpp" // SRC
+#define OLEREN_ASM_EXT "oln"   // ASM SCRIPT
 
 typedef enum CompilingType {
     UNDEF, SRC, ASM,
