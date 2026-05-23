@@ -1,5 +1,5 @@
-#ifndef OLNAS_H
-#define OLNAS_H
+#ifndef OLN_H
+#define OLN_H
 
 #define BUF_SIZE 1024
 

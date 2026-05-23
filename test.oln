@@ -1,2 +1,4 @@
 # comment
-@label |end
+@START
+| ld: r1, 4
+| end

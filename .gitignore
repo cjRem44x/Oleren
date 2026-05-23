@@ -1,0 +1,47 @@
+# Build output
+/bin/
+/build/
+/dist/
+
+# Object / binary files
+*.o
+*.obj
+*.out
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+
+# Debug / profiling
+*.pdb
+*.dSYM/
+*.prof
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.cache
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# CMake (if you add it later)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Zig cache (if using zig cc)
+.zig-cache/
+zig-out/
