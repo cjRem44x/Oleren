@@ -1,2 +1,2 @@
 mkdir -p bin
-gcc src/* -o bin/main
+gcc src/* -o bin/oln
