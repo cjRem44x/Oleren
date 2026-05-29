@@ -217,7 +217,7 @@ when X {
 # using builtin alo
 _ = @alo(<size_in_bytes>); # retuns pointer array to heap
 
-x : *i32 = @alo(@size(i32)); # alloc space for i32
+x : *i32 = @alo(i32); # alloc space for i32, alo knows size
 defer @free(x); # dfr is defer and it works just like it does in Zig: places instruction0 to end of scope...
 x[0].* ...
 
