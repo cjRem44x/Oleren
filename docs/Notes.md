@@ -2,14 +2,44 @@
 
 ## Goal
 
-The goal is to provide a more reasonable frontend for the C++ industry standard within Game Dev. A new paint job that simplifies and modernizes old school performance without the headache. This language does NOT plan to support OOP, Classes, or Objects; Functions, Structs, and other basic types are included as Oleren aims to provide a more Modern C approach.
+The goal is to provide a more reasonable frontend for the C++ industry standard within Game Dev. A new paint job that simplifies and modernizes old school performance without the headache. This language does NOT plan to support OOP, Classes, or Objects Functions, Structs, and other basic types are included as Oleren aims to provide a more Modern C approach.
+
+## Compiling
+
+The Oleren Project Manager allows for a more modern approach to building code, managing assets, and better project organization.
+
+To create a new oleren project `mkdir myOlrnDir` create a new project directory, `cd myOlrnDir` move into it, then run `olrn init` to create a fresh Oleren Project.
+
+The project structure should look like,
+```
+/myOlrnDir
+    /bin
+        # bin build
+    /src
+        /main
+            /olrn
+                main.olrn # a pre-made entry
+    /olrn_out
+        # compile C++ project code
+    olrn_pkg.toml # where build assets are managed
+    README.md # blank readme
+```
+
+To build my Oleren code, I run `olrn build`. If I want to run the binary output I use `olrn run`.
+
+If I want to just build to C++, I run `olrn build-src` which just compile Oleren -> C++. And `olrn build-out` compile C++ -> Oleren bin, which allows for changes to be made to output C++ if needed.
+
+Stand-Alone-Compiler to compile Oleren code directly in a binaries,`olrn sac main.olrn -o=main`
+
+This allows for Oleren code outside of the project manager.
+`olrn sac path/*.olrn ../path/*.olrn ... -o=name` allows for multiple paths of source code to be compiled.
 
 ## Hello World
 
 ```rust
 fn main() -> void # main func signature
 {
-    @pl("Hello World"); # a builtin for printLn
+    @pl("Hello World") # a builtin for printLn
 }
 ```
 
@@ -20,7 +50,7 @@ The signature of a simple return function.
 ```rust
 fn my_func(arg1: type, arg2: type, ...) -> ret_type
 {
-    ret value;
+    ret value
 }
 ```
 
@@ -29,7 +59,7 @@ For voids, or subroutines, the `-> type` is not required.
 ```rust
 fn subrout(args...)
 {
-    ret; # void return is optional
+    ret # void return is optional
 }
 ```
 
@@ -40,40 +70,40 @@ We use a very Golang/Odinlang approach to vars.
 ```rust
 fn main() -> void
 {
-    VAR : type = value; # explicit mutable type
-    VAR := value;       # implicit mutable type
+    VAR : type = value # explicit mutable type
+    VAR := value       # implicit mutable type
 
-    VAR :type: value;   # explicit immutable type, like const|constexpr|final
-    VAR :: value;       # impicit immutable type
+    VAR :type: value   # explicit immutable type, like const|constexpr|final
+    VAR :: value       # impicit immutable type
 
-    x := 32; # this infers to the largest possible signed int, i64
-    @pl( @type(x) ); # i64
+    x := 32 # this infers to the largest possible signed int, i64
+    @pl( @type(x) ) # i64
 
-    x: i32 = 43445; # because we use explicit decl here x is a 32-bit int
+    x: i32 = 43445 # because we use explicit decl here x is a 32-bit int
 }
 ```
 
 Using multi-declaration,
 
 ```rust
-mut i32: x = 0. y = 44, z = 543; # oneline, multi mutable def
+mut i32: x = 0. y = 44, z = 543 # oneline, multi mutable def
 
-imu f32: pi = 3.14, w = -5443.45; # online, multi immutable def
+imu f32: pi = 3.14, w = -5443.45 # online, multi immutable def
 ```
 
 ### Arrays
 
 ```rust
 
-nums :[]u32 = {1,2,3,4,5};
-len :: nums.len;
+nums :[]u32 = {1,2,3,4,5}
+len :: nums.len
 nums[i] = ...
 
-final_arr :[]imu u8 = {1,0,0,1,1}; # create an array where the contents are immutable
-len :: final_arr.len;
+final_arr :[]imu u8 = {1,0,0,1,1} # create an array where the contents are immutable
+len :: final_arr.len
 final_arr[i] = ... # not allowed
 
-empnums :[N]i32 = undef; # `undef` or undefined reps a empty (not null) value, for arrays this create a empty array of N elems
+empnums :[N]i32 = undef # `undef` or undefined reps a empty (not null) value, for arrays this create a empty array of N elems
 empnums[i] = ...
 # empty valuues: 0, 0.0, '0', "0", false
 ```
@@ -98,67 +128,67 @@ float  | f32
 double | f64
 
 chr is our Primitve C Char reps.
-name : []chr = "john";
+name : []chr = "john"
 ```
 
 We also have the `str` and `istr` types which are more advanced strings handling done with automatic heap alloc, whereas are `chr and []chr` are all manual and primitive.
 
 ```rust
-name : str = "john"; # by init the str value the mem gets alloc
-defer @free(free); # str|istr have to be freed
+name : str = "john" # by init the str value the mem gets alloc
+defer @free(free) # str|istr have to be freed
 
-word : str; # this is a null pointer that has not reserved any mem
+word : str # this is a null pointer that has not reserved any mem
 if word.ptr == NULL {...} # .ptr is the internal field that holds the heap pointer.
 ```
 
 ## String VS Chars Arrays
 
 ```rust
-grade : chr = 'A';
+grade : chr = 'A'
 
-name : []chr = "John"; # very primitive C char arr
-name[i] = 'B';
-len :: name.len;
+name : []chr = "John" # very primitive C char arr
+name[i] = 'B'
+len :: name.len
 # thats about it, no more. Very primitive, no builtin funcs like str
 
-final_name :[]imu chr = "Jack";
-len :: final_name.len;
+final_name :[]imu chr = "Jack"
+len :: final_name.len
 final_name[i] ... # nope! contents are immut
 
 # Chars are stack values, and arrays, that can be alloc if need be.
 
 # str is a wrapper of []chr with modern handling
-word: str = "hello"; # modern string view handle
+word: str = "hello" # modern string view handle
 
 # str funcs
-_ := word.has("foo"); # if contains substr, ret bool
-_ := word.starts("foo"); # if it starts with substr, ret bool
-_ := word.ends("foo"); # if ends with substr, ret bool
+_ := word.has("foo") # if contains substr, ret bool
+_ := word.starts("foo") # if it starts with substr, ret bool
+_ := word.ends("foo") # if ends with substr, ret bool
 
 _ := word.sub(pos, len) # return substr staring at pos and ending at pos+len, ret str
 
-word.add("gh"); # append str
-word.ins(pos, "gh"); # insert substr at pos
-word.rep(pos, "gh"); # starting at pos, replace existing chars/append if longer then str with substr
-word.del(pos, len); # delete (erase) chars starting at pos and ending at pos+len
+word.add("gh") # append str
+word.ins(pos, "gh") # insert substr at pos
+word.rep(pos, "gh") # starting at pos, replace existing chars/append if longer then str with substr
+word.del(pos, len) # delete (erase) chars starting at pos and ending at pos+len
 
-word.upper(); # set chars to uppercase
-word.lower(); # set chars to lowercase
-word.trim(); # trim str
+word.upper() # set chars to uppercase
+word.lower() # set chars to lowercase
+word.trim() # trim str
 
-word.eql("dfds"); # is equal to other str, ret bool
+word.eql("dfds") # is equal to other str, ret bool
 
-arr := word.spl("regrex"); # split on regrex and return []str
+arr := word.spl("regrex") # split on regrex and return []str
 
-word[i] = 'A';
-len :: word.len;
+word[i] = 'A'
+len :: word.len
 
-# and most important;
+# and most important
 @free(word) # all str's and istr's are heap alloc strings and MUST be freed
 
-imustr: istr = "foo"; #@ the value can be cahned as is ais mut, but the string array (contents) is immutable
+imustr: istr = "foo" #@ the value can be cahned as is ais mut, but the string array (contents) is immutable
 imustr[i] = 'F' # cannot do this, istr => immut arr, elems are init then const
-@free(imustr);
+@free(imustr)
 ```
 
 ## Loops
@@ -215,10 +245,10 @@ when X {
 
 ```rust
 # using builtin alo
-_ = @alo(<size_in_bytes>); # retuns pointer array to heap
+_ = @alo(<size_in_bytes>) # retuns pointer array to heap
 
-x : *i32 = @alo(i32); # alloc space for i32, alo knows size
-defer @free(x); # dfr is defer and it works just like it does in Zig: places instruction0 to end of scope...
+x : *i32 = @alo(i32) # alloc space for i32, alo knows size
+defer @free(x) # dfr is defer and it works just like it does in Zig: places instruction0 to end of scope...
 x[0].* ...
 
 # ONLY structs can be allocated or pointerd too, dats are prohibited
@@ -226,7 +256,7 @@ struct Foo {
     x: i32, y: f32
 }
 
-foo : *Foo = @alo(Foo); # just like C, where alo gets size of Foo
+foo : *Foo = @alo(Foo) # just like C, where alo gets size of Foo
 
 # alo always rets an array, this one is just and array of len 1
 foo[0]->x = ... # all pointers (Stack|Heap) use -> like C to ref fields (p.*).e
@@ -234,42 +264,42 @@ foo[0]->x = ... # all pointers (Stack|Heap) use -> like C to ref fields (p.*).e
 
 # ALL pointers and there value assignments must be explicit,
 
-V : type = value;
-P : *type = &V;
-P = <new_ref>; can be ref or another pointer holding a ref
-P.* = <new_value>;
+V : type = value
+P : *type = &V
+P = <new_ref> can be ref or another pointer holding a ref
+P.* = <new_value>
 
-x :i32 = 5; # explicit
-p_x :*i32 = &x; # explicit
+x :i32 = 5 # explicit
+p_x :*i32 = &x # explicit
 # GOOD
 
-y := 3.145; # implicit
-p_y :*f32 = &y; # explicit
+y := 3.145 # implicit
+p_y :*f32 = &y # explicit
 # WRONG
 
-z :str = "Hello";
-p_z := &z; # pointers MUST always be explicit!
+z :str = "Hello"
+p_z := &z # pointers MUST always be explicit!
 
 # immutable pointers
-PI :f32: 3.145;
-p_PI :*imu f32 = &PI; # this is equ to *const f32, the underlinging value is immutable
+PI :f32: 3.145
+p_PI :*imu f32 = &PI # this is equ to *const f32, the underlinging value is immutable
 
-p_PI2 :*imu f32: &PI; # this is a `const P : *const f32` the value is immut and the pointer is immut
+p_PI2 :*imu f32: &PI # this is a `const P : *const f32` the value is immut and the pointer is immut
 
-W :[]chr = "word";
-p_W :*[]chr: &W; # a immut pointer to a mut value
+W :[]chr = "word"
+p_W :*[]chr: &W # a immut pointer to a mut value
 
 # on the topic of array pointers
 nums :[]f32 = ...
-p_nums :*[]f32 = &nums;
+p_nums :*[]f32 = &nums
 p_nums[i].* = ...
 
-struct Y {z: f32, x: u8, p: *chr};
+struct Y {z: f32, x: u8, p: *chr}
 
-ys :[]Y = { .{.z=0, .x=0, .p = ...}, .{...}, ...}; # the . here expands to known type, in this case Y is the known type
-p_ys :*[]Y = &ys;
+ys :[]Y = { .{.z=0, .x=0, .p = ...}, .{...}, ...} # the . here expands to known type, in this case Y is the known type
+p_ys :*[]Y = &ys
 
-p_ys[i].* = .{...}; # set to new Y
+p_ys[i].* = .{...} # set to new Y
 p_ys[i]->z ... # access field
 
 p_ys[i]->p.* = ... # set value to pointer field p
@@ -299,31 +329,31 @@ x := {32.1, 343.5, ...} # always => []f64
 # Basic
 enum X {ONE, TWO, THREE, FOUR}
 
-x: X = X.ONE;
+x: X = X.ONE
 
 enum Y => f32 {
     ONE=3.435, TWO=4.53, THREE=-43.53,
 }
 
-y: Y = Y.ONE;
+y: Y = Y.ONE
 ```
 
 ## Unions
 
 ```rust
 unn X {
-    a: i32; b: i32; c: f32;
+    a: i32, b: i32, c: f32,
 }
 
-x : X = X{.a = 55};
+x : X = X{.a = 55}
 x.a ...
-x.b = 67;
+x.b = 67
 
 unn(enum) Y {
-    a: i32; b: i32;
+    a: i32 b: i32,
 }
 
-y := Y{.a=1};
+y := Y{.a=1}
 
 when y {
     .a => ...,
@@ -338,7 +368,7 @@ when y {
 struct Foo {
     a: i32, b: f32, ... # these are instancable data fields
 
-    static_var : type = value; # this var is static accessed
+    static_var : type = value # this var is static accessed
 
     pub fn init(...) { # this is a pub accessable static memeber function
         ...
@@ -349,8 +379,8 @@ struct Foo {
     fn priv_func(this: @self) {} # this instance func is private to struct
 }
 
-foo := Foo.init(...); # bec init is static, it is static acccessed
-defer foo.deinit(); # the @self does not need to passed, it is inferred as instance `this`
+foo := Foo.init(...) # bec init is static, it is static acccessed
+defer foo.deinit() # the @self does not need to passed, it is inferred as instance `this`
 ```
 
 If a C styled struct is wanted,
@@ -363,5 +393,73 @@ struct C_Struct {
     ...
 }
 
-my_struct := C_Struct{.var1=45, .var2=45, ...}; # standard means of init data fields in struct
+my_struct := C_Struct{.var1=45, .var2=45, ...} # standard means of init data fields in struct
+```
+
+## Expressions
+Oleren does not use `;` because expr are only suppose to use one line, unless you have a series of `,` in the declaration.
+```rust
+x : type = value # this is an expr
+y := if W {5} else {6} # this is also a expr
+```
+
+However, similar to Go, we have `;` for when multiple exprs are pushed onto the same line.
+```rust
+x := 5; y :: 3.245; z := "word" # expr; expr; expr
+```
+
+Yet it is ideal for code in Oleren to be structured as,
+```rust
+expr
+expr
+
+fn foo() ...
+{
+    expr
+    expr
+
+    if ... {
+        expr
+        expr
+    } else {
+        expr
+        ...
+    }
+
+    ret ...
+}
+```
+
+## Pointers
+A stated above, Oleren utils the C flavor of handling pointers.
+`x : *type = ...`
+
+However, `*` is a raw pointer. Oleren also offers Smart Pointers done with `^`.
+
+```rust
+fn main() -> void
+{
+    raw_ptr : *type = ...
+
+    smart_ptr : ^type = ...
+}
+```
+
+Because Oleren compiles into C++, we have the capability to use both Raw and Smart Pointers. And similarly, smart pointers are managed by runtime.
+
+```rust
+struct Person {
+    name: str,
+    age: i32,
+}
+
+fn main() -> void
+{
+    p : *Person = @alo(Person) # alloc space for Person and return raw pointer
+    defer @free(p) # needed for raw ptr
+
+    p.* = .{.name="john", .age=23}
+
+    p2 : ^Person = @alo(Person) # no free is needed as this is wrapped in a smart pointer that manaages itself
+}
 ```
