@@ -463,3 +463,31 @@ fn main() -> void
     p2 : ^Person = @alo(Person) # no free is needed as this is wrapped in a smart pointer that manaages itself
 }
 ```
+
+## More on Str's
+```rust
+name : str = "john" # by default `str` is a raw pointer
+defer @free(name)
+
+word : ^str = "hello" # by using `^` we are directing the compiler to wrap str with a smart pointer
+```
+
+## Console I/O
+```rust
+fn main() -> void
+{
+    # Console Builtins
+    @pl("hello world") # PrintLine
+    @pf("\\{\\}  the value is {x}\n") # PrintF where {} is for formatting and \\{ \\} are literals
+
+    @cout << "Hello World is " << x << @endl # we also offer a C++ stream style
+
+    input := @cin("enter prompt: ") # console input func that takes a string prompt and returns a `str` value
+    defer @free(input) # free bec input is `str`
+
+    X :: 3.14546 # => f64
+    @pf("X = {X}\n") # prints all digits
+    @pf("X = {X:.3}\n") # prints only 3 digits, the formatt is `<var>:n.nT`, just lie %0.0T
+    @cout << "X = " << x:.3 << @endl
+}
+```
