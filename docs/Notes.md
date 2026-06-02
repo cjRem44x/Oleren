@@ -486,6 +486,7 @@ fn main() -> void
     defer @free(input) # free bec input is `str`
 
     X :: 3.14546 # => f64
+    @pl("X = "+x) # pl is Java styled
     @pf("X = {X}\n") # prints all digits
     @pf("X = {X:.3}\n") # prints only 3 digits, the formatt is `<var>:n.nT`, just lie %0.0T
     @cout << "X = " << x:.3 << @endl
