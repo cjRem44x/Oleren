@@ -103,23 +103,18 @@ Recommendation: struct return for now; revisit tuples later.
 
 ---
 
-### 3. Module & Import System
+### 3. Module & Import System — RESOLVED
 
-Nothing defined yet. This is needed before any multi-file program works.
+Single `import` block at the top of each file. All imports aliased. See Notes.md § Imports.
 
-Proposed:
 ```rust
-use math            # import module by name (resolved via olrn_pkg.toml or std)
-use io::file        # submodule path
-use "../../utils"   # relative path import
-
-# access
-math.sqrt(x)
-file.open("data.bin", .Read)
+import (
+    x  = "file.olrn",       # local file by path
+    y  = "../other/file",    # relative path
+    mk = @malkur,            # builtin/stdlib lib via @name
+    io = @file,
+)
 ```
-
-Top-level `use` statements only.
-No re-exports in v1; modules are flat namespaces.
 
 ---
 

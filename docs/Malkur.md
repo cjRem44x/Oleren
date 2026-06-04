@@ -6,10 +6,13 @@ Malkur is the built-in gamedev library for Oleren. Its API is inspired by
 Raylib — simple, flat, and readable — but the implementation compiles down
 to raw backend code (OpenGL, SDL2, Vulkan, etc.) with no managed runtime.
 
-Access via the `@malkur` builtin. Alias it for brevity:
+Include via the import block at the top of your file. The alias is how all
+Malkur calls are made — `mk` is the conventional short alias.
 
 ```rust
-mk :: @malkur
+import (
+    mk = @malkur,
+)
 ```
 
 ---
@@ -21,8 +24,6 @@ The window handle owns the core loop, timing, and draw state.
 ```rust
 fn main() -> !void
 {
-    mk :: @malkur
-
     win := try mk.init_window(1280, 720, "My Game")
     defer win.close()
 
@@ -438,10 +439,12 @@ mk.check_boxes(min1: Vec3, max1: Vec3, min2: Vec3, max2: Vec3) -> bool
 ## Minimal Full Example
 
 ```rust
+import (
+    mk = @malkur,
+)
+
 fn main() -> !void
 {
-    mk :: @malkur
-
     win := try mk.init_window(800, 600, "Hello Malkur")
     defer win.close()
     win.set_fps(60)

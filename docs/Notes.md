@@ -34,6 +34,46 @@ Stand-Alone-Compiler to compile Oleren code directly in a binaries,`olrn sac mai
 This allows for Oleren code outside of the project manager.
 `olrn sac path/*.olrn ../path/*.olrn ... -o=name` allows for multiple paths of source code to be compiled.
 
+## Imports
+
+All imports live in a single `import` block at the top of the file.
+Every import is given an alias — that alias is how you access the module.
+
+```rust
+import (
+    x   = "file.olrn",          # local file, relative to current file
+    y   = "../path/to/file",     # relative path (no extension needed)
+
+    lib = @libname,              # builtin stdlib module
+    mk  = @malkur,               # Malkur gamedev library
+    io  = @file,                 # std file I/O
+    hsh = @hash,                 # std hashing
+)
+```
+
+Rules:
+- File imports use a quoted path string. The alias is required.
+- Builtin/stdlib imports use `@name`. The alias is required.
+- The alias is how you call into that module: `mk.init_window(...)`, `io.open(...)`
+- Only one `import` block per file; it must appear before any declarations.
+- Unused imports are a compile error.
+
+```rust
+import (
+    mk = @malkur,
+    io = @file,
+)
+
+fn main() -> !void
+{
+    win := try mk.init_window(800, 600, "Game")
+    defer win.close()
+
+    f := try io.open("data.bin", .Read)
+    defer io.close(f)
+}
+```
+
 ## Hello World
 
 ```rust
