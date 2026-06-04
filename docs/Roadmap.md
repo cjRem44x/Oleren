@@ -246,6 +246,8 @@ entries := fs.ls("assets/")
 ```
 
 **`std.time`** — timing (critical for game loops)
+
+**`@malkur` (Malkur)** — built-in gamedev library. See `docs/Malkur.md` for the full API surface. Covers window, input, 2D/3D drawing, textures, fonts, models, shaders, audio, math types, and collision. Raylib-inspired API; raw OpenGL/SDL2/Vulkan backend.
 ```rust
 use std.time
 
