@@ -513,19 +513,19 @@ err NetError  { Timeout, Refused, BadAddr }
 Three forms for the return type:
 
 ```rust
-fn foo() -> err!type        # generic — any error (anyerror union)
-fn foo() -> err.ONEERR!type # specific error value from the global namespace
+fn foo() -> !type           # generic — any error (anyerror union)
+fn foo() -> err.ONEERR!type # specific error value
 fn foo() -> MyErrors!type   # all errors in a named set
 ```
 
-A function that calls another `err!T` function must itself return an error
+A function that calls another `!T` function must itself return an error
 union, unless it handles the error with `catch`.
 
 ```rust
-fn read_file(path: []chr) -> err![]u8          # any error
+fn read_file(path: []chr) -> ![]u8             # any error
 fn open(path: []chr) -> FileError!File         # named set
 fn get_val() -> err.NotFound!i32               # single specific error
-fn init() -> !void                             # shorthand for err!void
+fn init() -> !void                             # can fail, no success value
 ```
 
 ### Returning Errors
@@ -638,14 +638,29 @@ fn run() -> err!void
     @pl("ok")
 }
 
-fn main() -> void
+fn main() -> !void
 {
-    run() catch |e| {
-        @pf("fatal: {}\n", e)
-        @panic("init failed")
-    }
+    try run()   # error propagates to runtime, which prints it and exits
 }
 ```
 
-`main` returns `void`. Top-level errors must be caught explicitly rather
-than propagated out of main.
+### `main` and Top-Level Error Handling
+
+`main` can return either `void` or `!void`.
+
+```rust
+fn main() -> void  { ... }   # errors must be caught before reaching main
+fn main() -> !void { ... }   # main IS the top-level handler; runtime prints the error and exits
+```
+
+When `main` returns `!void`, any uncaught error that reaches it is printed
+by the runtime and the process exits with a non-zero code — identical to
+Zig's behaviour. This is the recommended form for programs that want clean
+top-level error propagation.
+
+```rust
+fn main() -> !void
+{
+    try run()   # if run() fails, error is printed and process exits
+}
+```
