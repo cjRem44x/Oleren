@@ -495,75 +495,73 @@ fn main() -> void
 
 ## Error Handling
 
-Oleren uses Zig's error union model directly. Errors are values, not exceptions.
-There is no runtime overhead and no hidden control flow.
+Oleren uses Zig's error union model. Errors are values, not exceptions.
+No runtime overhead, no hidden control flow.
 
 ### Error Sets
 
-An error set is a named group of possible errors, similar to an enum.
+`err` is both the keyword to define a named error set and the global error
+namespace for ad-hoc errors.
 
 ```rust
-errset FileError {
-    NotFound,
-    PermDenied,
-    ReadFail,
-}
-
-errset NetError {
-    Timeout,
-    Refused,
-    BadAddr,
-}
+err FileError { NotFound, PermDenied, ReadFail }
+err NetError  { Timeout, Refused, BadAddr }
 ```
 
 ### Error Union Return Types
 
-`!T` means the function returns either `T` or any error (`anyerror!T`).
-`ErrSet!T` means the function returns either `T` or an error from `ErrSet`.
+Three forms for the return type:
 
 ```rust
-fn read_file(path: []chr) -> ![]u8         # anyerror union
-fn open(path: []chr) -> FileError!File     # specific error set
-fn init() -> !void                         # can fail, returns nothing on success
-fn get_count() -> !i32                     # can fail, returns i32 on success
+fn foo() -> err!type        # generic — any error (anyerror union)
+fn foo() -> err.ONEERR!type # specific error value from the global namespace
+fn foo() -> MyErrors!type   # all errors in a named set
 ```
 
-A function that calls another `!T` function must itself return an error union,
-unless it handles the error with `catch`.
+A function that calls another `err!T` function must itself return an error
+union, unless it handles the error with `catch`.
+
+```rust
+fn read_file(path: []chr) -> err![]u8          # any error
+fn open(path: []chr) -> FileError!File         # named set
+fn get_val() -> err.NotFound!i32               # single specific error
+fn init() -> !void                             # shorthand for err!void
+```
 
 ### Returning Errors
 
+Use `err.NAME` to return a value from the global namespace, or
+`MyErrors.NAME` to return from a specific set.
+
 ```rust
-fn validate(x: i32) -> !void
+fn validate(x: i32) -> err!void
 {
-    if x < 0 {
-        ret error.InvalidInput    # return a named error value
-    }
-    if x > 1000 {
-        ret error.OutOfRange
-    }
+    if x < 0    { ret err.InvalidInput }
+    if x > 1000 { ret err.OutOfRange   }
+}
+
+fn open_file(path: []chr) -> FileError!File
+{
+    if !fs.exists(path) { ret FileError.NotFound }
+    ret fs.open(path)
 }
 ```
 
-Errors live in the `error` namespace. You do not need to pre-declare them
-in an errset to use them — bare `error.Name` values belong to `anyerror`.
-
 ### `try` — Propagate Up the Call Stack
 
-`try expr` evaluates `expr`. If it is an error, the error is immediately
-returned from the current function. The current function must return an
-error union type.
+`try expr` evaluates `expr`. If it is an error it is immediately returned
+from the current function (which must itself return an error union).
 
 ```rust
-fn load_config(path: []chr) -> !Config
+fn load_config(path: []chr) -> err!Config
 {
-    data := try read_file(path)    # if read_file fails, return its error
-    cfg  := try parse_config(data) # if parse fails, return its error
+    data := try read_file(path)     # propagate on failure
+    cfg  := try parse_config(data)  # propagate on failure
     ret cfg
 }
 ```
 
-`try` is shorthand for:
+`try` desugars to:
 ```rust
 val := expr catch |e| { ret e }
 ```
@@ -571,82 +569,71 @@ val := expr catch |e| { ret e }
 ### `catch` — Handle the Error
 
 `catch` is a postfix operator on any error union expression.
-Two forms:
 
 ```rust
-# 1. fallback value — evaluated only on error
+# fallback value — used on error, must match the success type
 count := parse_int(s) catch 0
 name  := read_name()  catch "unknown"
 
-# 2. block with error capture |e|
+# block with error capture
 data := read_file(path) catch |e| {
-    @pl("failed to read: " + path)
-    ret undef  # or some default
+    @pl("read failed")
+    ret undef
 }
 ```
 
-The catch block must produce a value of the same type as the success branch,
-or exit the current scope (`ret`, `@panic`, etc.).
+The catch block must either produce a value of the success type or exit the
+scope (`ret`, `@panic`, etc.).
 
 ### `if` with Error Union Capture
-
-When you want to branch on success vs. error without `try` or `catch`:
 
 ```rust
 if open_file(path) |f| {
     defer io.close(f)
-    # use f here
+    # f is the unwrapped File value
 } else |e| {
     @pl("open failed")
 }
 ```
 
-The `|f|` captures the unwrapped success value.
-The `|e|` in the `else` arm captures the error.
-Both captures are optional — you can write `else {}` to ignore the error.
+`|f|` captures the success value. `|e|` captures the error.
+`else {}` is valid if you want to silently ignore the error.
 
 ### `errdefer` — Cleanup on Error Path Only
 
-`errdefer` is like `defer` but only executes if the scope exits with an error.
-Useful for rolling back partial initialization.
+Runs at scope exit only if the scope exits with an error. LIFO like `defer`.
 
 ```rust
-fn init_system() -> !System
+fn init_system() -> err!System
 {
     s := try System.alloc()
-    errdefer s.free()           # only runs if we return an error below
+    errdefer s.free()       # skipped on success, runs on any error below
 
-    try s.load_config()         # if this fails, s.free() is called
-    try s.connect()             # if this fails, s.free() is called
-
-    ret s                       # success: errdefer is skipped
+    try s.load_config()
+    try s.connect()
+    ret s
 }
 ```
 
 ### Full Example
 
 ```rust
-errset AppError {
-    ConfigMissing,
-    BadInput,
-}
+err AppError { ConfigMissing, BadInput }
 
 fn parse_args(argc: i32) -> AppError!i32
 {
-    if argc < 2 {
-        ret error.BadInput
-    }
+    if argc < 2 { ret AppError.BadInput }
     ret argc - 1
 }
 
-fn run() -> !void
+fn run() -> err!void
 {
-    count := try parse_args(1)
+    _ := try parse_args(1)
 
-    path := try io.open("data.bin", .Read) catch |e| {
-        ret error.ConfigMissing
+    f := io.open("data.bin", .Read) catch |e| {
+        ret AppError.ConfigMissing
     }
-    defer io.close(path)
+    defer io.close(f)
 
     @pl("ok")
 }
@@ -660,5 +647,5 @@ fn main() -> void
 }
 ```
 
-Note: `main` returns `void`, not `!void`. Errors from `run()` must be
-handled explicitly at the top level rather than propagated out of main.
+`main` returns `void`. Top-level errors must be caught explicitly rather
+than propagated out of main.

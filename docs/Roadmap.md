@@ -128,9 +128,9 @@ No re-exports in v1; modules are flat namespaces.
 Zig-style error unions. See Notes.md § Error Handling for the full spec.
 
 Summary:
-- `errset Name { Foo, Bar }` defines a named error set
-- `!T` / `ErrSet!T` return types declare a function can fail
-- `ret error.Name` returns an error value
+- `err Name { FOO, BAR }` defines a named error set (`err` is the keyword)
+- `err!T` generic union, `MyErrors!T` named set, `err.NAME!T` single error
+- `ret err.NAME` / `ret MyErrors.NAME` returns an error value
 - `try expr` propagates an error to the caller
 - `catch` handles an error inline (fallback value or `|e|` block)
 - `if expr |val| { } else |e| { }` branches on success/error
