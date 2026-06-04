@@ -492,3 +492,173 @@ fn main() -> void
     @cout << "X = " << x:.3 << @endl
 }
 ```
+
+## Error Handling
+
+Oleren uses Zig's error union model directly. Errors are values, not exceptions.
+There is no runtime overhead and no hidden control flow.
+
+### Error Sets
+
+An error set is a named group of possible errors, similar to an enum.
+
+```rust
+errset FileError {
+    NotFound,
+    PermDenied,
+    ReadFail,
+}
+
+errset NetError {
+    Timeout,
+    Refused,
+    BadAddr,
+}
+```
+
+### Error Union Return Types
+
+`!T` means the function returns either `T` or any error (`anyerror!T`).
+`ErrSet!T` means the function returns either `T` or an error from `ErrSet`.
+
+```rust
+fn read_file(path: []chr) -> ![]u8         # anyerror union
+fn open(path: []chr) -> FileError!File     # specific error set
+fn init() -> !void                         # can fail, returns nothing on success
+fn get_count() -> !i32                     # can fail, returns i32 on success
+```
+
+A function that calls another `!T` function must itself return an error union,
+unless it handles the error with `catch`.
+
+### Returning Errors
+
+```rust
+fn validate(x: i32) -> !void
+{
+    if x < 0 {
+        ret error.InvalidInput    # return a named error value
+    }
+    if x > 1000 {
+        ret error.OutOfRange
+    }
+}
+```
+
+Errors live in the `error` namespace. You do not need to pre-declare them
+in an errset to use them — bare `error.Name` values belong to `anyerror`.
+
+### `try` — Propagate Up the Call Stack
+
+`try expr` evaluates `expr`. If it is an error, the error is immediately
+returned from the current function. The current function must return an
+error union type.
+
+```rust
+fn load_config(path: []chr) -> !Config
+{
+    data := try read_file(path)    # if read_file fails, return its error
+    cfg  := try parse_config(data) # if parse fails, return its error
+    ret cfg
+}
+```
+
+`try` is shorthand for:
+```rust
+val := expr catch |e| { ret e }
+```
+
+### `catch` — Handle the Error
+
+`catch` is a postfix operator on any error union expression.
+Two forms:
+
+```rust
+# 1. fallback value — evaluated only on error
+count := parse_int(s) catch 0
+name  := read_name()  catch "unknown"
+
+# 2. block with error capture |e|
+data := read_file(path) catch |e| {
+    @pl("failed to read: " + path)
+    ret undef  # or some default
+}
+```
+
+The catch block must produce a value of the same type as the success branch,
+or exit the current scope (`ret`, `@panic`, etc.).
+
+### `if` with Error Union Capture
+
+When you want to branch on success vs. error without `try` or `catch`:
+
+```rust
+if open_file(path) |f| {
+    defer io.close(f)
+    # use f here
+} else |e| {
+    @pl("open failed")
+}
+```
+
+The `|f|` captures the unwrapped success value.
+The `|e|` in the `else` arm captures the error.
+Both captures are optional — you can write `else {}` to ignore the error.
+
+### `errdefer` — Cleanup on Error Path Only
+
+`errdefer` is like `defer` but only executes if the scope exits with an error.
+Useful for rolling back partial initialization.
+
+```rust
+fn init_system() -> !System
+{
+    s := try System.alloc()
+    errdefer s.free()           # only runs if we return an error below
+
+    try s.load_config()         # if this fails, s.free() is called
+    try s.connect()             # if this fails, s.free() is called
+
+    ret s                       # success: errdefer is skipped
+}
+```
+
+### Full Example
+
+```rust
+errset AppError {
+    ConfigMissing,
+    BadInput,
+}
+
+fn parse_args(argc: i32) -> AppError!i32
+{
+    if argc < 2 {
+        ret error.BadInput
+    }
+    ret argc - 1
+}
+
+fn run() -> !void
+{
+    count := try parse_args(1)
+
+    path := try io.open("data.bin", .Read) catch |e| {
+        ret error.ConfigMissing
+    }
+    defer io.close(path)
+
+    @pl("ok")
+}
+
+fn main() -> void
+{
+    run() catch |e| {
+        @pf("fatal: {}\n", e)
+        @panic("init failed")
+    }
+}
+```
+
+Note: `main` returns `void`, not `!void`. Errors from `run()` must be
+handled explicitly at the top level rather than propagated out of main.

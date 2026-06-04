@@ -123,32 +123,19 @@ No re-exports in v1; modules are flat namespaces.
 
 ---
 
-### 4. Error Handling
+### 4. Error Handling — RESOLVED
 
-Nothing defined. This is a critical design choice. Options:
+Zig-style error unions. See Notes.md § Error Handling for the full spec.
 
-**A) Return-value errors (Go-style)**
-```rust
-fn read_file(path: []chr) -> ([]u8, err)
-data, e := read_file("x.bin")
-if e != nil { ... }
-```
-
-**B) Result type (Rust-style)**
-```rust
-fn read_file(path: []chr) -> Result<[]u8>
-when read_file("x.bin") {
-    .Ok(data) => ...,
-    .Err(e)   => ...,
-}
-```
-
-**C) Panic-only (no recoverable errors)**
-Functions either succeed or call `@panic(msg)`. Caller is responsible for
-checking preconditions. Simplest; fits the low-level media use case.
-
-Recommendation: **C for v1** (keep it simple), with `@panic(msg)` and
-`@assert(cond, msg)` builtins. Add Result later if needed.
+Summary:
+- `errset Name { Foo, Bar }` defines a named error set
+- `!T` / `ErrSet!T` return types declare a function can fail
+- `ret error.Name` returns an error value
+- `try expr` propagates an error to the caller
+- `catch` handles an error inline (fallback value or `|e|` block)
+- `if expr |val| { } else |e| { }` branches on success/error
+- `errdefer` runs cleanup only on the error path
+- `main` returns `void`; top-level errors must be caught explicitly
 
 ---
 
