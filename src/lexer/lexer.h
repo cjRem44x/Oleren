@@ -1,0 +1,55 @@
+#ifndef OLRN_LEXER_H
+#define OLRN_LEXER_H
+
+typedef enum {
+    /* literals */
+    TOK_INT_LIT, TOK_FLOAT_LIT, TOK_STR_LIT, TOK_CHAR_LIT,
+
+    /* keywords */
+    TOK_FN, TOK_RET, TOK_IF, TOK_ELIF, TOK_ELSE,
+    TOK_FOR, TOK_WHILE, TOK_LOOP, TOK_WHEN,
+    TOK_STRUCT, TOK_ENUM, TOK_UNN, TOK_DEFER,
+    TOK_PUB, TOK_VOID, TOK_TRUE, TOK_FALSE,
+    TOK_UNDEF, TOK_MUT, TOK_IMU, TOK_STATIC,
+
+    /* identifiers / builtins */
+    TOK_IDENT,
+    TOK_BUILTIN, /* @name */
+
+    /* symbols */
+    TOK_LPAREN, TOK_RPAREN,
+    TOK_LBRACE, TOK_RBRACE,
+    TOK_LBRACKET, TOK_RBRACKET,
+    TOK_COMMA, TOK_DOT, TOK_COLON, TOK_SEMICOLON,
+    TOK_ARROW,      /* -> */
+    TOK_FAT_ARROW,  /* => */
+    TOK_PLUS, TOK_MINUS, TOK_STAR, TOK_SLASH, TOK_PERCENT,
+    TOK_AMP, TOK_CARET, TOK_PIPE, TOK_BANG,
+    TOK_EQ, TOK_EQEQ, TOK_NEQ,
+    TOK_LT, TOK_GT, TOK_LEQ, TOK_GEQ,
+    TOK_WALRUS,    /* := */
+    TOK_DOTDOT,    /* .. */
+    TOK_DOTDOTEQ,  /* ..= */
+
+    TOK_EOF,
+    TOK_ERROR,
+} TokenType;
+
+typedef struct {
+    TokenType   type;
+    const char *start; /* pointer into source buffer */
+    int         len;
+    int         line;
+} Token;
+
+typedef struct {
+    const char *src;
+    int         pos;
+    int         line;
+} Lexer;
+
+void        lexer_init(Lexer *l, const char *src);
+Token       lexer_next(Lexer *l);
+const char *tok_type_name(TokenType t);
+
+#endif /* OLRN_LEXER_H */
