@@ -625,6 +625,53 @@ fn main() -> void
 }
 ```
 
+## Builtins
+
+All builtins use the `@` prefix and are resolved at compile time.
+
+```rust
+# ── Output ────────────────────────────────────────────
+@pl(val)                   # print line (Java-style concat with +)
+@pf("fmt {x}\n", x)        # printf-style formatted print
+@cout << val << @endl      # C++ stream style
+
+# ── Input ─────────────────────────────────────────────
+input := @cin("prompt: ")  # read line from stdin, returns str (must @free)
+
+# ── Memory ────────────────────────────────────────────
+@alo(T)                    # allocate heap space for type T, returns *T
+@free(ptr)                 # free heap allocation
+@sizeof(T)                 # size of type in bytes -> i64
+@alignof(T)                # alignment of type -> i64
+
+# ── Types ─────────────────────────────────────────────
+@type(val)                 # compile-time type of val (used with when T {})
+@cast(T, val)              # explicit type cast
+
+# ── Random ────────────────────────────────────────────
+@rng(T, low, high)         # random value of type T in range [low, high] inclusive
+
+n  := @rng(i32, 0, 100)    # random i32 from 0 to 100
+f  := @rng(f32, 0.0, 1.0)  # random f32 from 0.0 to 1.0
+b  := @rng(i64, -50, 50)   # random i64 from -50 to 50
+
+# ── Assertions / Safety ───────────────────────────────
+@assert(cond, "msg")       # debug assertion; no-op in release builds
+@panic("msg")              # immediate abort with message
+@unreachable()             # marks a code path that must never be reached
+
+# ── Math ──────────────────────────────────────────────
+@sqrt(x)                   # square root
+@abs(x)                    # absolute value
+@min(a, b)                 # minimum of two values
+@max(a, b)                 # maximum of two values
+@clamp(v, lo, hi)          # clamp v to [lo, hi]
+
+# ── Memory ops ────────────────────────────────────────
+@memcpy(dst, src, n)       # copy n bytes from src to dst
+@memset(ptr, val, n)       # set n bytes at ptr to val
+```
+
 ## Error Handling
 
 Oleren uses Zig's error union model. Errors are values, not exceptions.

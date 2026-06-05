@@ -134,21 +134,25 @@ Summary:
 
 ---
 
-### 5. Missing Builtins
+### 5. Builtins — RESOLVED
+
+All builtins documented in Notes.md § Builtins.
 
 | Builtin | Purpose |
 |---|---|
+| `@rng(T, low, high)` | Random value of type T in [low, high] inclusive |
 | `@cast(T, val)` | Explicit type coercion |
 | `@sizeof(T)` | Size of type in bytes |
 | `@alignof(T)` | Alignment of type |
 | `@assert(cond, msg)` | Debug assertion; no-op in release |
 | `@panic(msg)` | Immediate abort with message |
-| `@type(val)` | Already noted; return type as string |
+| `@unreachable()` | Marks a path that must never be reached |
+| `@type(val)` | Compile-time type of val |
 | `@min(a,b)` / `@max(a,b)` | Scalar min/max |
 | `@clamp(v,lo,hi)` | Clamp value to range |
+| `@sqrt(x)` / `@abs(x)` | Scalar math |
 | `@memcpy(dst,src,n)` | Raw memory copy |
 | `@memset(ptr,val,n)` | Raw memory set |
-| `@sqrt(x)` / `@abs(x)` | Scalar math |
 
 ---
 
