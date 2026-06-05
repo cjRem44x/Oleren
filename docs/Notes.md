@@ -346,6 +346,51 @@ when X {
 
 ```
 
+## Defer
+
+`defer` works identically to Zig.
+
+- Runs at the end of the **enclosing block** (not function exit)
+- Multiple defers in the same block run **LIFO** (last declared, first run)
+- The expression is **evaluated when it runs** (end of scope), not at declaration
+- Both single-expression and block forms are valid
+- `errdefer` runs only on the error path — see § Error Handling
+
+```rust
+# single expression
+defer @free(ptr)
+defer win.close()
+
+# block form
+defer {
+    conn.flush()
+    conn.close()
+}
+
+# LIFO order
+{
+    a := @alo(Foo)
+    defer @free(a)     # runs second
+    b := @alo(Bar)
+    defer @free(b)     # runs first
+}                      # @free(b) then @free(a)
+
+# block scope — defer runs when its block ends, not at function exit
+fn foo()
+{
+    {
+        buf := @alo(u8)
+        defer @free(buf)   # freed here when inner block exits
+    }
+    # buf is already freed here
+}
+
+# expression evaluated at execution time, not declaration
+x :i32 = 1
+defer @pl(x)    # prints 2, not 1
+x = 2
+```
+
 ## Heap Allocation and Pointers
 
 ```rust

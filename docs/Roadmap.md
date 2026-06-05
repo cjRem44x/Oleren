@@ -312,11 +312,8 @@ fn take_foo(f: Foo) {}
 take_foo(.{.x=0, .y=0})           # type inferred from param
 ```
 
-**`defer` full semantics.**
-Currently only shown with `@free`. Full rules needed:
-- Executes at end of enclosing *block* scope, not function scope.
-- Multiple defers in the same block execute in LIFO order.
-- Defer captures the expression at the point of declaration.
+**`defer` semantics — RESOLVED.** Works identically to Zig:
+block scope, LIFO, expression evaluated at execution time, block form supported.
 
 ---
 
