@@ -302,15 +302,8 @@ mut i32: x=0, y=0, width=800, height=600   # group, same type
 x :i32 = 0                                  # single
 ```
 
-**Anonymous struct init (`.{}`).**
-Used throughout but never formally defined.
-Rule: `.{...}` expands to the type expected by the enclosing context.
-```rust
-foo : Foo = .{.x = 1, .y = 2.0}   # type known from decl
-arr : []Foo = { .{.x=0, .y=0}, .{.x=1, .y=1} }
-fn take_foo(f: Foo) {}
-take_foo(.{.x=0, .y=0})           # type inferred from param
-```
+**Anonymous struct init (`.{}`) — RESOLVED.** Works identically to Zig.
+Type inferred from context; compiler warns if type cannot be determined.
 
 **`defer` semantics — RESOLVED.** Works identically to Zig:
 block scope, LIFO, expression evaluated at execution time, block form supported.

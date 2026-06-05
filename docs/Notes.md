@@ -635,6 +635,33 @@ struct C_Struct {
 my_struct := C_Struct{.var1=45, .var2=45, ...} # standard means of init data fields in struct
 ```
 
+### Anonymous Struct Init — `.{}`
+
+Works identically to Zig. When the type is known from context, `.{}`
+expands to a full struct init without repeating the type name.
+If the type cannot be determined, the compiler emits a warning.
+
+```rust
+# type known from declaration
+foo :Foo = .{.x=1, .y=2.0}
+
+# type known from array element type
+arr :[]Foo = { .{.x=0, .y=0}, .{.x=1, .y=1} }
+
+# type known from function parameter
+fn take_foo(f: Foo) {}
+take_foo(.{.x=0, .y=0})
+
+# type known from pointer target
+p.* = .{.name="john", .age=23}
+
+# no context — compiler warns, use explicit form instead
+x := .{.x=1, .y=2}        # warn: type unknown
+x := Foo{.x=1, .y=2}      # explicit, always safe
+```
+
+Fields are named (`.field=val`), any order, all fields must be specified.
+
 ## Expressions
 Oleren does not use `;` because expr are only suppose to use one line, unless you have a series of `,` in the declaration.
 ```rust
