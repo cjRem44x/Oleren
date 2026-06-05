@@ -294,19 +294,15 @@ Design deferred; spec when needed.
 
 ### 10. Syntax Gaps to Resolve
 
-**Multi-declaration inconsistency.**
-Two styles appear in Notes.md — pick one and remove the other:
-```rust
-# Style A (used in var section)
-mut i32: x = 0, y = 44, z = 543
+**Multi-declaration — RESOLVED.**
+Both forms are intentional and serve different purposes:
+- `:T=` / `:=` — single variable declaration
+- `mut T: a=v, b=v, ...` / `imu T: a=v, b=v, ...` — group of same-type vars in one expression
 
-# Style B (used everywhere else)
-x :i32 = 0
-y :i32 = 44
-z :i32 = 543
+```rust
+mut i32: x=0, y=0, width=800, height=600   # group, same type
+x :i32 = 0                                  # single
 ```
-Recommendation: **Style B only**. Style A's `mut` keyword conflicts with the
-`:=` / `:type=` system and adds a second declaration grammar for no gain.
 
 **Anonymous struct init (`.{}`).**
 Used throughout but never formally defined.

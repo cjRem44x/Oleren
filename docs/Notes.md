@@ -126,12 +126,37 @@ fn main() -> void
 }
 ```
 
-Using multi-declaration,
+### Single declaration (one variable)
+
+`:T=` and `:=` are for one variable per expression.
 
 ```rust
-mut i32: x = 0. y = 44, z = 543 # oneline, multi mutable def
+x :i32 = 0       # explicit mutable
+x := 0           # implicit mutable (infers i64)
 
-imu f32: pi = 3.14, w = -5443.45 # online, multi immutable def
+x :i32: 0        # explicit immutable
+x :: 0           # implicit immutable (infers i64)
+```
+
+### Multi-declaration (multiple variables, same type)
+
+When you need several variables of the same type, use `mut T:` or `imu T:`.
+This is one expression defining a group — cleaner than repeating the type.
+
+```rust
+mut i32: x=0, y=0, height=0, width=0, vx=0, vy=0
+
+imu f32: pi=3.14, e=2.71, tau=6.28
+```
+
+Rule: all variables in the group share the same type and the same
+mutability (`mut` = mutable, `imu` = immutable). Each gets its own
+initializer. The group is one expression — no `;` needed between vars.
+
+```rust
+# real usage
+mut i32: x=0, y=0, width=800, height=600
+myColor :mk.Color = ...       # single, different type — back to :T= form
 ```
 
 ### Arrays
