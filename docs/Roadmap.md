@@ -314,6 +314,14 @@ Currently only shown with `@free`. Full rules needed:
 
 ---
 
+### 10. Generics — RESOLVED
+
+No angle-bracket generics. Uses `any` parameter type + `@type(val)` + `when T { }` dispatch.
+Compiler monomorphizes per unique concrete type — no runtime overhead.
+See Notes.md § Generics.
+
+---
+
 ## Compiler Implementation Order
 
 Once the above is designed, implementation should proceed in this order:
@@ -322,9 +330,10 @@ Once the above is designed, implementation should proceed in this order:
 2. `if / when` as expressions
 3. Variable declarations (`x := ...`, `x :T = ...`, `:T:`)
 4. Type casting (`@cast`)
-5. Module/import system
-6. `extern` FFI declarations
-7. `std.io` (file open/read/write/close)
-8. `std.math` (scalar + Vec2/3/4, Mat4)
-9. `std.mem` (arena allocator)
-10. `std.time` (game loop timer)
+5. `any` type + `@type()` + `when T` dispatch
+6. Import system (`import ( x = "path", lib = @name )`)
+7. `extern` FFI declarations
+8. `std.io` (file open/read/write/close)
+9. `std.math` (scalar + Vec2/3/4, Mat4)
+10. `std.mem` (arena allocator)
+11. `std.time` (game loop timer)

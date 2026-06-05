@@ -363,7 +363,96 @@ x := {1,2,3,4} # always => []i64
 x := {32.1, 343.5, ...} # always => []f64
 ```
 
-## Enums
+## Generics — `any` and `@type`
+
+Oleren does not use angle-bracket generics. Instead, `any` allows a parameter
+to accept any type, and `@type(val)` returns the compile-time type of a value.
+The compiler monomorphizes — a separate instantiation is generated for each
+unique concrete type the function is called with.
+
+### `any` parameter type
+
+```rust
+fn print_val(x: any)
+{
+    T :: @type(x)     # T is an immutable compile-time type constant
+    when T {
+        i64    => @pf("{}\n", x),
+        f64    => @pf("{:.4}\n", x),
+        str    => @pf("{}\n", x),
+        bool   => @pf("{}\n", x),
+        _      => @pl("unsupported type"),
+    }
+}
+
+print_val(42)          # T = i64
+print_val(3.14)        # T = f64
+print_val("hello")     # T = str
+```
+
+### Multiple `any` parameters
+
+Each `any` parameter can be a different type at the call site.
+
+```rust
+fn eq(a: any, b: any) -> bool
+{
+    TA :: @type(a)
+    TB :: @type(b)
+    if TA != TB { ret false }
+    ret a == b
+}
+```
+
+### `any` return type
+
+A function can return `any` when the output type depends on the input.
+
+```rust
+fn clamp_val(val: any, lo: any, hi: any) -> any
+{
+    T :: @type(val)
+    when T {
+        i32 => ret @clamp(val, lo, hi),
+        f32 => ret @clamp(val, lo, hi),
+        f64 => ret @clamp(val, lo, hi),
+        _   => @panic("clamp_val: unsupported type"),
+    }
+}
+```
+
+### `any` in structs
+
+Struct fields can be `any` for type-flexible containers. The type is fixed
+per instance at the point of initialization.
+
+```rust
+struct Pair {
+    first:  any,
+    second: any,
+}
+
+p := Pair{.first = 42, .second = "hello"}
+T :: @type(p.first)    # i64
+```
+
+### `@type` comparison
+
+`@type(x)` values can be compared directly:
+
+```rust
+fn same_type(a: any, b: any) -> bool
+{
+    ret @type(a) == @type(b)
+}
+```
+
+### Note on compile-time dispatch
+
+Because `when T { ... }` dispatches on a compile-time constant, branches for
+unreachable types are stripped at compile time — there is no runtime overhead.
+If a `when T` has no `_` default and an unsupported type is passed, it is a
+compile error.
 
 ```rust
 # Basic

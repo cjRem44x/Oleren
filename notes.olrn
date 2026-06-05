@@ -1,27 +1,17 @@
-Because I am a big fan of Raylib and its structure, I would like to implement this here.
-However, this does not mean I am asking to compile into Raylib.
-I still would like raw performance under the hood wether that is done with OpenGL, SDL2,
-Vulkan, and so on.
+New TYPE,
 
-Malkur is the name of our builtin gamdev lib.
+`any` allows to pass any type.
 
 ```
-mk :: @malkur # alias a shorter call
-
-fn main() -> !void
+fn foo(x: any)
 {
-
-    win := mk.init_window(width, height, title)
-    defer win.close_window()
-    win.set_fps(60)
-    #...other raylib style inits
-
-    # big fan of raylibs core loop.
-    while win.should_close()
-    {
-        win.draw()
-            win.clear_bg(win.colors.black)
-        win.end_draw()
+    T :: @type(x)
+    when T {
+        i64 => ...,
+        i32 => ...,
+        str =>...,
+        MyStruct => ...,
+        ...
+        _ => ...,
     }
-}
 ```
