@@ -14,44 +14,114 @@ Naming convention across all stdlib:
 import ( io = @file )
 ```
 
+Four core types: `file_wr` and `file_rd` for text, `byte_wr` and `byte_rd`
+for binary. Open the one you need directly — no raw handle required.
+
+---
+
+### `file_wr` — Text File Writer
+
 ```rust
+wr := try io.file_wr("out.txt")        # create / overwrite
+wr := try io.file_wr_app("out.txt")    # append mode
+defer wr.close()
 
-# ── Open / Close ──────────────────────────────────────
-f := try file.open("data.bin", .Read)
-defer file.close(f)
+try wr.write("hello ")                 # write string (no newline)
+try wr.write_ln("world")               # write string + newline
+try wr.write_fmt("score: {}\n", score) # formatted write
+try wr.flush()                         # flush internal buffer to disk
+```
 
-# modes: .Read  .Write  .Append  .ReadWrite  .WriteCreate
-f := try file.open_ex("data.bin", .Write, .Trunc)   # extra flags
+---
 
-# ── Whole-file helpers ────────────────────────────────
-bytes := try file.read_all(f)           -> []u8
-text  := try file.read_all_str(f)       -> str
-lines := try file.read_lines(f)         -> []str
-try file.write_all(f, bytes)
-try file.write_str(f, "hello\n")
+### `file_rd` — Text File Reader
 
-# ── Streaming reads ───────────────────────────────────
-n    := try file.read(f, buf)           # read up to buf.len bytes, ret actual n
-line := try file.read_ln(f)             -> str   # one line, strips newline
+```rust
+rd := try io.file_rd("in.txt")
+defer rd.close()
 
-# ── Streaming writes ──────────────────────────────────
-try file.write(f, buf)
-try file.write_ln(f, "hello")
+line  := try rd.read_ln()    -> str    # read one line, strips newline
+text  := try rd.read_all()   -> str    # entire file as one str
+lines := try rd.read_lines() -> []str  # entire file as []str
 
-# ── Seek / Tell ───────────────────────────────────────
-try file.seek(f, 0, .Start)             # .Start  .Cur  .End
-pos := file.tell(f)                     -> i64
-sz  := file.size(f)                     -> i64
+# iterate line by line
+while rd.has_ln() {
+    line := try rd.read_ln()
+    @pl(line)
+}
+```
 
-# ── Buffered wrapper ──────────────────────────────────
-wr := file.get_wr(f)                    # buffered writer
-try wr.write(buf)
-try wr.write_ln("line")
-try wr.flush()
+---
 
-rd := file.get_rd(f)                    # buffered reader
-chunk := try rd.read(n: i32)            -> []u8
-line  := try rd.read_ln()               -> str
+### `byte_wr` — Binary Byte Writer
+
+```rust
+bwr := try io.byte_wr("data.bin")      # create / overwrite
+bwr := try io.byte_wr_app("data.bin")  # append mode
+defer bwr.close()
+
+try bwr.write(buf: []u8)               # write raw bytes
+try bwr.write_u8(val: u8)
+try bwr.write_u16(val: u16)
+try bwr.write_u32(val: u32)
+try bwr.write_u64(val: u64)
+try bwr.write_i8(val: i8)
+try bwr.write_i16(val: i16)
+try bwr.write_i32(val: i32)
+try bwr.write_i64(val: i64)
+try bwr.write_f32(val: f32)
+try bwr.write_f64(val: f64)
+try bwr.flush()
+
+# seek (useful for writing headers after data)
+try bwr.seek(pos: i64, .Start)         # .Start  .Cur  .End
+pos := bwr.tell()  -> i64
+```
+
+---
+
+### `byte_rd` — Binary Byte Reader
+
+```rust
+brd := try io.byte_rd("data.bin")
+defer brd.close()
+
+buf   := try brd.read(n: i32) -> []u8  # read n bytes
+b     := try brd.read_u8()    -> u8
+b     := try brd.read_u16()   -> u16
+b     := try brd.read_u32()   -> u32
+b     := try brd.read_u64()   -> u64
+b     := try brd.read_i8()    -> i8
+b     := try brd.read_i16()   -> i16
+b     := try brd.read_i32()   -> i32
+b     := try brd.read_i64()   -> i64
+b     := try brd.read_f32()   -> f32
+b     := try brd.read_f64()   -> f64
+
+ok  := brd.has_next() -> bool           # false at EOF
+sz  := brd.size()     -> i64
+rem := brd.remaining() -> i64           # bytes left to read
+
+# seek (random access binary files)
+try brd.seek(pos: i64, .Start)
+pos := brd.tell() -> i64
+```
+
+---
+
+### Whole-file Shortcuts
+
+For cases where you just want to read/write in one call:
+
+```rust
+# read
+bytes := try io.read_bytes("data.bin") -> []u8
+text  := try io.read_text("notes.txt") -> str
+lines := try io.read_lines("log.txt")  -> []str
+
+# write
+try io.write_bytes("data.bin", buf)
+try io.write_text("notes.txt", "hello\n")
 ```
 
 ### Filesystem
