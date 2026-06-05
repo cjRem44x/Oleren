@@ -1,4 +1,5 @@
 #include "codegen.h"
+#include "../lexer/lexer.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -132,9 +133,73 @@ static void emit_expr(Codegen *cg, AstNode *node)
             }
             fputc(')', cg->out);
             break;
-        /* builtins used as expressions (rare) fall through to name */
         case NODE_BUILTIN_CALL:
-            emit_builtin_stmt(cg, node);
+            /* value builtins (@cout, @endl) have no arg list */
+            if (node->call.args.count == 0) {
+                if      (strcmp(node->call.name, "cout") == 0) fputs("std::cout", cg->out);
+                else if (strcmp(node->call.name, "endl") == 0) fputs("std::endl", cg->out);
+                else    fprintf(cg->out, "/* @%s */", node->call.name);
+            } else {
+                emit_builtin_stmt(cg, node);
+            }
+            break;
+        case NODE_BINARY: {
+            /* wrap in parens so precedence is explicit in emitted C++ */
+            fputc('(', cg->out);
+            emit_expr(cg, node->binary.left);
+            switch (node->binary.op) {
+                case TOK_PLUS:    fputs(" + ",  cg->out); break;
+                case TOK_MINUS:   fputs(" - ",  cg->out); break;
+                case TOK_STAR:    fputs(" * ",  cg->out); break;
+                case TOK_SLASH:   fputs(" / ",  cg->out); break;
+                case TOK_PERCENT: fputs(" % ",  cg->out); break;
+                case TOK_EQEQ:   fputs(" == ", cg->out); break;
+                case TOK_NEQ:    fputs(" != ", cg->out); break;
+                case TOK_LT:     fputs(" < ",  cg->out); break;
+                case TOK_GT:     fputs(" > ",  cg->out); break;
+                case TOK_LEQ:    fputs(" <= ", cg->out); break;
+                case TOK_GEQ:    fputs(" >= ", cg->out); break;
+                case TOK_AND_KW: fputs(" && ", cg->out); break;
+                case TOK_OR_KW:  fputs(" || ", cg->out); break;
+                case TOK_AMP:    fputs(" & ",  cg->out); break;
+                case TOK_PIPE:   fputs(" | ",  cg->out); break;
+                case TOK_CARET:  fputs(" ^ ",  cg->out); break;
+                case TOK_LSHIFT: fputs(" << ", cg->out); break;
+                case TOK_RSHIFT: fputs(" >> ", cg->out); break;
+                default: fputc('?', cg->out); break;
+            }
+            emit_expr(cg, node->binary.right);
+            fputc(')', cg->out);
+            break;
+        }
+        case NODE_UNARY:
+            switch (node->unary.op) {
+                case TOK_MINUS: fputc('-', cg->out); break;
+                case TOK_BANG:  fputc('!', cg->out); break;
+                case TOK_AMP:   fputc('&', cg->out); break;
+                default: break;
+            }
+            emit_expr(cg, node->unary.operand);
+            break;
+        case NODE_FIELD:
+            emit_expr(cg, node->field.target);
+            fprintf(cg->out, ".%s", node->field.name);
+            break;
+        case NODE_FIELD_PTR:
+            emit_expr(cg, node->field.target);
+            fprintf(cg->out, "->%s", node->field.name);
+            break;
+        case NODE_SUBSCRIPT:
+            emit_expr(cg, node->subscript.target);
+            fputc('[', cg->out);
+            emit_expr(cg, node->subscript.index);
+            fputc(']', cg->out);
+            break;
+        case NODE_DEREF:
+            /* Oleren p.* == C++ (*p) */
+            fputs("(*", cg->out);
+            emit_expr(cg, node->deref.target);
+            fputc(')', cg->out);
             break;
         default: break;
     }

@@ -10,6 +10,12 @@ typedef enum {
     NODE_BUILTIN_CALL,
     NODE_CALL,
     NODE_RET,
+    NODE_BINARY,      /* left op right          */
+    NODE_UNARY,       /* op operand (prefix)    */
+    NODE_FIELD,       /* target.name            */
+    NODE_FIELD_PTR,   /* target->name           */
+    NODE_SUBSCRIPT,   /* target[index]          */
+    NODE_DEREF,       /* target.* (Oleren deref)*/
     NODE_STR_LIT,
     NODE_INT_LIT,
     NODE_FLOAT_LIT,
@@ -61,6 +67,21 @@ struct AstNode {
 
         /* NODE_RET */
         struct { AstNode *value; /* NULL for bare ret */ } ret;
+
+        /* NODE_BINARY */
+        struct { int op; AstNode *left; AstNode *right; } binary;
+
+        /* NODE_UNARY */
+        struct { int op; AstNode *operand; } unary;
+
+        /* NODE_FIELD / NODE_FIELD_PTR */
+        struct { AstNode *target; char *name; } field;
+
+        /* NODE_SUBSCRIPT */
+        struct { AstNode *target; AstNode *index; } subscript;
+
+        /* NODE_DEREF */
+        struct { AstNode *target; } deref;
 
         /* literals */
         struct { char      *value; } str_lit;

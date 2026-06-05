@@ -56,8 +56,10 @@ static char *tok_dup(Token t)
 }
 
 /* forward declarations */
-static AstNode *parse_expr(Parser *p);
+static AstNode *parse_expr_bp(Parser *p, int min_bp);
 static AstNode *parse_block(Parser *p);
+
+static AstNode *parse_expr(Parser *p) { return parse_expr_bp(p, 0); }
 
 static AstNode *parse_type(Parser *p)
 {
@@ -87,73 +89,182 @@ static void parse_arg_list(Parser *p, NodeList *args)
 {
     expect(p, TOK_LPAREN);
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
-        node_list_push(args, parse_expr(p));
+        node_list_push(args, parse_expr_bp(p, 0));
         if (!match(p, TOK_COMMA)) break;
     }
     expect(p, TOK_RPAREN);
 }
 
-static AstNode *parse_expr(Parser *p)
+/* ── Pratt parser ────────────────────────────────────────────────────────── */
+
+typedef struct { int lbp; int rbp; } OpBp;
+
+/* Binding powers for infix/postfix operators.
+   Left-associative: lbp == rbp-1.  Returns {-1,-1} if not infix. */
+static OpBp infix_bp(TokenType t)
 {
-    if (check(p, TOK_STR_LIT)) {
-        AstNode *n = ast_node_new(NODE_STR_LIT, p->cur.line);
-        n->str_lit.value = tok_dup(p->cur);
-        next_tok(p);
-        return n;
+    switch (t) {
+        case TOK_OR_KW:                              return (OpBp){ 10, 11 };
+        case TOK_AND_KW:                             return (OpBp){ 20, 21 };
+        case TOK_PIPE:                               return (OpBp){ 30, 31 };
+        case TOK_CARET:                              return (OpBp){ 40, 41 };
+        case TOK_AMP:                                return (OpBp){ 50, 51 };
+        case TOK_EQEQ: case TOK_NEQ:
+        case TOK_LT:   case TOK_GT:
+        case TOK_LEQ:  case TOK_GEQ:                return (OpBp){ 60, 61 };
+        case TOK_LSHIFT: case TOK_RSHIFT:            return (OpBp){ 70, 71 };
+        case TOK_PLUS:   case TOK_MINUS:             return (OpBp){ 80, 81 };
+        case TOK_STAR:   case TOK_SLASH:
+        case TOK_PERCENT:                            return (OpBp){ 90, 91 };
+        /* postfix: . -> [] () — highest */
+        case TOK_DOT: case TOK_ARROW:
+        case TOK_LBRACKET: case TOK_LPAREN:          return (OpBp){ 110, 111 };
+        default:                                     return (OpBp){ -1, -1 };
     }
+}
 
-    if (check(p, TOK_INT_LIT)) {
-        AstNode *n = ast_node_new(NODE_INT_LIT, p->cur.line);
+static AstNode *parse_expr_bp(Parser *p, int min_bp)
+{
+    int line = p->cur.line;
+    AstNode *left = NULL;
+
+    /* ── NUD: prefix / atoms ── */
+
+    if (match(p, TOK_LPAREN)) {
+        /* grouped expression */
+        left = parse_expr_bp(p, 0);
+        expect(p, TOK_RPAREN);
+    }
+    else if (check(p, TOK_MINUS) || check(p, TOK_BANG) || check(p, TOK_AMP)) {
+        /* unary prefix: -x  !x  &x */
+        Token op = next_tok(p);
+        AstNode *n = ast_node_new(NODE_UNARY, op.line);
+        n->unary.op      = op.type;
+        n->unary.operand = parse_expr_bp(p, 100); /* tighter than all infix */
+        left = n;
+    }
+    else if (check(p, TOK_STR_LIT)) {
+        left = ast_node_new(NODE_STR_LIT, line);
+        left->str_lit.value = tok_dup(p->cur);
+        next_tok(p);
+    }
+    else if (check(p, TOK_INT_LIT)) {
         char buf[32];
-        int len = p->cur.len < 31 ? p->cur.len : 31;
+        int  len = p->cur.len < 31 ? p->cur.len : 31;
         memcpy(buf, p->cur.start, len); buf[len] = '\0';
-        n->int_lit.value = atoll(buf);
+        left = ast_node_new(NODE_INT_LIT, line);
+        left->int_lit.value = atoll(buf);
         next_tok(p);
-        return n;
     }
-
-    if (check(p, TOK_FLOAT_LIT)) {
-        AstNode *n = ast_node_new(NODE_FLOAT_LIT, p->cur.line);
+    else if (check(p, TOK_FLOAT_LIT)) {
         char buf[32];
-        int len = p->cur.len < 31 ? p->cur.len : 31;
+        int  len = p->cur.len < 31 ? p->cur.len : 31;
         memcpy(buf, p->cur.start, len); buf[len] = '\0';
-        n->float_lit.value = atof(buf);
+        left = ast_node_new(NODE_FLOAT_LIT, line);
+        left->float_lit.value = atof(buf);
         next_tok(p);
-        return n;
     }
-
-    if (check(p, TOK_TRUE) || check(p, TOK_FALSE)) {
-        AstNode *n = ast_node_new(NODE_BOOL_LIT, p->cur.line);
-        n->bool_lit.value = check(p, TOK_TRUE) ? 1 : 0;
+    else if (check(p, TOK_TRUE) || check(p, TOK_FALSE)) {
+        left = ast_node_new(NODE_BOOL_LIT, line);
+        left->bool_lit.value = check(p, TOK_TRUE) ? 1 : 0;
         next_tok(p);
-        return n;
     }
-
-    /* builtin call: @name(args...) */
-    if (check(p, TOK_BUILTIN)) {
-        AstNode *n = ast_node_new(NODE_BUILTIN_CALL, p->cur.line);
-        n->call.name = tok_dup(next_tok(p));
-        parse_arg_list(p, &n->call.args);
-        return n;
+    else if (check(p, TOK_BUILTIN)) {
+        /* @name  or  @name(args) */
+        left = ast_node_new(NODE_BUILTIN_CALL, line);
+        left->call.name = tok_dup(next_tok(p));
+        if (check(p, TOK_LPAREN))
+            parse_arg_list(p, &left->call.args);
     }
-
-    /* identifier or function call */
-    if (check(p, TOK_IDENT)) {
+    else if (check(p, TOK_IDENT)) {
         Token name = next_tok(p);
-        if (check(p, TOK_LPAREN)) {
-            AstNode *n = ast_node_new(NODE_CALL, name.line);
-            n->call.name = tok_dup(name);
-            parse_arg_list(p, &n->call.args);
-            return n;
-        }
-        AstNode *n = ast_node_new(NODE_IDENT, name.line);
-        n->ident.name = tok_dup(name);
-        return n;
+        left = ast_node_new(NODE_IDENT, name.line);
+        left->ident.name = tok_dup(name);
+    }
+    else {
+        parse_err(p, "expected expression");
+        next_tok(p);
+        return NULL;
     }
 
-    parse_err(p, "expected expression");
-    next_tok(p);
-    return NULL;
+    /* ── LED: infix / postfix ── */
+
+    for (;;) {
+        TokenType tt  = p->cur.type;
+        OpBp      bp  = infix_bp(tt);
+        if (bp.lbp < min_bp) break;
+
+        /* function call: expr(args) */
+        if (tt == TOK_LPAREN) {
+            next_tok(p);
+            AstNode *n = ast_node_new(NODE_CALL, line);
+            /* extract callee name if it's a plain ident */
+            if (left && left->kind == NODE_IDENT) {
+                n->call.name = strdup(left->ident.name);
+                ast_free(left);
+            } else {
+                n->call.name = strdup("?");
+                ast_free(left);
+            }
+            while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
+                node_list_push(&n->call.args, parse_expr_bp(p, 0));
+                if (!match(p, TOK_COMMA)) break;
+            }
+            expect(p, TOK_RPAREN);
+            left = n;
+            continue;
+        }
+
+        /* subscript: expr[i] */
+        if (tt == TOK_LBRACKET) {
+            next_tok(p);
+            AstNode *n = ast_node_new(NODE_SUBSCRIPT, line);
+            n->subscript.target = left;
+            n->subscript.index  = parse_expr_bp(p, 0);
+            expect(p, TOK_RBRACKET);
+            left = n;
+            continue;
+        }
+
+        /* field access or deref: expr.field  or  expr.* */
+        if (tt == TOK_DOT) {
+            next_tok(p);
+            if (match(p, TOK_STAR)) {
+                AstNode *n = ast_node_new(NODE_DEREF, line);
+                n->deref.target = left;
+                left = n;
+            } else {
+                Token fname = expect(p, TOK_IDENT);
+                AstNode *n  = ast_node_new(NODE_FIELD, line);
+                n->field.target = left;
+                n->field.name   = tok_dup(fname);
+                left = n;
+            }
+            continue;
+        }
+
+        /* pointer field access: expr->field */
+        if (tt == TOK_ARROW) {
+            next_tok(p);
+            Token fname = expect(p, TOK_IDENT);
+            AstNode *n  = ast_node_new(NODE_FIELD_PTR, line);
+            n->field.target = left;
+            n->field.name   = tok_dup(fname);
+            left = n;
+            continue;
+        }
+
+        /* binary infix operators */
+        Token op    = next_tok(p);
+        AstNode *rhs = parse_expr_bp(p, bp.rbp);
+        AstNode *n  = ast_node_new(NODE_BINARY, op.line);
+        n->binary.op    = op.type;
+        n->binary.left  = left;
+        n->binary.right = rhs;
+        left = n;
+    }
+
+    return left;
 }
 
 static AstNode *parse_stmt(Parser *p)

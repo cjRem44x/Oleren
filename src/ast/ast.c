@@ -56,6 +56,25 @@ void ast_free(AstNode *node)
         case NODE_RET:
             ast_free(node->ret.value);
             break;
+        case NODE_BINARY:
+            ast_free(node->binary.left);
+            ast_free(node->binary.right);
+            break;
+        case NODE_UNARY:
+            ast_free(node->unary.operand);
+            break;
+        case NODE_FIELD:
+        case NODE_FIELD_PTR:
+            ast_free(node->field.target);
+            free(node->field.name);
+            break;
+        case NODE_SUBSCRIPT:
+            ast_free(node->subscript.target);
+            ast_free(node->subscript.index);
+            break;
+        case NODE_DEREF:
+            ast_free(node->deref.target);
+            break;
         case NODE_STR_LIT:   free(node->str_lit.value);  break;
         case NODE_IDENT:     free(node->ident.name);      break;
         default: break;
@@ -111,6 +130,32 @@ void ast_print(AstNode *node, int indent)
         case NODE_RET:
             printf("Ret\n");
             ast_print(node->ret.value, indent + 1);
+            break;
+        case NODE_BINARY:
+            printf("Binary(%d)\n", node->binary.op);
+            ast_print(node->binary.left,  indent + 1);
+            ast_print(node->binary.right, indent + 1);
+            break;
+        case NODE_UNARY:
+            printf("Unary(%d)\n", node->unary.op);
+            ast_print(node->unary.operand, indent + 1);
+            break;
+        case NODE_FIELD:
+            printf("Field(.%s)\n", node->field.name);
+            ast_print(node->field.target, indent + 1);
+            break;
+        case NODE_FIELD_PTR:
+            printf("FieldPtr(->%s)\n", node->field.name);
+            ast_print(node->field.target, indent + 1);
+            break;
+        case NODE_SUBSCRIPT:
+            printf("Subscript\n");
+            ast_print(node->subscript.target, indent + 1);
+            ast_print(node->subscript.index,  indent + 1);
+            break;
+        case NODE_DEREF:
+            printf("Deref\n");
+            ast_print(node->deref.target, indent + 1);
             break;
         case NODE_STR_LIT:   printf("StrLit(\"%s\")\n", node->str_lit.value);  break;
         case NODE_INT_LIT:   printf("IntLit(%lld)\n",   node->int_lit.value);  break;

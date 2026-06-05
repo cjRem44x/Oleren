@@ -46,6 +46,7 @@ static struct { const char *w; TokenType t; } kw_table[] = {
     {"defer",  TOK_DEFER}, {"pub",    TOK_PUB},   {"void",   TOK_VOID},
     {"true",   TOK_TRUE},  {"false",  TOK_FALSE}, {"undef",  TOK_UNDEF},
     {"mut",    TOK_MUT},   {"imu",    TOK_IMU},   {"static", TOK_STATIC},
+    {"and",    TOK_AND_KW},{"or",     TOK_OR_KW},
     {NULL, 0},
 };
 
@@ -129,8 +130,10 @@ Token lexer_next(Lexer *l)
                       if (cur(l)=='='){adv(l);return make_tok(line,TOK_DOTDOTEQ,start,3);}
                       return make_tok(line,TOK_DOTDOT,start,2);}                         return make_tok(line,TOK_DOT,      start,1);
         case '!': if (cur(l)=='='){adv(l);return make_tok(line,TOK_NEQ,      start,2);} return make_tok(line,TOK_BANG,     start,1);
-        case '<': if (cur(l)=='='){adv(l);return make_tok(line,TOK_LEQ,      start,2);} return make_tok(line,TOK_LT,       start,1);
-        case '>': if (cur(l)=='='){adv(l);return make_tok(line,TOK_GEQ,      start,2);} return make_tok(line,TOK_GT,       start,1);
+        case '<': if (cur(l)=='='){adv(l);return make_tok(line,TOK_LEQ,    start,2);}
+                  if (cur(l)=='<'){adv(l);return make_tok(line,TOK_LSHIFT,start,2);} return make_tok(line,TOK_LT,start,1);
+        case '>': if (cur(l)=='='){adv(l);return make_tok(line,TOK_GEQ,    start,2);}
+                  if (cur(l)=='>'){adv(l);return make_tok(line,TOK_RSHIFT,start,2);} return make_tok(line,TOK_GT,start,1);
         case '(': return make_tok(line, TOK_LPAREN,   start, 1);
         case ')': return make_tok(line, TOK_RPAREN,   start, 1);
         case '{': return make_tok(line, TOK_LBRACE,   start, 1);
@@ -179,6 +182,8 @@ const char *tok_type_name(TokenType t)
         case TOK_MUT:       return "mut";
         case TOK_IMU:       return "imu";
         case TOK_STATIC:    return "static";
+        case TOK_AND_KW:    return "and";
+        case TOK_OR_KW:     return "or";
         case TOK_IDENT:     return "IDENT";
         case TOK_BUILTIN:   return "BUILTIN";
         case TOK_LPAREN:    return "(";
@@ -212,6 +217,8 @@ const char *tok_type_name(TokenType t)
         case TOK_WALRUS:    return ":=";
         case TOK_DOTDOT:    return "..";
         case TOK_DOTDOTEQ:  return "..=";
+        case TOK_LSHIFT:    return "<<";
+        case TOK_RSHIFT:    return ">>";
         case TOK_EOF:       return "EOF";
         case TOK_ERROR:     return "ERROR";
         default:            return "?";

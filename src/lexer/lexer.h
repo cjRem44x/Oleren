@@ -11,6 +11,7 @@ typedef enum {
     TOK_STRUCT, TOK_ENUM, TOK_UNN, TOK_DEFER,
     TOK_PUB, TOK_VOID, TOK_TRUE, TOK_FALSE,
     TOK_UNDEF, TOK_MUT, TOK_IMU, TOK_STATIC,
+    TOK_AND_KW, TOK_OR_KW,          /* and  or  — compile to && || */
 
     /* identifiers / builtins */
     TOK_IDENT,
@@ -30,6 +31,8 @@ typedef enum {
     TOK_WALRUS,    /* := */
     TOK_DOTDOT,    /* .. */
     TOK_DOTDOTEQ,  /* ..= */
+    TOK_LSHIFT,    /* << */
+    TOK_RSHIFT,    /* >> */
 
     TOK_EOF,
     TOK_ERROR,
