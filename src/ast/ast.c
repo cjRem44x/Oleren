@@ -56,6 +56,19 @@ void ast_free(AstNode *node)
         case NODE_RET:
             ast_free(node->ret.value);
             break;
+        case NODE_IF:
+            ast_free(node->if_expr.cond);
+            ast_free(node->if_expr.then_block);
+            ast_free(node->if_expr.else_block);
+            break;
+        case NODE_WHEN:
+            ast_free(node->when_expr.subject);
+            node_list_free(&node->when_expr.arms);
+            break;
+        case NODE_WHEN_ARM:
+            ast_free(node->when_arm.pattern);
+            ast_free(node->when_arm.body);
+            break;
         case NODE_BINARY:
             ast_free(node->binary.left);
             ast_free(node->binary.right);
@@ -130,6 +143,23 @@ void ast_print(AstNode *node, int indent)
         case NODE_RET:
             printf("Ret\n");
             ast_print(node->ret.value, indent + 1);
+            break;
+        case NODE_IF:
+            printf("If\n");
+            ast_print(node->if_expr.cond,       indent + 1);
+            ast_print(node->if_expr.then_block,  indent + 1);
+            ast_print(node->if_expr.else_block,  indent + 1);
+            break;
+        case NODE_WHEN:
+            printf("When\n");
+            ast_print(node->when_expr.subject, indent + 1);
+            for (int i = 0; i < node->when_expr.arms.count; i++)
+                ast_print(node->when_expr.arms.items[i], indent + 1);
+            break;
+        case NODE_WHEN_ARM:
+            printf("WhenArm(%s)\n", node->when_arm.pattern ? "" : "default");
+            ast_print(node->when_arm.pattern, indent + 1);
+            ast_print(node->when_arm.body,    indent + 1);
             break;
         case NODE_BINARY:
             printf("Binary(%d)\n", node->binary.op);

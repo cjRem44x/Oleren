@@ -58,6 +58,8 @@ static char *tok_dup(Token t)
 /* forward declarations */
 static AstNode *parse_expr_bp(Parser *p, int min_bp);
 static AstNode *parse_block(Parser *p);
+static AstNode *parse_if_chain(Parser *p);
+static AstNode *parse_when(Parser *p);
 
 static AstNode *parse_expr(Parser *p) { return parse_expr_bp(p, 0); }
 
@@ -176,6 +178,12 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
         if (check(p, TOK_LPAREN))
             parse_arg_list(p, &left->call.args);
     }
+    else if (check(p, TOK_IF)) {
+        left = parse_if_chain(p);
+    }
+    else if (check(p, TOK_WHEN)) {
+        left = parse_when(p);
+    }
     else if (check(p, TOK_IDENT)) {
         Token name = next_tok(p);
         left = ast_node_new(NODE_IDENT, name.line);
@@ -267,9 +275,62 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
     return left;
 }
 
+/* parse_if_chain — handles if, and is called recursively for elif */
+static AstNode *parse_if_chain(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_IF, p->cur.line);
+    next_tok(p);                                  /* consume if or elif */
+    n->if_expr.cond       = parse_expr_bp(p, 0);
+    n->if_expr.then_block = parse_block(p);
+
+    if (check(p, TOK_ELIF)) {
+        n->if_expr.else_block = parse_if_chain(p); /* recurse for elif chain */
+    } else if (match(p, TOK_ELSE)) {
+        n->if_expr.else_block = parse_block(p);
+    } else {
+        n->if_expr.else_block = NULL;
+    }
+    return n;
+}
+
+/* parse a single when arm:  pattern => expr,   or   _ => expr, */
+static AstNode *parse_when_arm(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_WHEN_ARM, p->cur.line);
+
+    /* default arm: _ => ... */
+    if (check(p, TOK_IDENT) && p->cur.len == 1 && p->cur.start[0] == '_') {
+        next_tok(p);
+        n->when_arm.pattern = NULL;
+    } else {
+        n->when_arm.pattern = parse_expr_bp(p, 0);
+    }
+
+    expect(p, TOK_FAT_ARROW);
+
+    if (check(p, TOK_LBRACE)) {
+        n->when_arm.body = parse_block(p);
+    } else {
+        n->when_arm.body = parse_expr_bp(p, 0);
+    }
+    match(p, TOK_COMMA);
+    return n;
+}
+
+static AstNode *parse_when(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_WHEN, p->cur.line);
+    next_tok(p);                                  /* consume when */
+    n->when_expr.subject = parse_expr_bp(p, 0);
+    expect(p, TOK_LBRACE);
+    while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF))
+        node_list_push(&n->when_expr.arms, parse_when_arm(p));
+    expect(p, TOK_RBRACE);
+    return n;
+}
+
 static AstNode *parse_stmt(Parser *p)
 {
-    /* ret statement */
     if (check(p, TOK_RET)) {
         AstNode *n = ast_node_new(NODE_RET, p->cur.line);
         next_tok(p);
@@ -278,6 +339,8 @@ static AstNode *parse_stmt(Parser *p)
         match(p, TOK_SEMICOLON);
         return n;
     }
+    if (check(p, TOK_IF))   return parse_if_chain(p);
+    if (check(p, TOK_WHEN)) return parse_when(p);
 
     AstNode *expr = parse_expr(p);
     match(p, TOK_SEMICOLON);

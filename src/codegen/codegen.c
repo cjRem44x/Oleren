@@ -17,6 +17,10 @@ static void emit_indent(Codegen *cg)
 /* forward declarations */
 static void emit_expr(Codegen *cg, AstNode *node);
 static void emit_stmt(Codegen *cg, AstNode *node);
+static void emit_block_as_return(Codegen *cg, AstNode *block);
+static void emit_if_chain(Codegen *cg, AstNode *node, int continuation);
+static void emit_if_expr(Codegen *cg, AstNode *node);
+static void emit_when_chain(Codegen *cg, AstNode *node);
 
 /* map an Oleren type name to its C++ equivalent */
 static const char *map_type(const char *name)
@@ -201,8 +205,143 @@ static void emit_expr(Codegen *cg, AstNode *node)
             emit_expr(cg, node->deref.target);
             fputc(')', cg->out);
             break;
+        case NODE_IF:
+            emit_if_expr(cg, node);
+            break;
         default: break;
     }
+}
+
+/* last expr in block becomes a return — used inside expression IIFEs */
+static void emit_block_as_return(Codegen *cg, AstNode *block)
+{
+    int n = block->block.stmts.count;
+    for (int i = 0; i < n; i++) {
+        AstNode *s = block->block.stmts.items[i];
+        if (i == n - 1 && s->kind != NODE_RET) {
+            emit_indent(cg);
+            fputs("return ", cg->out);
+            emit_expr(cg, s);
+            fputs(";\n", cg->out);
+        } else {
+            emit_stmt(cg, s);
+        }
+    }
+}
+
+/* emit if/elif/else as C++ if/else-if/else statement */
+static void emit_if_chain(Codegen *cg, AstNode *node, int continuation)
+{
+    if (!continuation) emit_indent(cg);
+    fputs("if (", cg->out);
+    emit_expr(cg, node->if_expr.cond);
+    fputs(") {\n", cg->out);
+    cg->indent++;
+    AstNode *then = node->if_expr.then_block;
+    for (int i = 0; i < then->block.stmts.count; i++)
+        emit_stmt(cg, then->block.stmts.items[i]);
+    cg->indent--;
+    emit_indent(cg);
+    fputc('}', cg->out);
+
+    if (node->if_expr.else_block) {
+        AstNode *els = node->if_expr.else_block;
+        if (els->kind == NODE_IF) {
+            fputs(" else ", cg->out);
+            emit_if_chain(cg, els, 1);
+        } else {
+            fputs(" else {\n", cg->out);
+            cg->indent++;
+            for (int i = 0; i < els->block.stmts.count; i++)
+                emit_stmt(cg, els->block.stmts.items[i]);
+            cg->indent--;
+            emit_indent(cg);
+            fputs("}\n", cg->out);
+        }
+    } else {
+        fputc('\n', cg->out);
+    }
+}
+
+/* emit if as C++ IIFE expression for use in expression context */
+static void emit_if_expr(Codegen *cg, AstNode *node)
+{
+    fputs("[&]() {\n", cg->out);
+    cg->indent++;
+    emit_indent(cg);
+    fputs("if (", cg->out);
+    emit_expr(cg, node->if_expr.cond);
+    fputs(") {\n", cg->out);
+    cg->indent++;
+    emit_block_as_return(cg, node->if_expr.then_block);
+    cg->indent--;
+    emit_indent(cg);
+    fputc('}', cg->out);
+
+    if (node->if_expr.else_block) {
+        AstNode *els = node->if_expr.else_block;
+        if (els->kind == NODE_IF) {
+            fputs(" else if (", cg->out);
+            emit_expr(cg, els->if_expr.cond);
+            fputs(") {\n", cg->out);
+            cg->indent++;
+            emit_block_as_return(cg, els->if_expr.then_block);
+            cg->indent--;
+            emit_indent(cg);
+            if (els->if_expr.else_block) {
+                fputs("} else {\n", cg->out);
+                cg->indent++;
+                emit_block_as_return(cg, els->if_expr.else_block);
+                cg->indent--;
+                emit_indent(cg);
+            }
+            fputs("}\n", cg->out);
+        } else {
+            fputs(" else {\n", cg->out);
+            cg->indent++;
+            emit_block_as_return(cg, els);
+            cg->indent--;
+            emit_indent(cg);
+            fputs("}\n", cg->out);
+        }
+    } else {
+        fputc('\n', cg->out);
+    }
+    cg->indent--;
+    emit_indent(cg);
+    fputs("}()", cg->out);
+}
+
+/* emit when as C++ if/else-if/else chain */
+static void emit_when_chain(Codegen *cg, AstNode *node)
+{
+    int first = 1;
+    for (int i = 0; i < node->when_expr.arms.count; i++) {
+        AstNode *arm = node->when_expr.arms.items[i];
+        if (arm->when_arm.pattern == NULL) {
+            fputs(" else {\n", cg->out);
+        } else {
+            if (first) { emit_indent(cg); first = 0; }
+            else        fputs(" else ", cg->out);
+            fputs("if (", cg->out);
+            emit_expr(cg, node->when_expr.subject);
+            fputs(" == ", cg->out);
+            emit_expr(cg, arm->when_arm.pattern);
+            fputs(") {\n", cg->out);
+        }
+        cg->indent++;
+        AstNode *body = arm->when_arm.body;
+        if (body->kind == NODE_BLOCK) {
+            for (int j = 0; j < body->block.stmts.count; j++)
+                emit_stmt(cg, body->block.stmts.items[j]);
+        } else {
+            emit_stmt(cg, body);
+        }
+        cg->indent--;
+        emit_indent(cg);
+        fputc('}', cg->out);
+    }
+    fputc('\n', cg->out);
 }
 
 static void emit_stmt(Codegen *cg, AstNode *node)
@@ -221,6 +360,12 @@ static void emit_stmt(Codegen *cg, AstNode *node)
             } else {
                 fputs("return;\n", cg->out);
             }
+            break;
+        case NODE_IF:
+            emit_if_chain(cg, node, 0);
+            break;
+        case NODE_WHEN:
+            emit_when_chain(cg, node);
             break;
         case NODE_CALL:
             emit_indent(cg);

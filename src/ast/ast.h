@@ -10,6 +10,9 @@ typedef enum {
     NODE_BUILTIN_CALL,
     NODE_CALL,
     NODE_RET,
+    NODE_IF,          /* if/elif/else           */
+    NODE_WHEN,        /* when subject { arms }  */
+    NODE_WHEN_ARM,    /* pattern => body        */
     NODE_BINARY,      /* left op right          */
     NODE_UNARY,       /* op operand (prefix)    */
     NODE_FIELD,       /* target.name            */
@@ -67,6 +70,19 @@ struct AstNode {
 
         /* NODE_RET */
         struct { AstNode *value; /* NULL for bare ret */ } ret;
+
+        /* NODE_IF — else_block is NULL, NODE_BLOCK, or NODE_IF (elif chain) */
+        struct {
+            AstNode *cond;
+            AstNode *then_block;
+            AstNode *else_block;
+        } if_expr;
+
+        /* NODE_WHEN */
+        struct { AstNode *subject; NodeList arms; } when_expr;
+
+        /* NODE_WHEN_ARM — pattern NULL means default (_) */
+        struct { AstNode *pattern; AstNode *body; } when_arm;
 
         /* NODE_BINARY */
         struct { int op; AstNode *left; AstNode *right; } binary;
