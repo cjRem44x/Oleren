@@ -280,7 +280,15 @@ libs    = ["-lSDL2", "-lvulkan"]
 
 ---
 
-### 9. Syntax Gaps to Resolve
+### 9. `mod` — Deferred
+
+`mod` will be Oleren's flavor of a class-like module. Not OOP — no inheritance.
+Closer to a namespace with encapsulated state and associated functions.
+Design deferred; spec when needed.
+
+---
+
+### 10. Syntax Gaps to Resolve
 
 **Multi-declaration inconsistency.**
 Two styles appear in Notes.md — pick one and remove the other:
