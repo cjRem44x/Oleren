@@ -71,13 +71,13 @@ label := when code {
 
 ### 2. Type System Gaps
 
-**Explicit casting.**
-No cast syntax defined. Options — pick one:
+**Explicit casting — RESOLVED.** `@T(val)` syntax — type name is the builtin.
+Numeric-to-numeric always succeeds. String-to-numeric returns `!T` (use `try`/`catch`).
 ```rust
-x := @cast(i32, my_f64)   # builtin cast (Zig-style)
-x := my_f64 as i32        # keyword cast (Rust-style)
+x := @i32(3.145)           # f64 -> i32
+s := @str(42)              # int -> str
+n := try @i32("42")        # str -> i32, can fail
 ```
-Recommendation: `@cast(T, val)` — consistent with the `@` builtin pattern.
 
 **`bool` and `void` in the type table.**
 Both are used throughout but not listed in the primitive type table in Notes.md.

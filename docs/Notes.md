@@ -780,7 +780,20 @@ input := @cin("prompt: ")  # read line from stdin, returns str (must @free)
 
 # ── Types ─────────────────────────────────────────────
 @type(val)                 # compile-time type of val (used with when T {})
-@cast(T, val)              # explicit type cast
+
+# ── Casting ───────────────────────────────────────────
+# @T(val) — cast val to type T. Uses the type name as the builtin.
+# Numeric-to-numeric always succeeds. String-to-numeric returns !T (use try/catch).
+
+@i32(3.145)                # f64 -> i32  (truncates)         => i32
+@f32(someInt)              # i64 -> f32                      => f32
+@str(42)                   # numeric -> str                  => str
+@str(3.14)                 # f64 -> str                      => str
+@bool(x)                   # any numeric -> bool (0 = false) => bool
+
+n  := try @i32("42")       # str -> i32, can fail            => !i32
+f  := try @f64("3.14")     # str -> f64, can fail            => !f64
+n  := @i32("42") catch 0   # with fallback
 
 # ── Random ────────────────────────────────────────────
 @rng(T, low, high)         # random value of type T in range [low, high] inclusive

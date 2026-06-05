@@ -14,6 +14,20 @@ static void emit_indent(Codegen *cg)
     for (int i = 0; i < cg->indent * 4; i++) fputc(' ', cg->out);
 }
 
+/* type names that double as cast builtins: @i32(x), @str(x), etc. */
+static int is_cast_builtin(const char *name)
+{
+    static const char *tnames[] = {
+        "i8","u8","i16","u16","i32","u32","i64","u64",
+        "f32","f64","chr","str","istr","bool",
+        "byte","ubyte","short","ushort","int","uint","long","ulong",
+        "float","double", NULL
+    };
+    for (int i = 0; tnames[i]; i++)
+        if (strcmp(name, tnames[i]) == 0) return 1;
+    return 0;
+}
+
 /* forward declarations */
 static void emit_expr(Codegen *cg, AstNode *node);
 static void emit_stmt(Codegen *cg, AstNode *node);
@@ -138,11 +152,30 @@ static void emit_expr(Codegen *cg, AstNode *node)
             fputc(')', cg->out);
             break;
         case NODE_BUILTIN_CALL:
-            /* value builtins (@cout, @endl) have no arg list */
             if (node->call.args.count == 0) {
+                /* value builtins: @cout @endl */
                 if      (strcmp(node->call.name, "cout") == 0) fputs("std::cout", cg->out);
                 else if (strcmp(node->call.name, "endl") == 0) fputs("std::endl", cg->out);
                 else    fprintf(cg->out, "/* @%s */", node->call.name);
+            } else if (is_cast_builtin(node->call.name) && node->call.args.count == 1) {
+                /* @T(val) — type cast */
+                AstNode *arg = node->call.args.items[0];
+                if (strcmp(node->call.name, "str") == 0 ||
+                    strcmp(node->call.name, "istr") == 0) {
+                    /* numeric/bool -> string */
+                    fputs("std::to_string(", cg->out);
+                    emit_expr(cg, arg);
+                    fputc(')', cg->out);
+                } else if (strcmp(node->call.name, "bool") == 0) {
+                    fputs("(bool)(", cg->out);
+                    emit_expr(cg, arg);
+                    fputc(')', cg->out);
+                } else {
+                    /* numeric-to-numeric */
+                    fprintf(cg->out, "static_cast<%s>(", map_type(node->call.name));
+                    emit_expr(cg, arg);
+                    fputc(')', cg->out);
+                }
             } else {
                 emit_builtin_stmt(cg, node);
             }
