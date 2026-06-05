@@ -46,7 +46,7 @@ term:    + -
 shift:   << >>
 compare: < > <= >= == !=
 bitwise: & ^ |
-logical: and or
+logical: and or        # keywords; compile to && ||
 assign:  = := ::
 ```
 

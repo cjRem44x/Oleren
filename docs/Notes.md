@@ -292,6 +292,20 @@ while <condition> => my_func() {} # while do's point to (=>) a func call that is
 
 ## Statements
 
+### Logical Operators
+
+`and` and `or` are keywords that compile to `&&` and `||`.
+`!` is logical NOT and stays as-is.
+
+```rust
+if x > 0 and y > 0 {}
+if done or failed {}
+if !active {}
+if x > 0 and !colliding or y == 0 {}
+```
+
+No `&&` / `||` symbol forms — use `and` / `or` exclusively.
+
 ```rust
 if X {}
 elif X and Y or B and X <= Y or X != 0 ... {}
