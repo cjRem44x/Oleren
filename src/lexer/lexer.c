@@ -125,7 +125,8 @@ Token lexer_next(Lexer *l)
         case '-': if (cur(l)=='>'){adv(l);return make_tok(line,TOK_ARROW,    start,2);} return make_tok(line,TOK_MINUS,    start,1);
         case '=': if (cur(l)=='>'){adv(l);return make_tok(line,TOK_FAT_ARROW,start,2);}
                   if (cur(l)=='='){adv(l);return make_tok(line,TOK_EQEQ,     start,2);} return make_tok(line,TOK_EQ,       start,1);
-        case ':': if (cur(l)=='='){adv(l);return make_tok(line,TOK_WALRUS,   start,2);} return make_tok(line,TOK_COLON,    start,1);
+        case ':': if (cur(l)=='='){adv(l);return make_tok(line,TOK_WALRUS, start,2);}
+                  if (cur(l)==':'){adv(l);return make_tok(line,TOK_COLCOL, start,2);} return make_tok(line,TOK_COLON,start,1);
         case '.': if (cur(l)=='.'){adv(l);
                       if (cur(l)=='='){adv(l);return make_tok(line,TOK_DOTDOTEQ,start,3);}
                       return make_tok(line,TOK_DOTDOT,start,2);}                         return make_tok(line,TOK_DOT,      start,1);
@@ -215,6 +216,7 @@ const char *tok_type_name(TokenType t)
         case TOK_LEQ:       return "<=";
         case TOK_GEQ:       return ">=";
         case TOK_WALRUS:    return ":=";
+        case TOK_COLCOL:    return "::";
         case TOK_DOTDOT:    return "..";
         case TOK_DOTDOTEQ:  return "..=";
         case TOK_LSHIFT:    return "<<";

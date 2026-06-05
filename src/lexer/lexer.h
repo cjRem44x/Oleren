@@ -29,6 +29,7 @@ typedef enum {
     TOK_EQ, TOK_EQEQ, TOK_NEQ,
     TOK_LT, TOK_GT, TOK_LEQ, TOK_GEQ,
     TOK_WALRUS,    /* := */
+    TOK_COLCOL,    /* :: */
     TOK_DOTDOT,    /* .. */
     TOK_DOTDOTEQ,  /* ..= */
     TOK_LSHIFT,    /* << */

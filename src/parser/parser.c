@@ -275,6 +275,64 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
     return left;
 }
 
+/* x := val  (implicit mutable)  or  x :: val  (implicit immutable) */
+static AstNode *parse_var_decl_implicit(Parser *p, int is_imu)
+{
+    AstNode *n = ast_node_new(NODE_VAR_DECL, p->cur.line);
+    n->var_decl.name    = tok_dup(next_tok(p)); /* consume name */
+    n->var_decl.is_imu  = is_imu;
+    n->var_decl.type_ref = NULL;                /* auto-infer */
+    next_tok(p);                                /* consume := or :: */
+    n->var_decl.init = parse_expr_bp(p, 0);
+    return n;
+}
+
+/* x :T = val  or  x :T: val  (explicit type) */
+static AstNode *parse_var_decl_explicit(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_VAR_DECL, p->cur.line);
+    n->var_decl.name = tok_dup(next_tok(p)); /* consume name */
+    next_tok(p);                             /* consume : */
+    n->var_decl.type_ref = parse_type(p);
+    if (match(p, TOK_EQ)) {
+        n->var_decl.is_imu = 0;
+    } else if (match(p, TOK_COLON)) {
+        n->var_decl.is_imu = 1;
+    } else {
+        parse_err(p, "expected '=' or ':' after type in variable declaration");
+        n->var_decl.is_imu = 0;
+    }
+    if (check(p, TOK_UNDEF)) {
+        n->var_decl.init = NULL; /* undef = no initializer */
+        next_tok(p);
+    } else {
+        n->var_decl.init = parse_expr_bp(p, 0);
+    }
+    return n;
+}
+
+/* mut T: a=v, b=v  or  imu T: a=v, b=v */
+static AstNode *parse_multi_var_decl(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_VAR_DECL_GROUP, p->cur.line);
+    n->var_decl_group.is_imu = check(p, TOK_IMU) ? 1 : 0;
+    next_tok(p);                         /* consume mut or imu */
+    n->var_decl_group.type_ref = parse_type(p);
+    expect(p, TOK_COLON);
+
+    do {
+        AstNode *entry = ast_node_new(NODE_VAR_DECL, p->cur.line);
+        entry->var_decl.name     = tok_dup(expect(p, TOK_IDENT));
+        entry->var_decl.is_imu   = n->var_decl_group.is_imu;
+        entry->var_decl.type_ref = NULL; /* shared from group */
+        expect(p, TOK_EQ);
+        entry->var_decl.init = parse_expr_bp(p, 0);
+        node_list_push(&n->var_decl_group.entries, entry);
+    } while (match(p, TOK_COMMA));
+
+    return n;
+}
+
 /* parse_if_chain — handles if, and is called recursively for elif */
 static AstNode *parse_if_chain(Parser *p)
 {
@@ -341,6 +399,15 @@ static AstNode *parse_stmt(Parser *p)
     }
     if (check(p, TOK_IF))   return parse_if_chain(p);
     if (check(p, TOK_WHEN)) return parse_when(p);
+
+    /* variable declarations */
+    if (check(p, TOK_MUT) || check(p, TOK_IMU))
+        return parse_multi_var_decl(p);
+    if (check(p, TOK_IDENT)) {
+        if (p->peek.type == TOK_WALRUS) return parse_var_decl_implicit(p, 0);
+        if (p->peek.type == TOK_COLCOL) return parse_var_decl_implicit(p, 1);
+        if (p->peek.type == TOK_COLON)  return parse_var_decl_explicit(p);
+    }
 
     AstNode *expr = parse_expr(p);
     match(p, TOK_SEMICOLON);

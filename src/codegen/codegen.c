@@ -361,6 +361,33 @@ static void emit_stmt(Codegen *cg, AstNode *node)
                 fputs("return;\n", cg->out);
             }
             break;
+        case NODE_VAR_DECL:
+            emit_indent(cg);
+            if (node->var_decl.is_imu) fputs("const ", cg->out);
+            if (node->var_decl.type_ref) emit_type(cg, node->var_decl.type_ref);
+            else                         fputs("auto", cg->out);
+            fprintf(cg->out, " %s", node->var_decl.name);
+            if (node->var_decl.init) {
+                fputs(" = ", cg->out);
+                emit_expr(cg, node->var_decl.init);
+            }
+            fputs(";\n", cg->out);
+            break;
+        case NODE_VAR_DECL_GROUP: {
+            emit_indent(cg);
+            if (node->var_decl_group.is_imu) fputs("const ", cg->out);
+            emit_type(cg, node->var_decl_group.type_ref);
+            for (int i = 0; i < node->var_decl_group.entries.count; i++) {
+                AstNode *e = node->var_decl_group.entries.items[i];
+                fprintf(cg->out, "%s%s", i == 0 ? " " : ", ", e->var_decl.name);
+                if (e->var_decl.init) {
+                    fputs(" = ", cg->out);
+                    emit_expr(cg, e->var_decl.init);
+                }
+            }
+            fputs(";\n", cg->out);
+            break;
+        }
         case NODE_IF:
             emit_if_chain(cg, node, 0);
             break;

@@ -10,6 +10,8 @@ typedef enum {
     NODE_BUILTIN_CALL,
     NODE_CALL,
     NODE_RET,
+    NODE_VAR_DECL,        /* single variable declaration  */
+    NODE_VAR_DECL_GROUP,  /* mut/imu T: a=v, b=v, ...     */
     NODE_IF,          /* if/elif/else           */
     NODE_WHEN,        /* when subject { arms }  */
     NODE_WHEN_ARM,    /* pattern => body        */
@@ -70,6 +72,21 @@ struct AstNode {
 
         /* NODE_RET */
         struct { AstNode *value; /* NULL for bare ret */ } ret;
+
+        /* NODE_VAR_DECL — type_ref NULL = auto-infer; init NULL = undef */
+        struct {
+            char    *name;
+            int      is_imu;
+            AstNode *type_ref;
+            AstNode *init;
+        } var_decl;
+
+        /* NODE_VAR_DECL_GROUP — mut/imu T: a=v, b=v, ... */
+        struct {
+            int      is_imu;
+            AstNode *type_ref;
+            NodeList entries; /* NODE_VAR_DECL items (type_ref is NULL in each) */
+        } var_decl_group;
 
         /* NODE_IF — else_block is NULL, NODE_BLOCK, or NODE_IF (elif chain) */
         struct {

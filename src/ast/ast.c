@@ -56,6 +56,15 @@ void ast_free(AstNode *node)
         case NODE_RET:
             ast_free(node->ret.value);
             break;
+        case NODE_VAR_DECL:
+            free(node->var_decl.name);
+            ast_free(node->var_decl.type_ref);
+            ast_free(node->var_decl.init);
+            break;
+        case NODE_VAR_DECL_GROUP:
+            ast_free(node->var_decl_group.type_ref);
+            node_list_free(&node->var_decl_group.entries);
+            break;
         case NODE_IF:
             ast_free(node->if_expr.cond);
             ast_free(node->if_expr.then_block);
@@ -129,6 +138,19 @@ void ast_print(AstNode *node, int indent)
                    node->type_ref.is_imu   ? "imu " : "",
                    node->type_ref.is_ptr   ? "*" : node->type_ref.is_smart ? "^" : "",
                    node->type_ref.name);
+            break;
+        case NODE_VAR_DECL:
+            printf("VarDecl(%s%s)\n",
+                   node->var_decl.is_imu ? "imu " : "",
+                   node->var_decl.name);
+            ast_print(node->var_decl.type_ref, indent + 1);
+            ast_print(node->var_decl.init,     indent + 1);
+            break;
+        case NODE_VAR_DECL_GROUP:
+            printf("VarDeclGroup(%s)\n", node->var_decl_group.is_imu ? "imu" : "mut");
+            ast_print(node->var_decl_group.type_ref, indent + 1);
+            for (int i = 0; i < node->var_decl_group.entries.count; i++)
+                ast_print(node->var_decl_group.entries.items[i], indent + 1);
             break;
         case NODE_BUILTIN_CALL:
             printf("BuiltinCall(@%s)\n", node->call.name);
