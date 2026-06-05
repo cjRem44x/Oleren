@@ -109,10 +109,10 @@ Single `import` block at the top of each file. All imports aliased. See Notes.md
 
 ```rust
 import (
-    x  = "file.olrn",       # local file by path
-    y  = "../other/file",    # relative path
-    mk = @malkur,            # builtin/stdlib lib via @name
-    io = @file,
+    x   = "file.olrn",       # local file by path
+    y   = "../other/file",    # relative path
+    std = @libs.std,          # full stdlib — access as std.file, std.enc, std.hash ...
+    mk  = @libs.malkur,       # Malkur gamedev library
 )
 ```
 

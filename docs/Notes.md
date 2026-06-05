@@ -39,29 +39,32 @@ This allows for Oleren code outside of the project manager.
 All imports live in a single `import` block at the top of the file.
 Every import is given an alias — that alias is how you access the module.
 
+Builtin libraries use the `@libs.name` path:
+
 ```rust
 import (
     x   = "file.olrn",          # local file, relative to current file
     y   = "../path/to/file",     # relative path (no extension needed)
 
-    lib = @libname,              # builtin stdlib module
-    mk  = @malkur,               # Malkur gamedev library
-    io  = @file,                 # std file I/O
-    hsh = @hash,                 # std hashing
+    std = @libs.std,             # full standard library
+    mk  = @libs.malkur,          # Malkur gamedev library
 )
 ```
 
+`@libs.std` gives you the entire stdlib namespace. Submodules are accessed
+via dot notation on the alias: `std.file`, `std.enc`, `std.hash`, etc.
+
 Rules:
 - File imports use a quoted path string. The alias is required.
-- Builtin/stdlib imports use `@name`. The alias is required.
-- The alias is how you call into that module: `mk.init_window(...)`, `io.open(...)`
+- Builtin/stdlib imports use `@libs.name`. The alias is required.
+- The alias is how you call into that module: `mk.init_window(...)`, `std.file.file_rd(...)`
 - Only one `import` block per file; it must appear before any declarations.
 - Unused imports are a compile error.
 
 ```rust
 import (
-    mk = @malkur,
-    io = @file,
+    std = @libs.std,
+    mk  = @libs.malkur,
 )
 
 fn main() -> !void
@@ -69,8 +72,8 @@ fn main() -> !void
     win := try mk.init_window(800, 600, "Game")
     defer win.close()
 
-    f := try io.open("data.bin", .Read)
-    defer io.close(f)
+    f := try std.file.file_rd("data.txt")
+    defer f.close()
 }
 ```
 

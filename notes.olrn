@@ -1,17 +1,24 @@
-New TYPE,
-
-`any` allows to pass any type.
+For basic encryptions,
 
 ```
-fn foo(x: any)
+import(
+    std = @libs.std,
+)
+
+fn main() -> !void
 {
-    T :: @type(x)
-    when T {
-        i64 => ...,
-        i32 => ...,
-        str =>...,
-        MyStruct => ...,
-        ...
-        _ => ...,
-    }
+    s :str = "HelloWorld"
+    defer @free(s)
+    secret := try std.crypto.pkhash(s) # Private Key Password Hashing takes str and returns str
+    defer @free(secret)
+
+    @pl(secret)
+
+    isAuth := try std.crypto.pkhash_auth(secret, "HelloWorld") # returns bool
+    @pl(isAuth)
+
+    try std.crypto.enc_file(path_to_file: str, pk: str)
+
+    try std.crypto.dec_file(path_to_file: str, pk: str)
+}
 ```

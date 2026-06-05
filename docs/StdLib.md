@@ -11,7 +11,7 @@ Naming convention across all stdlib:
 ## `std.file` — File I/O
 
 ```rust
-import ( io = @file )
+import ( std = @libs.std )  # access as std.file.*
 ```
 
 Four core types: `file_wr` and `file_rd` for text, `byte_wr` and `byte_rd`
@@ -169,7 +169,7 @@ Non-cryptographic hashes are for speed (maps, checksums).
 Cryptographic hashes are for integrity and security.
 
 ```rust
-import ( hsh = @hash )
+import ( std = @libs.std )  # access as std.hash.*
 ```
 
 ```rust
@@ -215,10 +215,18 @@ hash.bcrypt_verify(password: []u8, hashed: []chr) -> bool
 ## `std.crypto` — Encryption
 
 ```rust
-import ( cry = @crypto )
+import ( std = @libs.std )  # access as std.crypto.*
 ```
 
 ```rust
+
+# ── Password Hashing (high-level, most common use) ────
+secret := try std.crypto.pkhash(s: str)               -> !str   # hash a password/string
+ok     := try std.crypto.pkhash_auth(secret: str, s: str) -> !bool  # verify against original
+
+# ── File Encryption ───────────────────────────────────
+try std.crypto.enc_file(path: str, pk: str)   # encrypt file in-place with private key
+try std.crypto.dec_file(path: str, pk: str)   # decrypt file in-place with private key
 
 # ── Random ────────────────────────────────────────────
 crypto.rand_bytes(buf: []u8)     # fill with CSPRNG bytes
@@ -284,9 +292,8 @@ SQLite is the primary embedded target. A generic `Conn` interface allows
 future drivers (Postgres, MySQL, etc.) to plug in.
 
 ```rust
-import ( db = @db )         # SQLite by default
-import ( db = @db.pg )      # Postgres driver
-import ( db = @db.mysql )   # MySQL driver
+import ( std = @libs.std )  # access as std.db.*
+# driver specified in olrn_pkg.toml, not the import
 ```
 
 ```rust
@@ -349,10 +356,7 @@ id := db.last_insert_id(conn) -> i64
 ## `std.thread` — Threading & Parallelism
 
 ```rust
-import (
-    thr  = @thread,
-    sync = @sync,
-)
+import ( std = @libs.std )  # access as std.thread.* and std.sync.*
 ```
 
 ```rust
@@ -431,7 +435,7 @@ sync.cond_broadcast(cond)
 ## `std.net` — Networking
 
 ```rust
-import ( net = @net )
+import ( std = @libs.std )  # access as std.net.*
 ```
 
 ```rust
@@ -479,7 +483,7 @@ net.is_ipv6(addr: []chr)   -> bool
 ## `std.col` — Collections
 
 ```rust
-import ( col = @col )
+import ( std = @libs.std )  # access as std.col.*
 ```
 
 ```rust
