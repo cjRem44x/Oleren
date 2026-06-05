@@ -83,11 +83,9 @@ Recommendation: `@cast(T, val)` — consistent with the `@` builtin pattern.
 Both are used throughout but not listed in the primitive type table in Notes.md.
 Add them for completeness.
 
-**Type aliases.**
-Useful for readability in media code (`Vec2 :: [2]f32`).
-Syntax to decide:
+**Type aliases — RESOLVED.** `type T = B` syntax.
 ```rust
-type Vec2 = [2]f32
+type Vec2  = [2]f32
 type Color = u32
 ```
 

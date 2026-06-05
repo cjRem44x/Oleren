@@ -106,6 +106,29 @@ fn subrout(args...)
 }
 ```
 
+## Type Aliases
+
+`type` creates a named alias for any existing type.
+
+```rust
+type Vec2   = [2]f32
+type Color  = u32
+type Index  = i32
+type Name   = str
+type Matrix = [16]f32
+
+# aliases are fully interchangeable with their underlying type
+pos  :Vec2  = .{0.0, 0.0}
+bg   :Color = 0xFF000000
+idx  :Index = 0
+```
+
+Aliases can reference other aliases:
+```rust
+type EntityId = Index
+type Velocity = Vec2
+```
+
 ## Variables
 
 We use a very Golang/Odinlang approach to vars.
