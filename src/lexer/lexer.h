@@ -29,6 +29,9 @@ typedef enum {
     TOK_PLUS, TOK_MINUS, TOK_STAR, TOK_SLASH, TOK_PERCENT,
     TOK_AMP, TOK_CARET, TOK_PIPE, TOK_BANG,
     TOK_EQ, TOK_EQEQ, TOK_NEQ,
+    TOK_PLUS_EQ, TOK_MINUS_EQ,   /* += -= */
+    TOK_STAR_EQ, TOK_SLASH_EQ,   /* *= /= */
+    TOK_PERCENT_EQ,               /* %= */
     TOK_LT, TOK_GT, TOK_LEQ, TOK_GEQ,
     TOK_WALRUS,    /* := */
     TOK_COLCOL,    /* :: */

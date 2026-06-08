@@ -33,6 +33,31 @@ void ast_free(AstNode *node)
             node_list_free(&node->program.imports);
             node_list_free(&node->program.decls);
             break;
+        case NODE_ASSIGN:
+            ast_free(node->assign.lhs);
+            ast_free(node->assign.rhs);
+            break;
+        case NODE_WHILE:
+            ast_free(node->while_loop.cond);
+            ast_free(node->while_loop.body);
+            break;
+        case NODE_LOOP:
+            ast_free(node->loop_stmt.init);
+            ast_free(node->loop_stmt.cond);
+            ast_free(node->loop_stmt.step);
+            ast_free(node->loop_stmt.body);
+            break;
+        case NODE_FOR_RANGE:
+            ast_free(node->for_range.lo);
+            ast_free(node->for_range.hi);
+            ast_free(node->for_range.body);
+            break;
+        case NODE_FOR_EACH:
+            free(node->for_each.elem);
+            free(node->for_each.idx);
+            ast_free(node->for_each.iter);
+            ast_free(node->for_each.body);
+            break;
         case NODE_EXTERN_FN:
             free(node->extern_fn.name);
             node_list_free(&node->extern_fn.params);
@@ -217,6 +242,36 @@ void ast_print(AstNode *node, int indent)
             printf("WhenArm(%s)\n", node->when_arm.pattern ? "" : "default");
             ast_print(node->when_arm.pattern, indent + 1);
             ast_print(node->when_arm.body,    indent + 1);
+            break;
+        case NODE_ASSIGN:
+            printf("Assign(%d)\n", node->assign.op);
+            ast_print(node->assign.lhs, indent + 1);
+            ast_print(node->assign.rhs, indent + 1);
+            break;
+        case NODE_WHILE:
+            printf("While\n");
+            ast_print(node->while_loop.cond, indent + 1);
+            ast_print(node->while_loop.body, indent + 1);
+            break;
+        case NODE_LOOP:
+            printf("Loop\n");
+            ast_print(node->loop_stmt.init, indent + 1);
+            ast_print(node->loop_stmt.cond, indent + 1);
+            ast_print(node->loop_stmt.step, indent + 1);
+            ast_print(node->loop_stmt.body, indent + 1);
+            break;
+        case NODE_FOR_RANGE:
+            printf("ForRange(%s)\n", node->for_range.inclusive ? "..=" : "..");
+            ast_print(node->for_range.lo,   indent + 1);
+            ast_print(node->for_range.hi,   indent + 1);
+            ast_print(node->for_range.body, indent + 1);
+            break;
+        case NODE_FOR_EACH:
+            printf("ForEach(elem=%s idx=%s)\n",
+                   node->for_each.elem ? node->for_each.elem : "_",
+                   node->for_each.idx  ? node->for_each.idx  : "-");
+            ast_print(node->for_each.iter, indent + 1);
+            ast_print(node->for_each.body, indent + 1);
             break;
         case NODE_BINARY:
             printf("Binary(%d)\n", node->binary.op);

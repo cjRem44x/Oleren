@@ -118,6 +118,11 @@ static OpBp infix_bp(TokenType t)
         case TOK_PLUS:   case TOK_MINUS:             return (OpBp){ 80, 81 };
         case TOK_STAR:   case TOK_SLASH:
         case TOK_PERCENT:                            return (OpBp){ 90, 91 };
+        /* assignment — lowest, right-associative */
+        case TOK_EQ:
+        case TOK_PLUS_EQ: case TOK_MINUS_EQ:
+        case TOK_STAR_EQ: case TOK_SLASH_EQ:
+        case TOK_PERCENT_EQ:                         return (OpBp){ 5, 4 };
         /* postfix: . -> [] () — highest */
         case TOK_DOT: case TOK_ARROW:
         case TOK_LBRACKET: case TOK_LPAREN:          return (OpBp){ 110, 111 };
@@ -270,11 +275,23 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
         /* binary infix operators */
         Token op    = next_tok(p);
         AstNode *rhs = parse_expr_bp(p, bp.rbp);
-        AstNode *n  = ast_node_new(NODE_BINARY, op.line);
-        n->binary.op    = op.type;
-        n->binary.left  = left;
-        n->binary.right = rhs;
-        left = n;
+
+        /* assignment operators produce NODE_ASSIGN, not NODE_BINARY */
+        if (op.type == TOK_EQ       || op.type == TOK_PLUS_EQ  ||
+            op.type == TOK_MINUS_EQ || op.type == TOK_STAR_EQ  ||
+            op.type == TOK_SLASH_EQ || op.type == TOK_PERCENT_EQ) {
+            AstNode *n = ast_node_new(NODE_ASSIGN, op.line);
+            n->assign.op  = op.type;
+            n->assign.lhs = left;
+            n->assign.rhs = rhs;
+            left = n;
+        } else {
+            AstNode *n = ast_node_new(NODE_BINARY, op.line);
+            n->binary.op    = op.type;
+            n->binary.left  = left;
+            n->binary.right = rhs;
+            left = n;
+        }
     }
 
     return left;
@@ -405,6 +422,81 @@ static AstNode *parse_multi_var_decl(Parser *p)
         node_list_push(&n->var_decl_group.entries, entry);
     } while (match(p, TOK_COMMA));
 
+    return n;
+}
+
+/* while <cond> { } */
+static AstNode *parse_while(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_WHILE, p->cur.line);
+    next_tok(p); /* consume 'while' */
+    n->while_loop.cond = parse_expr_bp(p, 0);
+    n->while_loop.body = parse_block(p);
+    return n;
+}
+
+/* loop init, cond, step { } */
+static AstNode *parse_loop(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_LOOP, p->cur.line);
+    next_tok(p); /* consume 'loop' */
+
+    /* init — var decl or expression */
+    if (check(p, TOK_IDENT) && p->peek.type == TOK_WALRUS)
+        n->loop_stmt.init = parse_var_decl_implicit(p, 0);
+    else if (check(p, TOK_IDENT) && p->peek.type == TOK_COLON)
+        n->loop_stmt.init = parse_var_decl_explicit(p);
+    else
+        n->loop_stmt.init = parse_expr_bp(p, 0);
+    expect(p, TOK_COMMA);
+
+    n->loop_stmt.cond = parse_expr_bp(p, 0);
+    expect(p, TOK_COMMA);
+
+    n->loop_stmt.step = parse_expr_bp(p, 0);
+    n->loop_stmt.body = parse_block(p);
+    return n;
+}
+
+/* for 0..N { }  or  for e => iter { }  or  for e, i => iter { } */
+static AstNode *parse_for(Parser *p)
+{
+    next_tok(p); /* consume 'for' */
+
+    /* for e => iter  or  for _, i => iter  or  for e, i => iter */
+    if (check(p, TOK_IDENT) && p->peek.type == TOK_FAT_ARROW) {
+        AstNode *n = ast_node_new(NODE_FOR_EACH, p->cur.line);
+        n->for_each.elem = tok_dup(next_tok(p));
+        next_tok(p); /* consume => */
+        n->for_each.idx  = NULL;
+        n->for_each.iter = parse_expr_bp(p, 0);
+        n->for_each.body = parse_block(p);
+        return n;
+    }
+    if (check(p, TOK_IDENT) && p->peek.type == TOK_COMMA) {
+        AstNode *n = ast_node_new(NODE_FOR_EACH, p->cur.line);
+        Token elem = next_tok(p);          /* e or _ */
+        n->for_each.elem = tok_dup(elem);
+        next_tok(p);                        /* consume , */
+        n->for_each.idx  = tok_dup(expect(p, TOK_IDENT));
+        expect(p, TOK_FAT_ARROW);
+        n->for_each.iter = parse_expr_bp(p, 0);
+        n->for_each.body = parse_block(p);
+        return n;
+    }
+
+    /* for lo..hi { } — range loop */
+    AstNode *n = ast_node_new(NODE_FOR_RANGE, p->cur.line);
+    n->for_range.lo = parse_expr_bp(p, 0);
+    if (check(p, TOK_DOTDOTEQ)) {
+        n->for_range.inclusive = 1;
+        next_tok(p);
+    } else {
+        n->for_range.inclusive = 0;
+        expect(p, TOK_DOTDOT);
+    }
+    n->for_range.hi   = parse_expr_bp(p, 0);
+    n->for_range.body = parse_block(p);
     return n;
 }
 

@@ -124,7 +124,7 @@ Token lexer_next(Lexer *l)
 
     /* two-char and single-char symbols */
     switch (c) {
-        case '-': if (cur(l)=='>'){adv(l);return make_tok(line,TOK_ARROW,    start,2);} return make_tok(line,TOK_MINUS,    start,1);
+        case '+': if (cur(l)=='='){adv(l);return make_tok(line,TOK_PLUS_EQ,   start,2);} return make_tok(line,TOK_PLUS,    start,1);
         case '=': if (cur(l)=='>'){adv(l);return make_tok(line,TOK_FAT_ARROW,start,2);}
                   if (cur(l)=='='){adv(l);return make_tok(line,TOK_EQEQ,     start,2);} return make_tok(line,TOK_EQ,       start,1);
         case ':': if (cur(l)=='='){adv(l);return make_tok(line,TOK_WALRUS, start,2);}
@@ -146,10 +146,11 @@ Token lexer_next(Lexer *l)
         case ']': return make_tok(line, TOK_RBRACKET, start, 1);
         case ',': return make_tok(line, TOK_COMMA,    start, 1);
         case ';': return make_tok(line, TOK_SEMICOLON,start, 1);
-        case '+': return make_tok(line, TOK_PLUS,     start, 1);
-        case '*': return make_tok(line, TOK_STAR,     start, 1);
-        case '/': return make_tok(line, TOK_SLASH,    start, 1);
-        case '%': return make_tok(line, TOK_PERCENT,  start, 1);
+        case '*': if (cur(l)=='='){adv(l);return make_tok(line,TOK_STAR_EQ,   start,2);} return make_tok(line,TOK_STAR,   start,1);
+        case '/': if (cur(l)=='='){adv(l);return make_tok(line,TOK_SLASH_EQ,  start,2);} return make_tok(line,TOK_SLASH,  start,1);
+        case '%': if (cur(l)=='='){adv(l);return make_tok(line,TOK_PERCENT_EQ,start,2);} return make_tok(line,TOK_PERCENT,start,1);
+        case '-': if (cur(l)=='>'){adv(l);return make_tok(line,TOK_ARROW,     start,2);}
+                  if (cur(l)=='='){adv(l);return make_tok(line,TOK_MINUS_EQ,  start,2);} return make_tok(line,TOK_MINUS,  start,1);
         case '&': return make_tok(line, TOK_AMP,      start, 1);
         case '^': return make_tok(line, TOK_CARET,    start, 1);
         case '|': return make_tok(line, TOK_PIPE,     start, 1);
@@ -225,6 +226,11 @@ const char *tok_type_name(TokenType t)
         case TOK_DOTDOT:    return "..";
         case TOK_DOTDOTEQ:  return "..=";
         case TOK_ELLIPSIS:  return "...";
+        case TOK_PLUS_EQ:   return "+=";
+        case TOK_MINUS_EQ:  return "-=";
+        case TOK_STAR_EQ:   return "*=";
+        case TOK_SLASH_EQ:  return "/=";
+        case TOK_PERCENT_EQ:return "%=";
         case TOK_LSHIFT:    return "<<";
         case TOK_RSHIFT:    return ">>";
         case TOK_EOF:       return "EOF";

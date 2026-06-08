@@ -10,6 +10,11 @@ typedef enum {
     NODE_BUILTIN_CALL,
     NODE_CALL,
     NODE_RET,
+    NODE_ASSIGN,          /* lhs op rhs  (= += -= *= /= %=)  */
+    NODE_WHILE,           /* while cond { }                  */
+    NODE_LOOP,            /* loop init, cond, step { }       */
+    NODE_FOR_RANGE,       /* for lo..hi { }                  */
+    NODE_FOR_EACH,        /* for e => iter { }               */
     NODE_EXTERN_FN,       /* extern fn declaration (no body) */
     NODE_IMPORT_DECL,     /* one entry in an import block */
     NODE_CALL_EXPR,       /* callee-expression call       */
@@ -75,6 +80,26 @@ struct AstNode {
 
         /* NODE_RET */
         struct { AstNode *value; /* NULL for bare ret */ } ret;
+
+        /* NODE_ASSIGN — lhs op= rhs */
+        struct { int op; AstNode *lhs; AstNode *rhs; } assign;
+
+        /* NODE_WHILE */
+        struct { AstNode *cond; AstNode *body; } while_loop;
+
+        /* NODE_LOOP — loop init, cond, step { } */
+        struct { AstNode *init; AstNode *cond; AstNode *step; AstNode *body; } loop_stmt;
+
+        /* NODE_FOR_RANGE — for lo..hi { } */
+        struct { AstNode *lo; AstNode *hi; int inclusive; AstNode *body; } for_range;
+
+        /* NODE_FOR_EACH — for e => iter or for e, i => iter */
+        struct {
+            char    *elem;  /* NULL or "_" for ignored elem */
+            char    *idx;   /* NULL if no index var */
+            AstNode *iter;
+            AstNode *body;
+        } for_each;
 
         /* NODE_EXTERN_FN — C function declaration, no body */
         struct {
