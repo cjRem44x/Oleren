@@ -5,8 +5,23 @@
 
 void codegen_init(Codegen *cg, FILE *out)
 {
-    cg->out    = out;
-    cg->indent = 0;
+    cg->out            = out;
+    cg->indent         = 0;
+    cg->in_template    = 0;
+    cg->type_var_count = 0;
+}
+
+static void codegen_reset_fn_state(Codegen *cg)
+{
+    cg->in_template    = 0;
+    cg->type_var_count = 0;
+}
+
+static int is_type_var(Codegen *cg, const char *name)
+{
+    for (int i = 0; i < cg->type_var_count; i++)
+        if (strcmp(cg->type_vars[i], name) == 0) return 1;
+    return 0;
 }
 
 static void emit_indent(Codegen *cg)
@@ -40,6 +55,7 @@ static void emit_when_chain(Codegen *cg, AstNode *node);
 static const char *map_type(const char *name)
 {
     if (!name) return "void";
+    if (strcmp(name, "any")  == 0) return "auto";
     if (strcmp(name, "i8")   == 0 || strcmp(name, "byte")   == 0) return "int8_t";
     if (strcmp(name, "u8")   == 0 || strcmp(name, "ubyte")  == 0) return "uint8_t";
     if (strcmp(name, "i16")  == 0 || strcmp(name, "short")  == 0) return "int16_t";
@@ -129,9 +145,11 @@ static void emit_expr(Codegen *cg, AstNode *node)
             fprintf(cg->out, "\"%s\"", node->str_lit.value);
             break;
         case NODE_INT_LIT:
-            fprintf(cg->out, "%lld", node->int_lit.value);
+            /* Oleren: untyped integer literals always infer to i64 */
+            fprintf(cg->out, "(int64_t)%lld", node->int_lit.value);
             break;
         case NODE_FLOAT_LIT:
+            /* Oleren: untyped float literals always infer to f64 (double) */
             fprintf(cg->out, "%g", node->float_lit.value);
             break;
         case NODE_CHAR_LIT:
@@ -348,19 +366,35 @@ static void emit_if_expr(Codegen *cg, AstNode *node)
 /* emit when as C++ if/else-if/else chain */
 static void emit_when_chain(Codegen *cg, AstNode *node)
 {
+    /* detect type dispatch: subject is an ident registered as a type var */
+    int type_dispatch = node->when_expr.subject->kind == NODE_IDENT &&
+                        is_type_var(cg, node->when_expr.subject->ident.name);
+
     int first = 1;
     for (int i = 0; i < node->when_expr.arms.count; i++) {
         AstNode *arm = node->when_expr.arms.items[i];
         if (arm->when_arm.pattern == NULL) {
+            /* default arm */
             fputs(" else {\n", cg->out);
         } else {
             if (first) { emit_indent(cg); first = 0; }
             else        fputs(" else ", cg->out);
-            fputs("if (", cg->out);
-            emit_expr(cg, node->when_expr.subject);
-            fputs(" == ", cg->out);
-            emit_expr(cg, arm->when_arm.pattern);
-            fputs(") {\n", cg->out);
+
+            if (type_dispatch) {
+                /* when T { TypeName => ... } → if constexpr (is_same_v<T, CppType>) */
+                const char *type_var = node->when_expr.subject->ident.name;
+                const char *pat_name = arm->when_arm.pattern->kind == NODE_IDENT
+                    ? arm->when_arm.pattern->ident.name : "?";
+                fprintf(cg->out, "if constexpr (std::is_same_v<%s, %s>) {\n",
+                        type_var, map_type(pat_name));
+            } else {
+                /* when value { val => ... } → if (subject == val) */
+                fputs("if (", cg->out);
+                emit_expr(cg, node->when_expr.subject);
+                fputs(" == ", cg->out);
+                emit_expr(cg, arm->when_arm.pattern);
+                fputs(") {\n", cg->out);
+            }
         }
         cg->indent++;
         AstNode *body = arm->when_arm.body;
@@ -394,7 +428,24 @@ static void emit_stmt(Codegen *cg, AstNode *node)
                 fputs("return;\n", cg->out);
             }
             break;
-        case NODE_VAR_DECL:
+        case NODE_VAR_DECL: {
+            /* T :: @type(x) inside a template → emit as C++ using alias */
+            AstNode *init = node->var_decl.init;
+            if (cg->in_template && node->var_decl.is_imu &&
+                init && init->kind == NODE_BUILTIN_CALL &&
+                strcmp(init->call.name, "type") == 0 &&
+                init->call.args.count == 1 &&
+                init->call.args.items[0]->kind == NODE_IDENT)
+            {
+                const char *src = init->call.args.items[0]->ident.name;
+                emit_indent(cg);
+                fprintf(cg->out, "using %s = T_%s;\n", node->var_decl.name, src);
+                /* register as a type variable for when T dispatch */
+                if (cg->type_var_count < MAX_TYPE_VARS)
+                    cg->type_vars[cg->type_var_count++] = node->var_decl.name;
+                break;
+            }
+            /* normal variable declaration */
             emit_indent(cg);
             if (node->var_decl.is_imu) fputs("const ", cg->out);
             if (node->var_decl.type_ref) emit_type(cg, node->var_decl.type_ref);
@@ -406,6 +457,7 @@ static void emit_stmt(Codegen *cg, AstNode *node)
             }
             fputs(";\n", cg->out);
             break;
+        }
         case NODE_VAR_DECL_GROUP: {
             emit_indent(cg);
             if (node->var_decl_group.is_imu) fputs("const ", cg->out);
@@ -440,9 +492,37 @@ static void emit_stmt(Codegen *cg, AstNode *node)
     }
 }
 
+static int param_is_any(AstNode *param)
+{
+    return param->param.type &&
+           param->param.type->kind == NODE_TYPE_REF &&
+           strcmp(param->param.type->type_ref.name, "any") == 0;
+}
+
 static void emit_fn(Codegen *cg, AstNode *fn)
 {
+    codegen_reset_fn_state(cg);
     int is_main = strcmp(fn->fn_decl.name, "main") == 0;
+
+    /* detect any params → emit template header */
+    int has_any = 0;
+    for (int i = 0; i < fn->fn_decl.params.count; i++)
+        if (param_is_any(fn->fn_decl.params.items[i])) { has_any = 1; break; }
+
+    if (has_any) {
+        fputs("template<", cg->out);
+        int first = 1;
+        for (int i = 0; i < fn->fn_decl.params.count; i++) {
+            AstNode *param = fn->fn_decl.params.items[i];
+            if (param_is_any(param)) {
+                if (!first) fputs(", ", cg->out);
+                fprintf(cg->out, "typename T_%s", param->param.name);
+                first = 0;
+            }
+        }
+        fputs(">\n", cg->out);
+        cg->in_template = 1;
+    }
 
     /* C++ main always returns int */
     if (is_main) fputs("int", cg->out);
@@ -453,7 +533,10 @@ static void emit_fn(Codegen *cg, AstNode *fn)
     for (int i = 0; i < fn->fn_decl.params.count; i++) {
         AstNode *param = fn->fn_decl.params.items[i];
         if (i > 0) fputs(", ", cg->out);
-        emit_type(cg, param->param.type);
+        if (param_is_any(param))
+            fprintf(cg->out, "T_%s", param->param.name);
+        else
+            emit_type(cg, param->param.type);
         fprintf(cg->out, " %s", param->param.name);
     }
 
@@ -487,6 +570,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     fputs("#include <string>\n", cg->out);
     fputs("#include <vector>\n", cg->out);
     fputs("#include <memory>\n", cg->out);
+    fputs("#include <type_traits>\n", cg->out);
     fputs("#include <cstdint>\n", cg->out);
     fputs("#include <cstdlib>\n", cg->out);
     fputs("#include <cstdio>\n", cg->out);
