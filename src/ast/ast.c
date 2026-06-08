@@ -95,6 +95,9 @@ void ast_free(AstNode *node)
         case NODE_RET:
             ast_free(node->ret.value);
             break;
+        case NODE_DEFER:
+            ast_free(node->defer_stmt.expr);
+            break;
         case NODE_VAR_DECL:
             free(node->var_decl.name);
             ast_free(node->var_decl.type_ref);

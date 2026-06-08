@@ -35,6 +35,7 @@ typedef enum {
     NODE_CHAR_LIT,
     NODE_BOOL_LIT,
     NODE_IDENT,
+    NODE_DEFER,         /* defer expr | defer { } */
 } NodeKind;
 
 typedef struct AstNode AstNode;
@@ -171,6 +172,9 @@ struct AstNode {
 
         /* NODE_IDENT */
         struct { char *name; } ident;
+
+        /* NODE_DEFER — expr is a single expression or a NODE_BLOCK */
+        struct { AstNode *expr; } defer_stmt;
     };
 };
 

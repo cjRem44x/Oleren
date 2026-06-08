@@ -1,0 +1,29 @@
+fn main() -> void
+{
+    # while loop
+    n :i32 = 0
+    while n < 3 {
+        n += 1
+    }
+    @pl(n)
+
+    # loop (C-style for)
+    loop i :i32 = 0, i < 5, i += 1 {
+        @pl(i)
+    }
+
+    # for range (exclusive)
+    for 0..4 {
+        @pl("tick")
+    }
+
+    # for range (inclusive)
+    for 0..=2 {
+        @pl("tock")
+    }
+
+    # defer — runs at end of scope (prints 99, not 42)
+    x :i32 = 42
+    defer @pl(x)
+    x = 99
+}

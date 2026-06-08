@@ -18,6 +18,7 @@ static void codegen_reset_fn_state(Codegen *cg)
 {
     cg->in_template    = 0;
     cg->type_var_count = 0;
+    cg->defer_counter  = 0;
 }
 
 static int is_import_alias(Codegen *cg, const char *name)
@@ -335,7 +336,38 @@ static void emit_expr(Codegen *cg, AstNode *node)
         case NODE_IF:
             emit_if_expr(cg, node);
             break;
+        case NODE_ASSIGN:
+            emit_expr(cg, node->assign.lhs);
+            switch (node->assign.op) {
+                case TOK_EQ:         fputs(" = ",   cg->out); break;
+                case TOK_PLUS_EQ:    fputs(" += ",  cg->out); break;
+                case TOK_MINUS_EQ:   fputs(" -= ",  cg->out); break;
+                case TOK_STAR_EQ:    fputs(" *= ",  cg->out); break;
+                case TOK_SLASH_EQ:   fputs(" /= ",  cg->out); break;
+                case TOK_PERCENT_EQ: fputs(" %= ",  cg->out); break;
+                default: break;
+            }
+            emit_expr(cg, node->assign.rhs);
+            break;
         default: break;
+    }
+}
+
+/* emit the init clause of a 'loop' — no indent or newline */
+static void emit_for_init(Codegen *cg, AstNode *node)
+{
+    if (!node) return;
+    if (node->kind == NODE_VAR_DECL) {
+        if (node->var_decl.is_imu) fputs("const ", cg->out);
+        if (node->var_decl.type_ref) emit_type(cg, node->var_decl.type_ref);
+        else                         fputs("auto", cg->out);
+        fprintf(cg->out, " %s", node->var_decl.name);
+        if (node->var_decl.init) {
+            fputs(" = ", cg->out);
+            emit_expr(cg, node->var_decl.init);
+        }
+    } else {
+        emit_expr(cg, node);
     }
 }
 
@@ -561,6 +593,114 @@ static void emit_stmt(Codegen *cg, AstNode *node)
             emit_expr(cg, node);
             fputs(";\n", cg->out);
             break;
+        case NODE_WHILE: {
+            emit_indent(cg);
+            fputs("while (", cg->out);
+            emit_expr(cg, node->while_loop.cond);
+            fputs(") {\n", cg->out);
+            cg->indent++;
+            AstNode *wb = node->while_loop.body;
+            for (int i = 0; i < wb->block.stmts.count; i++)
+                emit_stmt(cg, wb->block.stmts.items[i]);
+            cg->indent--;
+            emit_indent(cg);
+            fputs("}\n", cg->out);
+            break;
+        }
+        case NODE_LOOP: {
+            emit_indent(cg);
+            fputs("for (", cg->out);
+            emit_for_init(cg, node->loop_stmt.init);
+            fputs("; ", cg->out);
+            emit_expr(cg, node->loop_stmt.cond);
+            fputs("; ", cg->out);
+            emit_expr(cg, node->loop_stmt.step);
+            fputs(") {\n", cg->out);
+            cg->indent++;
+            AstNode *lb = node->loop_stmt.body;
+            for (int i = 0; i < lb->block.stmts.count; i++)
+                emit_stmt(cg, lb->block.stmts.items[i]);
+            cg->indent--;
+            emit_indent(cg);
+            fputs("}\n", cg->out);
+            break;
+        }
+        case NODE_FOR_RANGE: {
+            emit_indent(cg);
+            fputs("for (auto _i = ", cg->out);
+            emit_expr(cg, node->for_range.lo);
+            fputs("; _i ", cg->out);
+            fputs(node->for_range.inclusive ? "<= " : "< ", cg->out);
+            emit_expr(cg, node->for_range.hi);
+            fputs("; ++_i) {\n", cg->out);
+            cg->indent++;
+            AstNode *rb = node->for_range.body;
+            for (int i = 0; i < rb->block.stmts.count; i++)
+                emit_stmt(cg, rb->block.stmts.items[i]);
+            cg->indent--;
+            emit_indent(cg);
+            fputs("}\n", cg->out);
+            break;
+        }
+        case NODE_FOR_EACH: {
+            const char *elem = node->for_each.elem;
+            const char *idx  = node->for_each.idx;
+            if (idx) {
+                /* for e, i => iter — wrap block so the index counter is scoped */
+                emit_indent(cg);
+                fputs("{\n", cg->out);
+                cg->indent++;
+                emit_indent(cg);
+                fprintf(cg->out, "int64_t %s = 0;\n", idx);
+                emit_indent(cg);
+                fprintf(cg->out, "for (auto& %s : ", elem);
+                emit_expr(cg, node->for_each.iter);
+                fputs(") {\n", cg->out);
+                cg->indent++;
+                AstNode *eb = node->for_each.body;
+                for (int i = 0; i < eb->block.stmts.count; i++)
+                    emit_stmt(cg, eb->block.stmts.items[i]);
+                emit_indent(cg);
+                fprintf(cg->out, "++%s;\n", idx);
+                cg->indent--;
+                emit_indent(cg);
+                fputs("}\n", cg->out);
+                cg->indent--;
+                emit_indent(cg);
+                fputs("}\n", cg->out);
+            } else {
+                emit_indent(cg);
+                fprintf(cg->out, "for (auto& %s : ", elem);
+                emit_expr(cg, node->for_each.iter);
+                fputs(") {\n", cg->out);
+                cg->indent++;
+                AstNode *eb = node->for_each.body;
+                for (int i = 0; i < eb->block.stmts.count; i++)
+                    emit_stmt(cg, eb->block.stmts.items[i]);
+                cg->indent--;
+                emit_indent(cg);
+                fputs("}\n", cg->out);
+            }
+            break;
+        }
+        case NODE_DEFER: {
+            /* emit a RAII guard that calls the deferred code at scope exit */
+            emit_indent(cg);
+            fprintf(cg->out, "_OlrnDeferGuard _defer_%d([&]() {\n", cg->defer_counter);
+            cg->indent++;
+            AstNode *de = node->defer_stmt.expr;
+            if (de->kind == NODE_BLOCK) {
+                for (int i = 0; i < de->block.stmts.count; i++)
+                    emit_stmt(cg, de->block.stmts.items[i]);
+            } else {
+                emit_stmt(cg, de);
+            }
+            cg->indent--;
+            emit_indent(cg);
+            fputs("});\n", cg->out);
+            cg->defer_counter++;
+            break;
+        }
         default:
             emit_indent(cg);
             emit_expr(cg, node);
@@ -651,6 +791,15 @@ void codegen_emit(Codegen *cg, AstNode *program)
     fputs("#include <cstdint>\n", cg->out);
     fputs("#include <cstdlib>\n", cg->out);
     fputs("#include <cstdio>\n", cg->out);
+    /* RAII guard used by 'defer' — always emitted so defer is zero-cost when unused */
+    fputs("template<typename F>\n", cg->out);
+    fputs("struct _OlrnDeferGuard {\n", cg->out);
+    fputs("    F fn;\n", cg->out);
+    fputs("    _OlrnDeferGuard(F f) : fn(std::move(f)) {}\n", cg->out);
+    fputs("    ~_OlrnDeferGuard() { fn(); }\n", cg->out);
+    fputs("    _OlrnDeferGuard(const _OlrnDeferGuard&) = delete;\n", cg->out);
+    fputs("    _OlrnDeferGuard& operator=(const _OlrnDeferGuard&) = delete;\n", cg->out);
+    fputs("};\n", cg->out);
 
     /* register import aliases; detect stdlib */
     for (int i = 0; i < program->program.imports.count; i++) {

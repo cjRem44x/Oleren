@@ -500,6 +500,18 @@ static AstNode *parse_for(Parser *p)
     return n;
 }
 
+/* defer expr  or  defer { stmt... } */
+static AstNode *parse_defer(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_DEFER, p->cur.line);
+    next_tok(p); /* consume 'defer' */
+    if (check(p, TOK_LBRACE))
+        n->defer_stmt.expr = parse_block(p);
+    else
+        n->defer_stmt.expr = parse_expr(p);
+    return n;
+}
+
 /* parse_if_chain — handles if, and is called recursively for elif */
 static AstNode *parse_if_chain(Parser *p)
 {
@@ -564,8 +576,12 @@ static AstNode *parse_stmt(Parser *p)
         match(p, TOK_SEMICOLON);
         return n;
     }
-    if (check(p, TOK_IF))   return parse_if_chain(p);
-    if (check(p, TOK_WHEN)) return parse_when(p);
+    if (check(p, TOK_IF))    return parse_if_chain(p);
+    if (check(p, TOK_WHEN))  return parse_when(p);
+    if (check(p, TOK_WHILE)) return parse_while(p);
+    if (check(p, TOK_LOOP))  return parse_loop(p);
+    if (check(p, TOK_FOR))   return parse_for(p);
+    if (check(p, TOK_DEFER)) return parse_defer(p);
 
     /* variable declarations */
     if (check(p, TOK_MUT) || check(p, TOK_IMU))
