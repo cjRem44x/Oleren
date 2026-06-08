@@ -10,6 +10,8 @@ typedef enum {
     NODE_BUILTIN_CALL,
     NODE_CALL,
     NODE_RET,
+    NODE_IMPORT_DECL,     /* one entry in an import block */
+    NODE_CALL_EXPR,       /* callee-expression call       */
     NODE_VAR_DECL,        /* single variable declaration  */
     NODE_VAR_DECL_GROUP,  /* mut/imu T: a=v, b=v, ...     */
     NODE_IF,          /* if/elif/else           */
@@ -42,7 +44,7 @@ struct AstNode {
     int      line;
     union {
         /* NODE_PROGRAM */
-        struct { NodeList decls; } program;
+        struct { NodeList imports; NodeList decls; } program;
 
         /* NODE_FN_DECL */
         struct {
@@ -72,6 +74,16 @@ struct AstNode {
 
         /* NODE_RET */
         struct { AstNode *value; /* NULL for bare ret */ } ret;
+
+        /* NODE_IMPORT_DECL — one alias = source entry */
+        struct {
+            char *alias;
+            char *source;  /* file path or lib name ("std", "malkur", etc.) */
+            int   is_lib;  /* 0 = local file, 1 = @libs.X */
+        } import_decl;
+
+        /* NODE_CALL_EXPR — callee is an arbitrary expression */
+        struct { AstNode *callee; NodeList args; } call_expr;
 
         /* NODE_VAR_DECL — type_ref NULL = auto-infer; init NULL = undef */
         struct {

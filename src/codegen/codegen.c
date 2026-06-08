@@ -5,16 +5,42 @@
 
 void codegen_init(Codegen *cg, FILE *out)
 {
-    cg->out            = out;
-    cg->indent         = 0;
-    cg->in_template    = 0;
-    cg->type_var_count = 0;
+    cg->out                = out;
+    cg->indent             = 0;
+    cg->in_template        = 0;
+    cg->type_var_count     = 0;
+    cg->import_alias_count = 0;
 }
 
 static void codegen_reset_fn_state(Codegen *cg)
 {
     cg->in_template    = 0;
     cg->type_var_count = 0;
+}
+
+static int is_import_alias(Codegen *cg, const char *name)
+{
+    for (int i = 0; i < cg->import_alias_count; i++)
+        if (strcmp(cg->import_aliases[i], name) == 0) return 1;
+    return 0;
+}
+
+/* extract the final field name from a chain: a.b.c → "c" */
+static const char *last_field_name(AstNode *node)
+{
+    if (node->kind == NODE_FIELD || node->kind == NODE_FIELD_PTR)
+        return node->field.name;
+    if (node->kind == NODE_IDENT)
+        return node->ident.name;
+    return NULL;
+}
+
+/* true if the root of a field chain is a known import alias */
+static int callee_is_import_qualified(Codegen *cg, AstNode *callee)
+{
+    while (callee->kind == NODE_FIELD || callee->kind == NODE_FIELD_PTR)
+        callee = callee->field.target;
+    return callee->kind == NODE_IDENT && is_import_alias(cg, callee->ident.name);
 }
 
 static int is_type_var(Codegen *cg, const char *name)
@@ -166,6 +192,21 @@ static void emit_expr(Codegen *cg, AstNode *node)
             for (int i = 0; i < node->call.args.count; i++) {
                 if (i > 0) fputs(", ", cg->out);
                 emit_expr(cg, node->call.args.items[i]);
+            }
+            fputc(')', cg->out);
+            break;
+        case NODE_CALL_EXPR:
+            /* strip import alias prefix: utils.square(x) → square(x) */
+            if (callee_is_import_qualified(cg, node->call_expr.callee)) {
+                const char *fn = last_field_name(node->call_expr.callee);
+                if (fn) fputs(fn, cg->out);
+            } else {
+                emit_expr(cg, node->call_expr.callee);
+            }
+            fputc('(', cg->out);
+            for (int i = 0; i < node->call_expr.args.count; i++) {
+                if (i > 0) fputs(", ", cg->out);
+                emit_expr(cg, node->call_expr.args.items[i]);
             }
             fputc(')', cg->out);
             break;
@@ -480,6 +521,7 @@ static void emit_stmt(Codegen *cg, AstNode *node)
             emit_when_chain(cg, node);
             break;
         case NODE_CALL:
+        case NODE_CALL_EXPR:
             emit_indent(cg);
             emit_expr(cg, node);
             fputs(";\n", cg->out);
@@ -574,7 +616,20 @@ void codegen_emit(Codegen *cg, AstNode *program)
     fputs("#include <cstdint>\n", cg->out);
     fputs("#include <cstdlib>\n", cg->out);
     fputs("#include <cstdio>\n", cg->out);
-    fputc('\n', cg->out);
+
+    /* register import aliases and emit a comment for each */
+    for (int i = 0; i < program->program.imports.count; i++) {
+        AstNode *imp = program->program.imports.items[i];
+        if (cg->import_alias_count < MAX_IMPORT_ALIAS)
+            cg->import_aliases[cg->import_alias_count++] = imp->import_decl.alias;
+        if (imp->import_decl.is_lib)
+            fprintf(cg->out, "/* import %s = @libs.%s */\n",
+                    imp->import_decl.alias, imp->import_decl.source);
+        else
+            fprintf(cg->out, "/* import %s = \"%s\" */\n",
+                    imp->import_decl.alias, imp->import_decl.source);
+    }
+    if (program->program.imports.count) fputc('\n', cg->out);
 
     for (int i = 0; i < program->program.decls.count; i++) {
         emit_fn(cg, program->program.decls.items[i]);

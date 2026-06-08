@@ -205,17 +205,22 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
         /* function call: expr(args) */
         if (tt == TOK_LPAREN) {
             next_tok(p);
-            AstNode *n = ast_node_new(NODE_CALL, line);
-            /* extract callee name if it's a plain ident */
+            AstNode *n;
+            NodeList *args;
             if (left && left->kind == NODE_IDENT) {
+                /* simple call: foo(args) */
+                n = ast_node_new(NODE_CALL, line);
                 n->call.name = strdup(left->ident.name);
                 ast_free(left);
+                args = &n->call.args;
             } else {
-                n->call.name = strdup("?");
-                ast_free(left);
+                /* qualified call: mk.foo(args), obj.method(args) */
+                n = ast_node_new(NODE_CALL_EXPR, line);
+                n->call_expr.callee = left;
+                args = &n->call_expr.args;
             }
             while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
-                node_list_push(&n->call.args, parse_expr_bp(p, 0));
+                node_list_push(args, parse_expr_bp(p, 0));
                 if (!match(p, TOK_COMMA)) break;
             }
             expect(p, TOK_RPAREN);
@@ -273,6 +278,42 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
     }
 
     return left;
+}
+
+/* parse import ( alias = source, ... ) and push entries into prog.imports */
+static void parse_import_block(Parser *p, AstNode *prog)
+{
+    next_tok(p);                    /* consume 'import' */
+    expect(p, TOK_LPAREN);
+
+    while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
+        AstNode *entry = ast_node_new(NODE_IMPORT_DECL, p->cur.line);
+
+        entry->import_decl.alias = tok_dup(expect(p, TOK_IDENT));
+        expect(p, TOK_EQ);
+
+        if (check(p, TOK_STR_LIT)) {
+            /* "path/to/file" */
+            entry->import_decl.source = tok_dup(p->cur);
+            entry->import_decl.is_lib = 0;
+            next_tok(p);
+        } else if (check(p, TOK_BUILTIN)) {
+            /* @libs.name */
+            next_tok(p);            /* consume 'libs' builtin */
+            expect(p, TOK_DOT);
+            entry->import_decl.source = tok_dup(expect(p, TOK_IDENT));
+            entry->import_decl.is_lib = 1;
+        } else {
+            parse_err(p, "expected import source (\"path\" or @libs.name)");
+            next_tok(p);
+            ast_free(entry);
+            break;
+        }
+
+        node_list_push(&prog->program.imports, entry);
+        match(p, TOK_COMMA);
+    }
+    expect(p, TOK_RPAREN);
 }
 
 /* x := val  (implicit mutable)  or  x :: val  (implicit immutable) */
@@ -460,6 +501,11 @@ static AstNode *parse_fn_decl(Parser *p)
 AstNode *parser_parse_program(Parser *p)
 {
     AstNode *prog = ast_node_new(NODE_PROGRAM, 1);
+
+    /* optional import block at the top of the file */
+    if (check(p, TOK_IMPORT))
+        parse_import_block(p, prog);
+
     while (!check(p, TOK_EOF)) {
         if (check(p, TOK_FN) || check(p, TOK_PUB)) {
             match(p, TOK_PUB); /* consume optional pub */

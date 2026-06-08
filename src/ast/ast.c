@@ -30,7 +30,16 @@ void ast_free(AstNode *node)
     if (!node) return;
     switch (node->kind) {
         case NODE_PROGRAM:
+            node_list_free(&node->program.imports);
             node_list_free(&node->program.decls);
+            break;
+        case NODE_IMPORT_DECL:
+            free(node->import_decl.alias);
+            free(node->import_decl.source);
+            break;
+        case NODE_CALL_EXPR:
+            ast_free(node->call_expr.callee);
+            node_list_free(&node->call_expr.args);
             break;
         case NODE_FN_DECL:
             free(node->fn_decl.name);
@@ -113,8 +122,22 @@ void ast_print(AstNode *node, int indent)
     switch (node->kind) {
         case NODE_PROGRAM:
             printf("Program\n");
+            for (int i = 0; i < node->program.imports.count; i++)
+                ast_print(node->program.imports.items[i], indent + 1);
             for (int i = 0; i < node->program.decls.count; i++)
                 ast_print(node->program.decls.items[i], indent + 1);
+            break;
+        case NODE_IMPORT_DECL:
+            printf("Import(%s = %s%s)\n",
+                   node->import_decl.alias,
+                   node->import_decl.is_lib ? "@libs." : "",
+                   node->import_decl.source);
+            break;
+        case NODE_CALL_EXPR:
+            printf("CallExpr\n");
+            ast_print(node->call_expr.callee, indent + 1);
+            for (int i = 0; i < node->call_expr.args.count; i++)
+                ast_print(node->call_expr.args.items[i], indent + 1);
             break;
         case NODE_FN_DECL:
             printf("FnDecl(%s)\n", node->fn_decl.name);

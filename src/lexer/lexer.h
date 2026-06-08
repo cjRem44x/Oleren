@@ -12,6 +12,7 @@ typedef enum {
     TOK_PUB, TOK_VOID, TOK_TRUE, TOK_FALSE,
     TOK_UNDEF, TOK_MUT, TOK_IMU, TOK_STATIC,
     TOK_AND_KW, TOK_OR_KW,          /* and  or  — compile to && || */
+    TOK_IMPORT,                     /* import */
 
     /* identifiers / builtins */
     TOK_IDENT,
