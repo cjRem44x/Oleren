@@ -280,6 +280,40 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
     return left;
 }
 
+/* extern fn name(params) -> ret  — no body, declares a C function */
+static AstNode *parse_extern_fn(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_EXTERN_FN, p->cur.line);
+    expect(p, TOK_EXTERN);
+    expect(p, TOK_FN);
+    n->extern_fn.name = tok_dup(expect(p, TOK_IDENT));
+    n->extern_fn.is_variadic = 0;
+
+    /* params, with optional trailing ... for variadic */
+    expect(p, TOK_LPAREN);
+    while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
+        /* ... signals variadic — consume and stop */
+        if (check(p, TOK_ELLIPSIS)) {
+            n->extern_fn.is_variadic = 1;
+            next_tok(p);
+            break;
+        }
+        AstNode *param = ast_node_new(NODE_PARAM, p->cur.line);
+        param->param.name = tok_dup(expect(p, TOK_IDENT));
+        expect(p, TOK_COLON);
+        param->param.type = parse_type(p);
+        node_list_push(&n->extern_fn.params, param);
+        if (!match(p, TOK_COMMA)) break;
+    }
+    expect(p, TOK_RPAREN);
+
+    if (match(p, TOK_ARROW)) {
+        if (check(p, TOK_VOID)) next_tok(p);
+        else n->extern_fn.ret_type = parse_type(p);
+    }
+    return n;
+}
+
 /* parse import ( alias = source, ... ) and push entries into prog.imports */
 static void parse_import_block(Parser *p, AstNode *prog)
 {
@@ -507,7 +541,9 @@ AstNode *parser_parse_program(Parser *p)
         parse_import_block(p, prog);
 
     while (!check(p, TOK_EOF)) {
-        if (check(p, TOK_FN) || check(p, TOK_PUB)) {
+        if (check(p, TOK_EXTERN)) {
+            node_list_push(&prog->program.decls, parse_extern_fn(p));
+        } else if (check(p, TOK_FN) || check(p, TOK_PUB)) {
             match(p, TOK_PUB); /* consume optional pub */
             node_list_push(&prog->program.decls, parse_fn_decl(p));
         } else {

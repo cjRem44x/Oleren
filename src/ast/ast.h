@@ -10,6 +10,7 @@ typedef enum {
     NODE_BUILTIN_CALL,
     NODE_CALL,
     NODE_RET,
+    NODE_EXTERN_FN,       /* extern fn declaration (no body) */
     NODE_IMPORT_DECL,     /* one entry in an import block */
     NODE_CALL_EXPR,       /* callee-expression call       */
     NODE_VAR_DECL,        /* single variable declaration  */
@@ -74,6 +75,14 @@ struct AstNode {
 
         /* NODE_RET */
         struct { AstNode *value; /* NULL for bare ret */ } ret;
+
+        /* NODE_EXTERN_FN — C function declaration, no body */
+        struct {
+            char    *name;
+            NodeList params;
+            AstNode *ret_type; /* NULL = void */
+            int      is_variadic;
+        } extern_fn;
 
         /* NODE_IMPORT_DECL — one alias = source entry */
         struct {

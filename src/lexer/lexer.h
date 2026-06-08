@@ -13,6 +13,7 @@ typedef enum {
     TOK_UNDEF, TOK_MUT, TOK_IMU, TOK_STATIC,
     TOK_AND_KW, TOK_OR_KW,          /* and  or  — compile to && || */
     TOK_IMPORT,                     /* import */
+    TOK_EXTERN,                     /* extern */
 
     /* identifiers / builtins */
     TOK_IDENT,
@@ -33,6 +34,7 @@ typedef enum {
     TOK_COLCOL,    /* :: */
     TOK_DOTDOT,    /* .. */
     TOK_DOTDOTEQ,  /* ..= */
+    TOK_ELLIPSIS,  /* ... */
     TOK_LSHIFT,    /* << */
     TOK_RSHIFT,    /* >> */
 

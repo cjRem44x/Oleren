@@ -33,6 +33,11 @@ void ast_free(AstNode *node)
             node_list_free(&node->program.imports);
             node_list_free(&node->program.decls);
             break;
+        case NODE_EXTERN_FN:
+            free(node->extern_fn.name);
+            node_list_free(&node->extern_fn.params);
+            ast_free(node->extern_fn.ret_type);
+            break;
         case NODE_IMPORT_DECL:
             free(node->import_decl.alias);
             free(node->import_decl.source);
@@ -126,6 +131,13 @@ void ast_print(AstNode *node, int indent)
                 ast_print(node->program.imports.items[i], indent + 1);
             for (int i = 0; i < node->program.decls.count; i++)
                 ast_print(node->program.decls.items[i], indent + 1);
+            break;
+        case NODE_EXTERN_FN:
+            printf("ExternFn(%s%s)\n", node->extern_fn.name,
+                   node->extern_fn.is_variadic ? ", ..." : "");
+            for (int i = 0; i < node->extern_fn.params.count; i++)
+                ast_print(node->extern_fn.params.items[i], indent + 1);
+            ast_print(node->extern_fn.ret_type, indent + 1);
             break;
         case NODE_IMPORT_DECL:
             printf("Import(%s = %s%s)\n",

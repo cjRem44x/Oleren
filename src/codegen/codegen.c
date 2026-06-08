@@ -104,12 +104,11 @@ static void emit_type(Codegen *cg, AstNode *type_ref)
     if (!type_ref) { fputs("void", cg->out); return; }
     if (type_ref->type_ref.is_arr)   fputs("std::vector<", cg->out);
     if (type_ref->type_ref.is_imu)   fputs("const ", cg->out);
-    if (type_ref->type_ref.is_ptr)   fputs("", cg->out);   /* raw ptr handled by * after type */
     if (type_ref->type_ref.is_smart) fputs("std::shared_ptr<", cg->out);
 
     fputs(map_type(type_ref->type_ref.name), cg->out);
 
-    if (type_ref->type_ref.is_ptr)   fputc('*', cg->out);
+    if (type_ref->type_ref.is_ptr)   fputs(" *", cg->out);
     if (type_ref->type_ref.is_smart) fputc('>', cg->out);
     if (type_ref->type_ref.is_arr)   fputc('>', cg->out);
 }
@@ -631,8 +630,35 @@ void codegen_emit(Codegen *cg, AstNode *program)
     }
     if (program->program.imports.count) fputc('\n', cg->out);
 
+    /* extern fn declarations — emitted first so they're visible to all fns */
+    int has_extern = 0;
     for (int i = 0; i < program->program.decls.count; i++) {
-        emit_fn(cg, program->program.decls.items[i]);
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind != NODE_EXTERN_FN) continue;
+        has_extern = 1;
+        fputs("extern \"C\" ", cg->out);
+        if (decl->extern_fn.ret_type) emit_type(cg, decl->extern_fn.ret_type);
+        else                          fputs("void", cg->out);
+        fprintf(cg->out, " %s(", decl->extern_fn.name);
+        for (int j = 0; j < decl->extern_fn.params.count; j++) {
+            AstNode *param = decl->extern_fn.params.items[j];
+            if (j > 0) fputs(", ", cg->out);
+            emit_type(cg, param->param.type);
+            fprintf(cg->out, " %s", param->param.name);
+        }
+        if (decl->extern_fn.is_variadic) {
+            if (decl->extern_fn.params.count > 0) fputs(", ", cg->out);
+            fputs("...", cg->out);
+        }
+        fputs(");\n", cg->out);
+    }
+    if (has_extern) fputc('\n', cg->out);
+
+    /* regular function definitions */
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_EXTERN_FN) continue;
+        emit_fn(cg, decl);
         fputc('\n', cg->out);
     }
 }
