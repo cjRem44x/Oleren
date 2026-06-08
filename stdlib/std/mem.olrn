@@ -1,0 +1,31 @@
+# std.mem — memory utilities
+
+fn mem_copy(dst: *u8, src: *u8, n: i64)
+{
+    @memcpy(dst, src, n)
+}
+
+fn mem_set(ptr: *u8, val: u8, n: i64)
+{
+    @memset(ptr, val, n)
+}
+
+fn mem_zero(ptr: *u8, n: i64)
+{
+    @memset(ptr, 0, n)
+}
+
+fn mem_kb(n: i64) -> i64
+{
+    ret n * 1024
+}
+
+fn mem_mb(n: i64) -> i64
+{
+    ret n * 1024 * 1024
+}
+
+fn mem_gb(n: i64) -> i64
+{
+    ret n * 1024 * 1024 * 1024
+}

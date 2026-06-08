@@ -1,0 +1,63 @@
+# std.math — scalar math, constants, and interpolation
+
+PI  :: 3.14159265358979323846
+TAU :: 6.28318530717958647692
+E   :: 2.71828182845904523536
+
+fn math_sqrt(x: f64)  -> f64 { ret _olrn_sqrt(x)  }
+fn math_abs(x: f64)   -> f64 { ret _olrn_fabs(x)  }
+fn math_sin(x: f64)   -> f64 { ret _olrn_sin(x)   }
+fn math_cos(x: f64)   -> f64 { ret _olrn_cos(x)   }
+fn math_tan(x: f64)   -> f64 { ret _olrn_tan(x)   }
+fn math_asin(x: f64)  -> f64 { ret _olrn_asin(x)  }
+fn math_acos(x: f64)  -> f64 { ret _olrn_acos(x)  }
+fn math_atan(x: f64)  -> f64 { ret _olrn_atan(x)  }
+fn math_atan2(y: f64, x: f64) -> f64 { ret _olrn_atan2(y, x) }
+fn math_floor(x: f64) -> f64 { ret _olrn_floor(x) }
+fn math_ceil(x: f64)  -> f64 { ret _olrn_ceil(x)  }
+fn math_round(x: f64) -> f64 { ret _olrn_round(x) }
+fn math_pow(b: f64, e: f64)   -> f64 { ret _olrn_pow(b, e) }
+fn math_log(x: f64)   -> f64 { ret _olrn_log(x)   }
+fn math_log2(x: f64)  -> f64 { ret _olrn_log2(x)  }
+fn math_exp(x: f64)   -> f64 { ret _olrn_exp(x)   }
+
+fn math_clamp(v: f64, lo: f64, hi: f64) -> f64
+{
+    if v < lo { ret lo }
+    if v > hi { ret hi }
+    ret v
+}
+
+fn math_lerp(a: f64, b: f64, t: f64) -> f64
+{
+    ret a + (b - a) * t
+}
+
+fn math_min(a: f64, b: f64) -> f64
+{
+    if a < b { ret a }
+    ret b
+}
+
+fn math_max(a: f64, b: f64) -> f64
+{
+    if a > b { ret a }
+    ret b
+}
+
+fn math_deg_to_rad(deg: f64) -> f64
+{
+    ret deg * PI / 180.0
+}
+
+fn math_rad_to_deg(rad: f64) -> f64
+{
+    ret rad * 180.0 / PI
+}
+
+fn math_sign(x: f64) -> f64
+{
+    if x > 0.0 { ret 1.0  }
+    if x < 0.0 { ret -1.0 }
+    ret 0.0
+}

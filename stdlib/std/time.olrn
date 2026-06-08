@@ -1,0 +1,41 @@
+# std.time — timing and stopwatch utilities
+
+fn time_now() -> i64
+{
+    ret _olrn_time_now()
+}
+
+fn time_mono() -> i64
+{
+    ret _olrn_time_mono()
+}
+
+fn time_sleep(secs: f64)
+{
+    _olrn_time_sleep(@i64(secs * 1000000000.0))
+}
+
+fn time_since(t0: i64) -> f64
+{
+    ret @f64(time_mono() - t0) / 1000000000.0
+}
+
+fn time_sw_start() -> i64
+{
+    ret time_mono()
+}
+
+fn time_sw_elapsed(start: i64) -> f64
+{
+    ret time_since(start)
+}
+
+fn time_ns_to_ms(ns: i64) -> f64
+{
+    ret @f64(ns) / 1000000.0
+}
+
+fn time_ns_to_sec(ns: i64) -> f64
+{
+    ret @f64(ns) / 1000000000.0
+}

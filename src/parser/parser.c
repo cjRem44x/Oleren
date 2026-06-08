@@ -544,8 +544,15 @@ AstNode *parser_parse_program(Parser *p)
         if (check(p, TOK_EXTERN)) {
             node_list_push(&prog->program.decls, parse_extern_fn(p));
         } else if (check(p, TOK_FN) || check(p, TOK_PUB)) {
-            match(p, TOK_PUB); /* consume optional pub */
+            match(p, TOK_PUB);
             node_list_push(&prog->program.decls, parse_fn_decl(p));
+        } else if (check(p, TOK_MUT) || check(p, TOK_IMU)) {
+            node_list_push(&prog->program.decls, parse_multi_var_decl(p));
+        } else if (check(p, TOK_IDENT) &&
+                   (p->peek.type == TOK_WALRUS || p->peek.type == TOK_COLCOL ||
+                    p->peek.type == TOK_COLON)) {
+            /* top-level constant or variable declaration */
+            node_list_push(&prog->program.decls, parse_stmt(p));
         } else {
             parse_err(p, "expected top-level declaration");
             next_tok(p);

@@ -1,0 +1,56 @@
+# std.str — string utilities beyond built-in str methods
+
+fn str_len(s: str) -> i64
+{
+    ret _olrn_str_len(s)
+}
+
+fn str_from_int(n: i64) -> str
+{
+    ret @str(n)
+}
+
+fn str_from_f64(x: f64) -> str
+{
+    ret @str(x)
+}
+
+fn str_parse_int(s: str) -> i64
+{
+    ret _olrn_str_parse_int(s)
+}
+
+fn str_parse_f64(s: str) -> f64
+{
+    ret _olrn_str_parse_f64(s)
+}
+
+fn str_to_upper(s: str) -> str
+{
+    ret _olrn_str_upper(s)
+}
+
+fn str_to_lower(s: str) -> str
+{
+    ret _olrn_str_lower(s)
+}
+
+fn str_trim(s: str) -> str
+{
+    ret _olrn_str_trim(s)
+}
+
+fn str_starts_with(s: str, prefix: str) -> bool
+{
+    ret _olrn_str_starts(s, prefix)
+}
+
+fn str_ends_with(s: str, suffix: str) -> bool
+{
+    ret _olrn_str_ends(s, suffix)
+}
+
+fn str_contains(s: str, sub: str) -> bool
+{
+    ret _olrn_str_contains(s, sub)
+}

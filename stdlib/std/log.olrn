@@ -1,0 +1,27 @@
+# std.log — structured logging
+
+fn log_debug(msg: str)
+{
+    @cout << "[DEBUG] " << msg << @endl
+}
+
+fn log_info(msg: str)
+{
+    @cout << "[INFO]  " << msg << @endl
+}
+
+fn log_warn(msg: str)
+{
+    @cout << "[WARN]  " << msg << @endl
+}
+
+fn log_error(msg: str)
+{
+    @cout << "[ERROR] " << msg << @endl
+}
+
+fn log_fatal(msg: str)
+{
+    @cout << "[FATAL] " << msg << @endl
+    @panic(msg)
+}

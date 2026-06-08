@@ -15,6 +15,7 @@ typedef struct {
     int   type_var_count;
     const char *import_aliases[MAX_IMPORT_ALIAS]; /* import alias names */
     int   import_alias_count;
+    int   has_stdlib;   /* @libs.std was imported */
 } Codegen;
 
 void codegen_init(Codegen *cg, FILE *out);

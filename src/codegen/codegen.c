@@ -1,4 +1,5 @@
 #include "codegen.h"
+#include "stdlib_impl.h"
 #include "../lexer/lexer.h"
 #include <string.h>
 #include <stdio.h>
@@ -10,6 +11,7 @@ void codegen_init(Codegen *cg, FILE *out)
     cg->in_template        = 0;
     cg->type_var_count     = 0;
     cg->import_alias_count = 0;
+    cg->has_stdlib         = 0;
 }
 
 static void codegen_reset_fn_state(Codegen *cg)
@@ -152,6 +154,35 @@ static void emit_builtin_stmt(Codegen *cg, AstNode *node)
         return;
     }
 
+    /* @panic — print message and abort */
+    if (strcmp(name, "panic") == 0) {
+        emit_indent(cg);
+        fputs("{ std::cerr << \"panic: \"", cg->out);
+        if (node->call.args.count > 0) {
+            fputs(" << ", cg->out);
+            emit_expr(cg, node->call.args.items[0]);
+        }
+        fputs(" << std::endl; std::abort(); }\n", cg->out);
+        return;
+    }
+
+    /* @assert(cond, msg) */
+    if (strcmp(name, "assert") == 0 && node->call.args.count >= 1) {
+        emit_indent(cg);
+        fputs("if (!(", cg->out);
+        emit_expr(cg, node->call.args.items[0]);
+        fputs(")) { std::cerr << \"assert failed", cg->out);
+        if (node->call.args.count >= 2) {
+            fputs(": \" << ", cg->out);
+            emit_expr(cg, node->call.args.items[1]);
+            fputs(" << std::endl", cg->out);
+        } else {
+            fputs("\" << std::endl", cg->out);
+        }
+        fputs("; std::abort(); }\n", cg->out);
+        return;
+    }
+
     /* fallback: emit as a plain call */
     fprintf(cg->out, "/* @%s */ ", name);
     fputs("(", cg->out);
@@ -277,8 +308,13 @@ static void emit_expr(Codegen *cg, AstNode *node)
             emit_expr(cg, node->unary.operand);
             break;
         case NODE_FIELD:
-            emit_expr(cg, node->field.target);
-            fprintf(cg->out, ".%s", node->field.name);
+            /* strip import alias prefix: std.math.PI → PI */
+            if (callee_is_import_qualified(cg, node))
+                fputs(last_field_name(node), cg->out);
+            else {
+                emit_expr(cg, node->field.target);
+                fprintf(cg->out, ".%s", node->field.name);
+            }
             break;
         case NODE_FIELD_PTR:
             emit_expr(cg, node->field.target);
@@ -616,19 +652,20 @@ void codegen_emit(Codegen *cg, AstNode *program)
     fputs("#include <cstdlib>\n", cg->out);
     fputs("#include <cstdio>\n", cg->out);
 
-    /* register import aliases and emit a comment for each */
+    /* register import aliases; detect stdlib */
     for (int i = 0; i < program->program.imports.count; i++) {
         AstNode *imp = program->program.imports.items[i];
         if (cg->import_alias_count < MAX_IMPORT_ALIAS)
             cg->import_aliases[cg->import_alias_count++] = imp->import_decl.alias;
-        if (imp->import_decl.is_lib)
-            fprintf(cg->out, "/* import %s = @libs.%s */\n",
-                    imp->import_decl.alias, imp->import_decl.source);
-        else
-            fprintf(cg->out, "/* import %s = \"%s\" */\n",
-                    imp->import_decl.alias, imp->import_decl.source);
+        if (imp->import_decl.is_lib && strcmp(imp->import_decl.source, "std") == 0)
+            cg->has_stdlib = 1;
     }
-    if (program->program.imports.count) fputc('\n', cg->out);
+
+    /* emit stdlib C++ preamble if needed */
+    if (cg->has_stdlib)
+        fputs(STDLIB_IMPL, cg->out);
+    else if (program->program.imports.count)
+        fputc('\n', cg->out);
 
     /* extern fn declarations — emitted first so they're visible to all fns */
     int has_extern = 0;
@@ -654,10 +691,32 @@ void codegen_emit(Codegen *cg, AstNode *program)
     }
     if (has_extern) fputc('\n', cg->out);
 
+    /* top-level constants and variables */
+    int has_globals = 0;
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind != NODE_VAR_DECL && decl->kind != NODE_VAR_DECL_GROUP) continue;
+        has_globals = 1;
+        if (decl->kind == NODE_VAR_DECL) {
+            if (decl->var_decl.is_imu) fputs("constexpr ", cg->out);
+            else                       fputs("static ", cg->out);
+            if (decl->var_decl.type_ref) emit_type(cg, decl->var_decl.type_ref);
+            else                         fputs("auto", cg->out);
+            fprintf(cg->out, " %s", decl->var_decl.name);
+            if (decl->var_decl.init) {
+                fputs(" = ", cg->out);
+                emit_expr(cg, decl->var_decl.init);
+            }
+            fputs(";\n", cg->out);
+        }
+    }
+    if (has_globals) fputc('\n', cg->out);
+
     /* regular function definitions */
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
         if (decl->kind == NODE_EXTERN_FN) continue;
+        if (decl->kind == NODE_VAR_DECL || decl->kind == NODE_VAR_DECL_GROUP) continue;
         emit_fn(cg, decl);
         fputc('\n', cg->out);
     }
