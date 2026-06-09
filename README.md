@@ -71,16 +71,14 @@ fn main() -> !void
 
 | Command | Description |
 |---|---|
-| `olrn init` | Create a new project in the current directory |
+| `olrn init <name>` | Scaffold a new project |
 | `olrn build` | Compile Oleren → C++ → binary |
 | `olrn run` | Build then run the output binary |
-| `olrn build-src` | Compile Oleren → C++ only |
-| `olrn build-out` | Compile existing C++ output → binary |
-| `olrn check` | Parse and type-check without emitting |
-| `olrn emit` | Print generated C++ to stdout |
+| `olrn build-src <file.olrn>` | Compile Oleren → C++ file |
+| `olrn check <file.olrn>` | Parse and check for errors, no output |
 | `olrn sac <files> -o=<name>` | Stand-alone compiler — no project required |
-| `olrn version` | Print compiler version |
-| `olrn help` | Print usage |
+| `olrn --version` / `-V` | Print compiler version |
+| `olrn --help` / `-h` | Print usage |
 
 ---
 
