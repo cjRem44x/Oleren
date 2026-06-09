@@ -3,10 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "ast/ast.h"
 #include "codegen/codegen.h"
+
+/* ── file helpers ─────────────────────────────────────────────── */
 
 static char *read_file(const char *path)
 {
@@ -22,14 +25,11 @@ static char *read_file(const char *path)
     return buf;
 }
 
-/* build a path relative to the directory of base_path */
 static char *resolve_path(const char *base_path, const char *rel)
 {
-    if (rel[0] == '/') return strdup(rel); /* already absolute */
-
+    if (rel[0] == '/') return strdup(rel);
     const char *last_slash = strrchr(base_path, '/');
     if (!last_slash) return strdup(rel);
-
     size_t dir_len = (size_t)(last_slash - base_path) + 1;
     char *out = malloc(dir_len + strlen(rel) + 1);
     memcpy(out, base_path, dir_len);
@@ -37,32 +37,26 @@ static char *resolve_path(const char *base_path, const char *rel)
     return out;
 }
 
-/* parse a single .olrn file and return its AST program node */
 static AstNode *parse_file(const char *path, char **src_out)
 {
     char *src = read_file(path);
     if (!src) return NULL;
     *src_out = src;
-
-    Lexer lex;
-    lexer_init(&lex, src);
-    Parser p;
-    parser_init(&p, &lex);
+    Lexer lex; lexer_init(&lex, src);
+    Parser p;  parser_init(&p, &lex);
     AstNode *prog = parser_parse_program(&p);
     if (p.had_error) {
-        fprintf(stderr, "error in imported file: %s\n", path);
-        ast_free(prog);
-        free(src);
-        *src_out = NULL;
+        fprintf(stderr, "error in file: %s\n", path);
+        ast_free(prog); free(src); *src_out = NULL;
         return NULL;
     }
     return prog;
 }
 
-/* find the stdlib/ directory — tries exe-relative, then cwd */
+/* ── stdlib loading ───────────────────────────────────────────── */
+
 static char *find_stdlib(void)
 {
-    /* try executable directory first */
     char exe[4096];
     ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
     if (n > 0) {
@@ -76,12 +70,14 @@ static char *find_stdlib(void)
             free(path);
         }
     }
-    /* fallback: current directory */
     if (access("stdlib", F_OK) == 0) return strdup("stdlib");
     return NULL;
 }
 
-/* load and prepend one stdlib .olrn module */
+static const char *STD_MODULES[] = {
+    "io", "time", "math", "mem", "str", "log", NULL
+};
+
 static void load_stdlib_module(AstNode *prog, const char *stdlib_path,
                                const char *lib, const char *mod,
                                char **srcs, int *count)
@@ -91,8 +87,6 @@ static void load_stdlib_module(AstNode *prog, const char *stdlib_path,
     char *src = NULL;
     AstNode *imported = parse_file(path, &src);
     if (!imported) return;
-
-    /* prepend module decls before host program decls */
     NodeList tmp = prog->program.decls;
     memset(&prog->program.decls, 0, sizeof(NodeList));
     for (int j = 0; j < imported->program.decls.count; j++)
@@ -105,17 +99,9 @@ static void load_stdlib_module(AstNode *prog, const char *stdlib_path,
     srcs[(*count)++] = src;
 }
 
-/* stdlib module list for @libs.std */
-static const char *STD_MODULES[] = {
-    "io", "time", "math", "mem", "str", "log", NULL
-};
-
-/* merge file imports: for each local file import, parse it and prepend
-   its declarations to the host program (simple single-pass approach) */
 static int merge_imports(AstNode *program, const char *host_path,
                          char **extra_srcs, int *extra_count)
 {
-    /* handle @libs.std — load all stdlib .olrn modules */
     for (int i = 0; i < program->program.imports.count; i++) {
         AstNode *imp = program->program.imports.items[i];
         if (!imp->import_decl.is_lib) continue;
@@ -130,19 +116,14 @@ static int merge_imports(AstNode *program, const char *host_path,
                                STD_MODULES[m], extra_srcs, extra_count);
         free(stdlib_path);
     }
-
     for (int i = 0; i < program->program.imports.count; i++) {
         AstNode *imp = program->program.imports.items[i];
-        if (imp->import_decl.is_lib) continue; /* other lib imports: codegen handles */
-
+        if (imp->import_decl.is_lib) continue;
         char *resolved = resolve_path(host_path, imp->import_decl.source);
         char *src = NULL;
         AstNode *imported = parse_file(resolved, &src);
         free(resolved);
-
         if (!imported) return 0;
-
-        /* prepend imported decls so they appear before host decls in output */
         NodeList tmp = program->program.decls;
         memset(&program->program.decls, 0, sizeof(NodeList));
         for (int j = 0; j < imported->program.decls.count; j++)
@@ -150,60 +131,303 @@ static int merge_imports(AstNode *program, const char *host_path,
         for (int j = 0; j < tmp.count; j++)
             node_list_push(&program->program.decls, tmp.items[j]);
         free(tmp.items);
-
-        /* detach items so ast_free doesn't double-free them */
         imported->program.decls.count = 0;
         ast_free(imported);
-
         extra_srcs[(*extra_count)++] = src;
     }
     return 1;
 }
 
-int main(int argc, char **argv)
+/* ── core compilation pipeline ────────────────────────────────── */
+
+/* Parse olrn_path, merge imports, emit C++ to out. Returns 0 on success. */
+static int compile_to_out(const char *olrn_path, FILE *out)
 {
-    if (argc < 2) {
-        fprintf(stderr, "usage: olrn <file.olrn>\n");
-        return 1;
-    }
+    char *src = NULL;
+    AstNode *program = parse_file(olrn_path, &src);
+    if (!program) return 1;
 
-    if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-V") == 0) {
-        printf("olrn %s\n", OLRN_VERSION);
-        return 0;
-    }
-
-    char *src = read_file(argv[1]);
-    if (!src) return 1;
-
-    Lexer lex;
-    lexer_init(&lex, src);
-    Parser parser;
-    parser_init(&parser, &lex);
-    AstNode *program = parser_parse_program(&parser);
-
-    if (parser.had_error) {
-        fprintf(stderr, "compilation failed\n");
-        ast_free(program);
-        free(src);
-        return 1;
-    }
-
-    /* process local file imports */
-    char *extra_srcs[64];
-    int   extra_count = 0;
-    if (!merge_imports(program, argv[1], extra_srcs, &extra_count)) {
-        ast_free(program);
-        free(src);
-        return 1;
+    char *extra_srcs[64]; int extra_count = 0;
+    if (!merge_imports(program, olrn_path, extra_srcs, &extra_count)) {
+        ast_free(program); free(src); return 1;
     }
 
     Codegen cg;
-    codegen_init(&cg, stdout);
+    codegen_init(&cg, out);
     codegen_emit(&cg, program);
+    fflush(out);
 
-    fflush(stdout);
-    ast_free(program);
-    free(src);
+    ast_free(program); free(src);
     for (int i = 0; i < extra_count; i++) free(extra_srcs[i]);
     return 0;
+}
+
+/* Compile one or more .olrn files to a native binary via g++.
+   inputs[0] is the main file; inputs[1..n-1] are prepended as implicit imports.
+   Returns 0 on success. */
+static int compile_to_binary(const char **inputs, int input_count,
+                             const char *output)
+{
+    /* write merged C++ to a temp file */
+    char tmp_cpp[64];
+    snprintf(tmp_cpp, sizeof(tmp_cpp), "/tmp/olrn_%d.cpp", (int)getpid());
+    FILE *cpp_file = fopen(tmp_cpp, "w");
+    if (!cpp_file) { perror(tmp_cpp); return 1; }
+
+    char *main_src = NULL;
+    AstNode *program = parse_file(inputs[0], &main_src);
+    if (!program) { fclose(cpp_file); remove(tmp_cpp); return 1; }
+
+    char *extra_srcs[128]; int extra_count = 0;
+    if (!merge_imports(program, inputs[0], extra_srcs, &extra_count)) {
+        ast_free(program); free(main_src);
+        fclose(cpp_file); remove(tmp_cpp); return 1;
+    }
+
+    /* prepend any additional .olrn files as implicit imports */
+    for (int i = 1; i < input_count; i++) {
+        char *fsrc = NULL;
+        AstNode *imported = parse_file(inputs[i], &fsrc);
+        if (!imported) {
+            ast_free(program); free(main_src);
+            for (int j = 0; j < extra_count; j++) free(extra_srcs[j]);
+            fclose(cpp_file); remove(tmp_cpp); return 1;
+        }
+        NodeList tmp = program->program.decls;
+        memset(&program->program.decls, 0, sizeof(NodeList));
+        for (int j = 0; j < imported->program.decls.count; j++)
+            node_list_push(&program->program.decls, imported->program.decls.items[j]);
+        for (int j = 0; j < tmp.count; j++)
+            node_list_push(&program->program.decls, tmp.items[j]);
+        free(tmp.items);
+        imported->program.decls.count = 0;
+        ast_free(imported);
+        extra_srcs[extra_count++] = fsrc;
+    }
+
+    Codegen cg;
+    codegen_init(&cg, cpp_file);
+    codegen_emit(&cg, program);
+    fflush(cpp_file);
+    fclose(cpp_file);
+
+    ast_free(program); free(main_src);
+    for (int i = 0; i < extra_count; i++) free(extra_srcs[i]);
+
+    /* invoke g++ */
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "g++ -std=c++17 -O2 \"%s\" -o \"%s\" 2>&1", tmp_cpp, output);
+    int rc = system(cmd);
+    remove(tmp_cpp);
+    return (rc == 0) ? 0 : 1;
+}
+
+/* ── commands ─────────────────────────────────────────────────── */
+
+static void print_help(void)
+{
+    printf("olrn %s — the Oleren compiler\n\n", OLRN_VERSION);
+    printf("usage:\n");
+    printf("  olrn <file.olrn>               emit C++ to stdout\n");
+    printf("  olrn emit <file.olrn>          emit C++ to stdout\n");
+    printf("  olrn build-src <file.olrn>     emit C++ to <file>.cpp\n");
+    printf("  olrn check <file.olrn>         parse and check for errors\n");
+    printf("  olrn sac <file(s)> [-o=name]   compile to native binary\n");
+    printf("  olrn build                     build project (main.olrn → binary)\n");
+    printf("  olrn run                       build and run project\n");
+    printf("  olrn init <name>               scaffold a new project\n");
+    printf("  olrn --version / -V            print version\n");
+    printf("  olrn --help    / -h            print this help\n");
+}
+
+/* olrn init <name> */
+static int cmd_init(int argc, char **argv)
+{
+    if (argc < 3) {
+        fprintf(stderr, "usage: olrn init <name>\n");
+        return 1;
+    }
+    const char *name = argv[2];
+
+    if (mkdir(name, 0755) != 0) { perror(name); return 1; }
+
+    char path[512];
+    snprintf(path, sizeof(path), "%s/main.olrn", name);
+    FILE *f = fopen(path, "w");
+    if (!f) { perror(path); return 1; }
+    fprintf(f,
+        "fn main() -> void\n"
+        "{\n"
+        "    @pl(\"Hello from %s!\")\n"
+        "}\n", name);
+    fclose(f);
+
+    printf("created project: %s/\n", name);
+    printf("  %s\n", path);
+    return 0;
+}
+
+/* olrn check <file.olrn> */
+static int cmd_check(int argc, char **argv)
+{
+    if (argc < 3) {
+        fprintf(stderr, "usage: olrn check <file.olrn>\n");
+        return 1;
+    }
+    const char *path = argv[2];
+    char *src = NULL;
+    AstNode *program = parse_file(path, &src);
+    if (!program) return 1;
+
+    /* also resolve imports to surface import-level errors */
+    char *extra_srcs[64]; int extra_count = 0;
+    int ok = merge_imports(program, path, extra_srcs, &extra_count);
+
+    ast_free(program); free(src);
+    for (int i = 0; i < extra_count; i++) free(extra_srcs[i]);
+
+    if (!ok) return 1;
+    printf("%s: ok\n", path);
+    return 0;
+}
+
+/* olrn emit <file.olrn>  — C++ to stdout */
+static int cmd_emit(int argc, char **argv)
+{
+    const char *path = (argc >= 3) ? argv[2] : argv[1];
+    return compile_to_out(path, stdout);
+}
+
+/* olrn build-src <file.olrn>  — C++ to <basename>.cpp */
+static int cmd_build_src(int argc, char **argv)
+{
+    if (argc < 3) {
+        fprintf(stderr, "usage: olrn build-src <file.olrn>\n");
+        return 1;
+    }
+    const char *in_path = argv[2];
+
+    /* derive output path: strip directory, replace .olrn with .cpp */
+    const char *base = strrchr(in_path, '/');
+    base = base ? base + 1 : in_path;
+    char out_path[512];
+    snprintf(out_path, sizeof(out_path), "%s", base);
+    char *dot = strrchr(out_path, '.');
+    if (dot) strcpy(dot, ".cpp");
+    else strcat(out_path, ".cpp");
+
+    FILE *f = fopen(out_path, "w");
+    if (!f) { perror(out_path); return 1; }
+    int rc = compile_to_out(in_path, f);
+    fclose(f);
+    if (rc != 0) { remove(out_path); return 1; }
+    printf("wrote: %s\n", out_path);
+    return 0;
+}
+
+/* olrn sac <file(s)> [-o=name] */
+static int cmd_sac(int argc, char **argv)
+{
+    if (argc < 3) {
+        fprintf(stderr, "usage: olrn sac <file.olrn> [more.olrn ...] [-o=name]\n");
+        return 1;
+    }
+
+    const char *inputs[64];
+    int input_count = 0;
+    const char *output = NULL;
+
+    for (int i = 2; i < argc; i++) {
+        if (strncmp(argv[i], "-o=", 3) == 0)
+            output = argv[i] + 3;
+        else
+            inputs[input_count++] = argv[i];
+    }
+
+    if (input_count == 0) {
+        fprintf(stderr, "sac: no input files\n");
+        return 1;
+    }
+
+    /* derive output name from first input if not given */
+    char derived[256];
+    if (!output) {
+        const char *base = strrchr(inputs[0], '/');
+        base = base ? base + 1 : inputs[0];
+        snprintf(derived, sizeof(derived), "%s", base);
+        char *dot = strrchr(derived, '.');
+        if (dot) *dot = '\0';
+        output = derived;
+    }
+
+    int rc = compile_to_binary(inputs, input_count, output);
+    if (rc == 0) printf("built: %s\n", output);
+    return rc;
+}
+
+/* olrn build  — compile main.olrn in cwd to a binary */
+static int cmd_build(void)
+{
+    if (access("main.olrn", F_OK) != 0) {
+        fprintf(stderr, "build: no main.olrn found in current directory\n");
+        return 1;
+    }
+
+    /* name the binary after the current directory */
+    char cwd[512];
+    if (!getcwd(cwd, sizeof(cwd))) { perror("getcwd"); return 1; }
+    const char *name = strrchr(cwd, '/');
+    name = name ? name + 1 : cwd;
+
+    const char *inputs[] = { "main.olrn" };
+    int rc = compile_to_binary(inputs, 1, name);
+    if (rc == 0) { printf("built: %s\n", name); fflush(stdout); }
+    return rc;
+}
+
+/* olrn run  — build then execute */
+static int cmd_run(void)
+{
+    if (cmd_build() != 0) return 1;
+
+    char cwd[512];
+    if (!getcwd(cwd, sizeof(cwd))) { perror("getcwd"); return 1; }
+    const char *name = strrchr(cwd, '/');
+    name = name ? name + 1 : cwd;
+
+    char cmd[768];
+    snprintf(cmd, sizeof(cmd), "./%s", name);
+    return system(cmd);
+}
+
+/* ── entry point ──────────────────────────────────────────────── */
+
+int main(int argc, char **argv)
+{
+    if (argc < 2) {
+        print_help();
+        return 1;
+    }
+
+    const char *sub = argv[1];
+
+    if (strcmp(sub, "--version") == 0 || strcmp(sub, "-V") == 0) {
+        printf("olrn %s\n", OLRN_VERSION);
+        return 0;
+    }
+    if (strcmp(sub, "--help") == 0 || strcmp(sub, "-h") == 0) {
+        print_help();
+        return 0;
+    }
+    if (strcmp(sub, "init")      == 0) return cmd_init(argc, argv);
+    if (strcmp(sub, "check")     == 0) return cmd_check(argc, argv);
+    if (strcmp(sub, "emit")      == 0) return cmd_emit(argc, argv);
+    if (strcmp(sub, "build-src") == 0) return cmd_build_src(argc, argv);
+    if (strcmp(sub, "sac")       == 0) return cmd_sac(argc, argv);
+    if (strcmp(sub, "build")     == 0) return cmd_build();
+    if (strcmp(sub, "run")       == 0) return cmd_run();
+
+    /* bare file path — emit C++ to stdout (backward-compatible) */
+    return compile_to_out(sub, stdout);
 }
