@@ -232,6 +232,7 @@ static void print_help(void)
     printf("  olrn <file.olrn>               emit C++ to stdout\n");
     printf("  olrn emit <file.olrn>          emit C++ to stdout\n");
     printf("  olrn build-src <file.olrn>     emit C++ to <file>.cpp\n");
+    printf("  olrn build-out <file.cpp>      compile existing C++ to binary\n");
     printf("  olrn check <file.olrn>         parse and check for errors\n");
     printf("  olrn sac <file(s)> [-o=name]   compile to native binary\n");
     printf("  olrn build                     build project (main.olrn → binary)\n");
@@ -328,6 +329,47 @@ static int cmd_build_src(int argc, char **argv)
     if (rc != 0) { remove(out_path); return 1; }
     printf("wrote: %s\n", out_path);
     return 0;
+}
+
+/* olrn build-out <file.cpp> [-o=name]  — compile existing C++ to binary */
+static int cmd_build_out(int argc, char **argv)
+{
+    if (argc < 3) {
+        fprintf(stderr, "usage: olrn build-out <file.cpp> [-o=name]\n");
+        return 1;
+    }
+
+    const char *cpp_path = NULL;
+    const char *output   = NULL;
+
+    for (int i = 2; i < argc; i++) {
+        if (strncmp(argv[i], "-o=", 3) == 0)
+            output = argv[i] + 3;
+        else
+            cpp_path = argv[i];
+    }
+
+    if (!cpp_path) {
+        fprintf(stderr, "build-out: no input file\n");
+        return 1;
+    }
+
+    char derived[256];
+    if (!output) {
+        const char *base = strrchr(cpp_path, '/');
+        base = base ? base + 1 : cpp_path;
+        snprintf(derived, sizeof(derived), "%s", base);
+        char *dot = strrchr(derived, '.');
+        if (dot) *dot = '\0';
+        output = derived;
+    }
+
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "g++ -std=c++17 -O2 \"%s\" -o \"%s\" 2>&1", cpp_path, output);
+    int rc = system(cmd);
+    if (rc == 0) printf("built: %s\n", output);
+    return (rc == 0) ? 0 : 1;
 }
 
 /* olrn sac <file(s)> [-o=name] */
@@ -428,6 +470,7 @@ int main(int argc, char **argv)
     if (strcmp(sub, "check")     == 0) return cmd_check(argc, argv);
     if (strcmp(sub, "emit")      == 0) return cmd_emit(argc, argv);
     if (strcmp(sub, "build-src") == 0) return cmd_build_src(argc, argv);
+    if (strcmp(sub, "build-out") == 0) return cmd_build_out(argc, argv);
     if (strcmp(sub, "sac")       == 0) return cmd_sac(argc, argv);
     if (strcmp(sub, "build")     == 0) return cmd_build();
     if (strcmp(sub, "run")       == 0) return cmd_run();
