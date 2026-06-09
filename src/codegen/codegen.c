@@ -244,10 +244,16 @@ static void emit_expr(Codegen *cg, AstNode *node)
             /* Oleren: untyped integer literals always infer to i64 */
             fprintf(cg->out, "(int64_t)%lld", node->int_lit.value);
             break;
-        case NODE_FLOAT_LIT:
-            /* Oleren: untyped float literals always infer to f64 (double) */
-            fprintf(cg->out, "%g", node->float_lit.value);
+        case NODE_FLOAT_LIT: {
+            /* Oleren: float literals are f64 (double); always include decimal
+               point so C++ doesn't deduce an int type in template contexts */
+            char _fb[32];
+            snprintf(_fb, sizeof(_fb), "%g", node->float_lit.value);
+            fputs(_fb, cg->out);
+            if (!strchr(_fb, '.') && !strchr(_fb, 'e') && !strchr(_fb, 'E'))
+                fputs(".0", cg->out);
             break;
+        }
         case NODE_CHAR_LIT:
             fprintf(cg->out, "'%c'", node->char_lit.value);
             break;
@@ -572,9 +578,29 @@ static void emit_if_expr(Codegen *cg, AstNode *node)
 /* emit when as C++ if/else-if/else chain */
 static void emit_when_chain(Codegen *cg, AstNode *node)
 {
-    /* detect type dispatch: subject is an ident registered as a type var */
-    int type_dispatch = node->when_expr.subject->kind == NODE_IDENT &&
-                        is_type_var(cg, node->when_expr.subject->ident.name);
+    AstNode *subj = node->when_expr.subject;
+
+    /* detect type dispatch:
+       (a) when T { ... }  — subject is an ident registered as a type var
+       (b) when @type(x) { ... }  — subject is @type(x) builtin call        */
+    int type_dispatch = 0;
+    const char *type_cpp = NULL; /* the C++ type name used in is_same_v<> */
+
+    if (subj->kind == NODE_IDENT && is_type_var(cg, subj->ident.name)) {
+        type_dispatch = 1;
+        type_cpp = subj->ident.name; /* already a using-alias in scope */
+    } else if (subj->kind == NODE_BUILTIN_CALL &&
+               strcmp(subj->call.name, "type") == 0 &&
+               subj->call.args.count == 1 &&
+               subj->call.args.items[0]->kind == NODE_IDENT) {
+        /* @type(x) — the template type param is T_x */
+        type_dispatch = 1;
+        /* build "T_<argname>" on the stack */
+        static char _tbuf[64];
+        snprintf(_tbuf, sizeof(_tbuf), "T_%s",
+                 subj->call.args.items[0]->ident.name);
+        type_cpp = _tbuf;
+    }
 
     int first = 1;
     for (int i = 0; i < node->when_expr.arms.count; i++) {
@@ -588,11 +614,10 @@ static void emit_when_chain(Codegen *cg, AstNode *node)
 
             if (type_dispatch) {
                 /* when T { TypeName => ... } → if constexpr (is_same_v<T, CppType>) */
-                const char *type_var = node->when_expr.subject->ident.name;
                 const char *pat_name = arm->when_arm.pattern->kind == NODE_IDENT
                     ? arm->when_arm.pattern->ident.name : "?";
                 fprintf(cg->out, "if constexpr (std::is_same_v<%s, %s>) {\n",
-                        type_var, map_type(pat_name));
+                        type_cpp, map_type(pat_name));
             } else {
                 /* when value { val => ... } → if (subject == val) */
                 fputs("if (", cg->out);
@@ -965,8 +990,13 @@ void codegen_emit(Codegen *cg, AstNode *program)
                     AstNode *val = v->enum_variant.value;
                     if (val->kind == NODE_INT_LIT)
                         fprintf(cg->out, "%lld", val->int_lit.value);
-                    else if (val->kind == NODE_FLOAT_LIT)
-                        fprintf(cg->out, "%g", val->float_lit.value);
+                    else if (val->kind == NODE_FLOAT_LIT) {
+                        char _fb[32];
+                        snprintf(_fb, sizeof(_fb), "%g", val->float_lit.value);
+                        fputs(_fb, cg->out);
+                        if (!strchr(_fb,'.') && !strchr(_fb,'e') && !strchr(_fb,'E'))
+                            fputs(".0", cg->out);
+                    }
                     else
                         emit_expr(cg, val);
                 }
