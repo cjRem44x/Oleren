@@ -317,18 +317,30 @@ See Notes.md § Generics.
 
 ---
 
-## Compiler Implementation Order
+## Compiler Status — v0.1.0
 
-Once the above is designed, implementation should proceed in this order:
+All planned v0.1.0 features are implemented and passing the test suite.
 
-1. Binary expressions + operator precedence (Pratt parser)
-2. `if / when` as expressions
-3. Variable declarations (`x := ...`, `x :T = ...`, `:T:`)
-4. Type casting (`@cast`)
-5. `any` type + `@type()` + `when T` dispatch
-6. Import system (`import ( x = "path", lib = @name )`)
-7. `extern` FFI declarations
-8. `std.io` (file open/read/write/close)
-9. `std.math` (scalar + Vec2/3/4, Mat4)
-10. `std.mem` (arena allocator)
-11. `std.time` (game loop timer)
+- [x] Binary expressions + Pratt parser (full operator precedence)
+- [x] `if / elif / else`, `when` (switch/match)
+- [x] Variable declarations — mutable/immutable, explicit/implicit
+- [x] Type casting (`@T(val)`)
+- [x] `any` type + `@type()` + `when T` dispatch (monomorphized generics)
+- [x] Import system (`import ( alias = "path" / @libs.name )`)
+- [x] `extern` FFI declarations
+- [x] Loops — `for`, `loop`, `while`
+- [x] `defer` / `errdefer`
+- [x] Error handling — `err`, `!T`, `ErrSet!T`, `try`, `catch`, `errdefer`
+- [x] Structs, enums, unions
+- [x] Heap allocation (`@alo`, `@free`), raw and smart pointers
+- [x] Standard library — `std.io`, `std.math`, `std.mem`, `std.str`, `std.time`
+- [x] CLI — `build`, `run`, `build-src`, `build-out`, `check`, `sac`, `init`
+
+## Next (v0.2.0 candidates)
+
+- `mod` — namespaced module with encapsulated state (see § 9)
+- Multi-return / tuple values
+- `std.fs` — filesystem (path, dir listing)
+- `std.thread` — basic threading
+- `olrn_pkg.toml` — full build config spec
+- Malkur gamedev library (`@libs.malkur`)

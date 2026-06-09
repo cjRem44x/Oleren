@@ -8,31 +8,40 @@ The goal is to provide a more reasonable frontend for the C++ industry standard 
 
 The Oleren Project Manager allows for a more modern approach to building code, managing assets, and better project organization.
 
-To create a new oleren project `mkdir myOlrnDir` create a new project directory, `cd myOlrnDir` move into it, then run `olrn init` to create a fresh Oleren Project.
+To create a new Oleren project, run `olrn init <name>` in any directory.
 
-The project structure should look like,
+The project structure looks like:
 ```
 /myOlrnDir
     /bin
-        # bin build
+        # compiled binary
     /src
         /main
             /olrn
-                main.olrn # a pre-made entry
+                main.olrn # entry point
     /olrn_out
-        # compile C++ project code
-    olrn_pkg.toml # where build assets are managed
-    README.md # blank readme
+        # generated C++ output
+    olrn_pkg.toml # build config
+    README.md
 ```
 
-To build my Oleren code, I run `olrn build`. If I want to run the binary output I use `olrn run`.
+| Command | Description |
+|---|---|
+| `olrn build` | Compile Oleren → C++ → binary |
+| `olrn run` | Build then run the binary |
+| `olrn build-src <file.olrn>` | Compile Oleren → C++ file (no binary) |
+| `olrn build-out <file.cpp>` | Compile existing C++ → binary (skip frontend) |
+| `olrn check <file.olrn>` | Parse and check for errors, no output |
+| `olrn sac <files> [-o=name]` | Stand-alone: compile one or more files to binary |
+| `olrn --version` / `-V` | Print version |
+| `olrn --help` / `-h` | Print usage |
 
-If I want to just build to C++, I run `olrn build-src` which just compile Oleren -> C++. And `olrn build-out` compile C++ -> Oleren bin, which allows for changes to be made to output C++ if needed.
+`build-src` + `build-out` are useful together: generate the C++, hand-edit it, then recompile without touching the Oleren source.
 
-Stand-Alone-Compiler to compile Oleren code directly in a binaries,`olrn sac main.olrn -o=main`
-
-This allows for Oleren code outside of the project manager.
-`olrn sac path/*.olrn ../path/*.olrn ... -o=name` allows for multiple paths of source code to be compiled.
+`sac` (Stand-Alone Compiler) works outside a project directory and accepts multiple source files:
+```sh
+olrn sac main.olrn util.olrn -o=myprog
+```
 
 ## Imports
 
