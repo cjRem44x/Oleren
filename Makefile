@@ -1,6 +1,7 @@
-CC     = gcc
-CFLAGS = -Wall -Wextra -std=c11 -g
-TARGET = olrn
+CC      = gcc
+CFLAGS  = -Wall -Wextra -std=c11 -g
+TARGET  = olrn
+VERSION = 0.1.0
 
 SRCS = \
     src/main.c          \
@@ -19,7 +20,7 @@ $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -DOLRN_VERSION=\"$(VERSION)\" -c -o $@ $<
 
 # compile hello_world.olrn -> C++ -> binary -> run
 test: $(TARGET)
