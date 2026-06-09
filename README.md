@@ -80,7 +80,7 @@ fn main() -> !void
 | `olrn emit` | Print generated C++ to stdout |
 | `olrn sac <files> -o=<name>` | Stand-alone compiler — no project required |
 | `olrn version` | Print compiler version |
-| `olrn --help` | Print usage |
+| `olrn help` | Print usage |
 
 ---
 
