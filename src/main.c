@@ -237,39 +237,32 @@ static void print_help(void)
     printf("  olrn sac <file(s)> [-o=name]   compile to native binary\n");
     printf("  olrn build                     build project (main.olrn → binary)\n");
     printf("  olrn run                       build and run project\n");
-    printf("  olrn init <name>               scaffold a new project\n");
+    printf("  olrn init                      scaffold a new project in cwd\n");
     printf("  olrn --version / -V            print version\n");
     printf("  olrn --help    / -h            print this help\n");
 }
 
-/* olrn init <name> */
+/* olrn init — scaffold in the current directory */
 static int cmd_init(int argc, char **argv)
 {
-    if (argc < 3) {
-        fprintf(stderr, "usage: olrn init <name>\n");
-        return 1;
-    }
-    const char *name = argv[2];
+    (void)argc; (void)argv;
 
-    if (mkdir(name, 0755) != 0) { perror(name); return 1; }
+    char cwd[512];
+    if (!getcwd(cwd, sizeof(cwd))) { perror("getcwd"); return 1; }
+    const char *name = strrchr(cwd, '/');
+    name = name ? name + 1 : cwd;
 
-    /* use only the final path component as the display name */
-    const char *display = strrchr(name, '/');
-    display = display ? display + 1 : name;
-
-    char path[512];
-    snprintf(path, sizeof(path), "%s/main.olrn", name);
-    FILE *f = fopen(path, "w");
-    if (!f) { perror(path); return 1; }
+    FILE *f = fopen("main.olrn", "w");
+    if (!f) { perror("main.olrn"); return 1; }
     fprintf(f,
         "fn main() -> void\n"
         "{\n"
         "    @pl(\"Hello from %s!\")\n"
-        "}\n", display);
+        "}\n", name);
     fclose(f);
 
-    printf("created project: %s/\n", name);
-    printf("  %s\n", path);
+    printf("initialized project: %s\n", name);
+    printf("  main.olrn\n");
     return 0;
 }
 

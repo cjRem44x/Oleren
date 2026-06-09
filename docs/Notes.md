@@ -8,7 +8,7 @@ The goal is to provide a more reasonable frontend for the C++ industry standard 
 
 The Oleren Project Manager allows for a more modern approach to building code, managing assets, and better project organization.
 
-To create a new Oleren project, run `olrn init <name>` in any directory.
+To create a new Oleren project, `mkdir myGame` and `cd` into it, then run `olrn init`. It scaffolds inside the current directory, using the directory name as the project name.
 
 The project structure looks like:
 ```

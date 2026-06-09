@@ -13,7 +13,8 @@ No runtime, no GC, no OOP.
 make
 
 # create a project
-mkdir myGame && cd myGame
+mkdir myGame
+cd myGame
 olrn init
 
 # build & run
@@ -71,7 +72,7 @@ fn main() -> !void
 
 | Command | Description |
 |---|---|
-| `olrn init <name>` | Scaffold a new project |
+| `olrn init` | Scaffold a new project in cwd |
 | `olrn build` | Compile Oleren → C++ → binary |
 | `olrn run` | Build then run the output binary |
 | `olrn build-src <file.olrn>` | Compile Oleren → C++ file |
