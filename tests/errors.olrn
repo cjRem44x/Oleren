@@ -1,0 +1,44 @@
+err FileError { NotFound, PermDenied }
+err NetError  { Timeout, Refused }
+
+fn read_file(path: str) -> !str
+{
+    if path == "" {
+        ret err.BadPath
+    }
+    if path == "missing" {
+        ret FileError.NotFound
+    }
+    ret "hello from file"
+}
+
+fn connect(host: str) -> !i32
+{
+    if host == "" {
+        ret NetError.Refused
+    }
+    ret 42
+}
+
+fn do_work() -> !void
+{
+    content := try read_file("myfile.txt")
+    @pl(content)
+
+    n := connect("localhost") catch 0
+    @pl(n)
+
+    size := read_file("missing") catch |e| {
+        @pl(e.msg)
+        ret err.Wrapped
+    }
+    @pl(size)
+}
+
+fn main() -> !void
+{
+    do_work() catch |e| {
+        @pl("main caught error:")
+        @pl(e.msg)
+    }
+}

@@ -14,6 +14,11 @@ void codegen_init(Codegen *cg, FILE *out)
     cg->has_stdlib         = 0;
     cg->enum_count         = 0;
     cg->defer_counter      = 0;
+    cg->err_count          = 0;
+    cg->in_err_fn          = 0;
+    cg->has_errdefer       = 0;
+    cg->try_counter        = 0;
+    cg->err_ret_cpp[0]     = '\0';
 }
 
 static void codegen_reset_fn_state(Codegen *cg)
@@ -21,6 +26,10 @@ static void codegen_reset_fn_state(Codegen *cg)
     cg->in_template    = 0;
     cg->type_var_count = 0;
     cg->defer_counter  = 0;
+    cg->in_err_fn      = 0;
+    cg->has_errdefer   = 0;
+    cg->try_counter    = 0;
+    cg->err_ret_cpp[0] = '\0';
 }
 
 static int is_import_alias(Codegen *cg, const char *name)
@@ -59,6 +68,47 @@ static int is_type_var(Codegen *cg, const char *name)
 {
     for (int i = 0; i < cg->type_var_count; i++)
         if (strcmp(cg->type_vars[i], name) == 0) return 1;
+    return 0;
+}
+
+static int is_err_name(Codegen *cg, const char *name)
+{
+    for (int i = 0; i < cg->err_count; i++)
+        if (strcmp(cg->err_names[i], name) == 0) return 1;
+    return 0;
+}
+
+/* returns 1 if node represents an error value (not a success value) */
+static int is_err_return(Codegen *cg, AstNode *node)
+{
+    if (!node) return 0;
+    if (node->kind == NODE_ERR_LIT) return 1;
+    if (node->kind == NODE_FIELD && node->field.target->kind == NODE_IDENT)
+        return is_err_name(cg, node->field.target->ident.name);
+    return 0;
+}
+
+/* emit the _OlrnError value for an error return node */
+static void emit_err_value(Codegen *cg, AstNode *node)
+{
+    if (node->kind == NODE_ERR_LIT) {
+        if (node->err_lit.set_name)
+            fprintf(cg->out, "_olrn_err_%s::%s",
+                    node->err_lit.set_name, node->err_lit.variant_name);
+        else
+            fprintf(cg->out, "_OlrnError{-1, \"%s\"}", node->err_lit.variant_name);
+    } else if (node->kind == NODE_FIELD) {
+        fprintf(cg->out, "_olrn_err_%s::%s",
+                node->field.target->ident.name, node->field.name);
+    }
+}
+
+/* scan a function body for any errdefer statements */
+static int fn_has_errdefer(AstNode *body)
+{
+    if (!body || body->kind != NODE_BLOCK) return 0;
+    for (int i = 0; i < body->block.stmts.count; i++)
+        if (body->block.stmts.items[i]->kind == NODE_ERRDEFER) return 1;
     return 0;
 }
 
@@ -116,11 +166,29 @@ static void emit_type(Codegen *cg, AstNode *type_ref)
     if (!type_ref) { fputs("void", cg->out); return; }
 
     const char *base  = map_type(type_ref->type_ref.name);
-    int is_arr   = type_ref->type_ref.is_arr;
-    int arr_size = type_ref->type_ref.arr_size;
-    int is_imu   = type_ref->type_ref.is_imu;
-    int is_ptr   = type_ref->type_ref.is_ptr;
-    int is_smart = type_ref->type_ref.is_smart;
+    int is_result = type_ref->type_ref.is_result;
+    int is_arr    = type_ref->type_ref.is_arr;
+    int arr_size  = type_ref->type_ref.arr_size;
+    int is_imu    = type_ref->type_ref.is_imu;
+    int is_ptr    = type_ref->type_ref.is_ptr;
+    int is_smart  = type_ref->type_ref.is_smart;
+
+    /* !T — emit as _OlrnResult<T> */
+    if (is_result) {
+        fputs("_OlrnResult<", cg->out);
+        if (is_arr && arr_size > 0)
+            fprintf(cg->out, "std::array<%s, %d>", base, arr_size);
+        else if (is_arr)
+            fprintf(cg->out, "std::vector<%s>", base);
+        else if (is_smart)
+            fprintf(cg->out, "std::shared_ptr<%s>", base);
+        else {
+            fputs(base, cg->out);
+            if (is_ptr) fputs(" *", cg->out);
+        }
+        fputc('>', cg->out);
+        return;
+    }
 
     if (is_imu) fputs("const ", cg->out);
 
@@ -396,6 +464,11 @@ static void emit_expr(Codegen *cg, AstNode *node)
                      is_enum_name(cg, node->field.target->ident.name))
                 fprintf(cg->out, "%s::%s",
                         node->field.target->ident.name, node->field.name);
+            /* ErrSet.Variant → _olrn_err_ErrSet::Variant for error sets */
+            else if (node->field.target->kind == NODE_IDENT &&
+                     is_err_name(cg, node->field.target->ident.name))
+                fprintf(cg->out, "_olrn_err_%s::%s",
+                        node->field.target->ident.name, node->field.name);
             else {
                 emit_expr(cg, node->field.target);
                 fprintf(cg->out, ".%s", node->field.name);
@@ -453,6 +526,50 @@ static void emit_expr(Codegen *cg, AstNode *node)
             }
             emit_expr(cg, node->assign.rhs);
             break;
+        case NODE_ERR_LIT:
+            if (node->err_lit.set_name)
+                fprintf(cg->out, "_olrn_err_%s::%s",
+                        node->err_lit.set_name, node->err_lit.variant_name);
+            else
+                fprintf(cg->out, "_OlrnError{-1, \"%s\"}", node->err_lit.variant_name);
+            break;
+        case NODE_TRY_EXPR: {
+            /* try expr — propagate error; emit as GCC statement expression */
+            int n = cg->try_counter++;
+            fprintf(cg->out, "(__extension__({auto _r_%d=(", n);
+            emit_expr(cg, node->try_expr.expr);
+            fprintf(cg->out,
+                    ");if(!_r_%d.is_ok())return _OlrnResult<%s>(_r_%d.error());_r_%d.value();}))",
+                    n, cg->err_ret_cpp, n, n);
+            break;
+        }
+        case NODE_CATCH_EXPR: {
+            int n = cg->try_counter++;
+            if (node->catch_expr.body) {
+                /* expr catch |e| { body } — body must bail/ret on error path */
+                fprintf(cg->out, "(__extension__({auto _r_%d=(", n);
+                emit_expr(cg, node->catch_expr.expr);
+                fprintf(cg->out, ");if(!_r_%d.is_ok()){_OlrnError %s=_r_%d.error();",
+                        n, node->catch_expr.err_var, n);
+                AstNode *bdy = node->catch_expr.body;
+                if (bdy->kind == NODE_BLOCK) {
+                    int saved = cg->indent;
+                    cg->indent = 0;
+                    for (int j = 0; j < bdy->block.stmts.count; j++)
+                        emit_stmt(cg, bdy->block.stmts.items[j]);
+                    cg->indent = saved;
+                }
+                fprintf(cg->out, "}_r_%d.value();}))", n);
+            } else {
+                /* expr catch fallback — ternary */
+                fprintf(cg->out, "(__extension__({auto _r_%d=(", n);
+                emit_expr(cg, node->catch_expr.expr);
+                fprintf(cg->out, ");_r_%d.is_ok()?_r_%d.value():(", n, n);
+                emit_expr(cg, node->catch_expr.fallback);
+                fputs(");}))", cg->out);
+            }
+            break;
+        }
         default: break;
     }
 }
@@ -649,16 +766,37 @@ static void emit_stmt(Codegen *cg, AstNode *node)
         case NODE_BUILTIN_CALL:
             emit_builtin_stmt(cg, node);
             break;
-        case NODE_RET:
+        case NODE_RET: {
+            int is_err_val = cg->in_err_fn && is_err_return(cg, node->ret.value);
+            /* set success flag before successful returns in errdefer functions */
+            if (cg->in_err_fn && cg->has_errdefer && !is_err_val) {
+                emit_indent(cg);
+                fputs("_fn_ok = true;\n", cg->out);
+            }
             emit_indent(cg);
-            if (node->ret.value) {
-                fputs("return ", cg->out);
-                emit_expr(cg, node->ret.value);
-                fputs(";\n", cg->out);
+            if (cg->in_err_fn) {
+                if (!node->ret.value) {
+                    fprintf(cg->out, "return _OlrnResult<%s>();\n", cg->err_ret_cpp);
+                } else if (is_err_val) {
+                    fprintf(cg->out, "return _OlrnResult<%s>(", cg->err_ret_cpp);
+                    emit_err_value(cg, node->ret.value);
+                    fputs(");\n", cg->out);
+                } else {
+                    fprintf(cg->out, "return _OlrnResult<%s>(", cg->err_ret_cpp);
+                    emit_expr(cg, node->ret.value);
+                    fputs(");\n", cg->out);
+                }
             } else {
-                fputs("return;\n", cg->out);
+                if (node->ret.value) {
+                    fputs("return ", cg->out);
+                    emit_expr(cg, node->ret.value);
+                    fputs(";\n", cg->out);
+                } else {
+                    fputs("return;\n", cg->out);
+                }
             }
             break;
+        }
         case NODE_VAR_DECL: {
             /* T :: @type(x) inside a template → emit as C++ using alias */
             AstNode *init = node->var_decl.init;
@@ -824,6 +962,71 @@ static void emit_stmt(Codegen *cg, AstNode *node)
             cg->defer_counter++;
             break;
         }
+        case NODE_ERRDEFER: {
+            /* RAII guard that only runs on error exit (_fn_ok stays false) */
+            emit_indent(cg);
+            fprintf(cg->out, "_OlrnDeferGuard _errdefer_%d([&]() {\n", cg->defer_counter);
+            cg->indent++;
+            emit_indent(cg);
+            fputs("if (!_fn_ok) {\n", cg->out);
+            cg->indent++;
+            AstNode *ed = node->errdefer_stmt.expr;
+            if (ed->kind == NODE_BLOCK) {
+                for (int i = 0; i < ed->block.stmts.count; i++)
+                    emit_stmt(cg, ed->block.stmts.items[i]);
+            } else {
+                emit_stmt(cg, ed);
+            }
+            cg->indent--;
+            emit_indent(cg);
+            fputs("}\n", cg->out);
+            cg->indent--;
+            emit_indent(cg);
+            fputs("});\n", cg->out);
+            cg->defer_counter++;
+            break;
+        }
+        case NODE_TRY_EXPR: {
+            /* try as a statement — propagate error, discard success value */
+            int n = cg->try_counter++;
+            emit_indent(cg);
+            fprintf(cg->out, "{ auto _r_%d = (", n);
+            emit_expr(cg, node->try_expr.expr);
+            fprintf(cg->out,
+                    "); if (!_r_%d.is_ok()) return _OlrnResult<%s>(_r_%d.error()); }\n",
+                    n, cg->err_ret_cpp, n);
+            break;
+        }
+        case NODE_CATCH_EXPR: {
+            /* catch as a statement */
+            int n = cg->try_counter++;
+            emit_indent(cg);
+            fputs("{\n", cg->out);
+            cg->indent++;
+            emit_indent(cg);
+            fprintf(cg->out, "auto _r_%d = (", n);
+            emit_expr(cg, node->catch_expr.expr);
+            fputs(");\n", cg->out);
+            if (node->catch_expr.body) {
+                emit_indent(cg);
+                fprintf(cg->out, "if (!_r_%d.is_ok()) {\n", n);
+                cg->indent++;
+                emit_indent(cg);
+                fprintf(cg->out, "_OlrnError %s = _r_%d.error();\n",
+                        node->catch_expr.err_var, n);
+                AstNode *bdy = node->catch_expr.body;
+                if (bdy->kind == NODE_BLOCK)
+                    for (int j = 0; j < bdy->block.stmts.count; j++)
+                        emit_stmt(cg, bdy->block.stmts.items[j]);
+                cg->indent--;
+                emit_indent(cg);
+                fputs("}\n", cg->out);
+            }
+            cg->indent--;
+            emit_indent(cg);
+            fputs("}\n", cg->out);
+            break;
+        }
         default:
             emit_indent(cg);
             emit_expr(cg, node);
@@ -843,6 +1046,56 @@ static void emit_fn(Codegen *cg, AstNode *fn)
 {
     codegen_reset_fn_state(cg);
     int is_main = strcmp(fn->fn_decl.name, "main") == 0;
+    AstNode *ret_type = fn->fn_decl.ret_type;
+    int is_result_fn = ret_type && ret_type->type_ref.is_result;
+
+    /* populate err_ret_cpp for any error-returning function */
+    if (is_result_fn) {
+        cg->in_err_fn = 1;
+        const char *base = map_type(ret_type->type_ref.name);
+        if (ret_type->type_ref.is_arr && ret_type->type_ref.arr_size > 0)
+            snprintf(cg->err_ret_cpp, sizeof(cg->err_ret_cpp),
+                     "std::array<%s, %d>", base, ret_type->type_ref.arr_size);
+        else if (ret_type->type_ref.is_arr)
+            snprintf(cg->err_ret_cpp, sizeof(cg->err_ret_cpp),
+                     "std::vector<%s>", base);
+        else
+            snprintf(cg->err_ret_cpp, sizeof(cg->err_ret_cpp), "%s", base);
+    }
+
+    /* fn main() -> !T : emit as static _olrn_main() + int main() wrapper */
+    if (is_main && is_result_fn) {
+        cg->has_errdefer = fn_has_errdefer(fn->fn_decl.body);
+        fputs("static ", cg->out);
+        emit_type(cg, ret_type);
+        fputs(" _olrn_main()\n{\n", cg->out);
+        cg->indent++;
+        if (cg->has_errdefer) { emit_indent(cg); fputs("bool _fn_ok = false;\n", cg->out); }
+        AstNode *body = fn->fn_decl.body;
+        for (int i = 0; i < body->block.stmts.count; i++)
+            emit_stmt(cg, body->block.stmts.items[i]);
+        /* implicit success return for !void if last stmt is not a ret */
+        if (strcmp(cg->err_ret_cpp, "void") == 0) {
+            AstNode *last = body->block.stmts.count > 0
+                ? body->block.stmts.items[body->block.stmts.count - 1] : NULL;
+            if (!last || last->kind != NODE_RET) {
+                if (cg->has_errdefer) { emit_indent(cg); fputs("_fn_ok = true;\n", cg->out); }
+                emit_indent(cg);
+                fputs("return _OlrnResult<void>();\n", cg->out);
+            }
+        }
+        cg->indent--;
+        fputs("}\n\n", cg->out);
+        fputs("int main()\n{\n", cg->out);
+        fputs("    auto _r = _olrn_main();\n", cg->out);
+        fputs("    if (!_r.is_ok()) {\n", cg->out);
+        fputs("        std::cerr << \"error: \" << _r.error().msg << std::endl;\n", cg->out);
+        fputs("        return 1;\n", cg->out);
+        fputs("    }\n", cg->out);
+        fputs("    return 0;\n", cg->out);
+        fputs("}\n", cg->out);
+        return;
+    }
 
     /* detect any params → emit template header */
     int has_any = 0;
@@ -864,7 +1117,7 @@ static void emit_fn(Codegen *cg, AstNode *fn)
         cg->in_template = 1;
     }
 
-    /* C++ main always returns int */
+    /* C++ main always returns int; error-returning fns get _OlrnResult<T> */
     if (is_main) fputs("int", cg->out);
     else         emit_type(cg, fn->fn_decl.ret_type);
 
@@ -883,19 +1136,35 @@ static void emit_fn(Codegen *cg, AstNode *fn)
     fputs(")\n{\n", cg->out);
     cg->indent++;
 
+    /* emit _fn_ok flag if function has errdefer */
+    if (cg->in_err_fn && fn_has_errdefer(fn->fn_decl.body)) {
+        cg->has_errdefer = 1;
+        emit_indent(cg);
+        fputs("bool _fn_ok = false;\n", cg->out);
+    }
+
     AstNode *body = fn->fn_decl.body;
     for (int i = 0; i < body->block.stmts.count; i++)
         emit_stmt(cg, body->block.stmts.items[i]);
 
-    /* main needs an explicit return 0 if not already present */
+    /* main: explicit return 0 if not present */
     if (is_main) {
         AstNode *last = body->block.stmts.count > 0
-            ? body->block.stmts.items[body->block.stmts.count - 1]
-            : NULL;
-        int has_ret = last && last->kind == NODE_RET;
-        if (!has_ret) {
+            ? body->block.stmts.items[body->block.stmts.count - 1] : NULL;
+        if (!last || last->kind != NODE_RET) {
             emit_indent(cg);
             fputs("return 0;\n", cg->out);
+        }
+    }
+
+    /* !void non-main: implicit success return if not present */
+    if (cg->in_err_fn && strcmp(cg->err_ret_cpp, "void") == 0 && !is_main) {
+        AstNode *last = body->block.stmts.count > 0
+            ? body->block.stmts.items[body->block.stmts.count - 1] : NULL;
+        if (!last || last->kind != NODE_RET) {
+            if (cg->has_errdefer) { emit_indent(cg); fputs("_fn_ok = true;\n", cg->out); }
+            emit_indent(cg);
+            fputs("return _OlrnResult<void>();\n", cg->out);
         }
     }
 
@@ -944,6 +1213,25 @@ void codegen_emit(Codegen *cg, AstNode *program)
         fputs(STDLIB_IMPL, cg->out);
     else if (program->program.imports.count)
         fputc('\n', cg->out);
+
+    /* error set declarations */
+    int has_err_sets = 0;
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind != NODE_ERR_DECL) continue;
+        has_err_sets = 1;
+        /* register name so codegen knows ErrSet.X is an error, not a struct field */
+        if (cg->err_count < MAX_ERR_NAMES)
+            cg->err_names[cg->err_count++] = decl->err_decl.name;
+        fprintf(cg->out, "namespace _olrn_err_%s {\n", decl->err_decl.name);
+        for (int j = 0; j < decl->err_decl.variants.count; j++) {
+            AstNode *v = decl->err_decl.variants.items[j];
+            fprintf(cg->out, "    static constexpr _OlrnError %s{%d, \"%s\"};\n",
+                    v->ident.name, j, v->ident.name);
+        }
+        fputs("}\n", cg->out);
+    }
+    if (has_err_sets) fputc('\n', cg->out);
 
     /* type aliases — emitted before structs/enums so types are in scope */
     int has_types = 0;
@@ -1095,6 +1383,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
         if (decl->kind == NODE_ENUM_DECL)    continue;
         if (decl->kind == NODE_STRUCT_DECL)  continue;
         if (decl->kind == NODE_UNN_DECL)     continue;
+        if (decl->kind == NODE_ERR_DECL)     continue;
         emit_fn(cg, decl);
         fputc('\n', cg->out);
     }

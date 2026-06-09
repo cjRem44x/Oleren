@@ -15,6 +15,10 @@ typedef enum {
     TOK_IMPORT,                     /* import */
     TOK_EXTERN,                     /* extern */
     TOK_TYPE,                       /* type  */
+    TOK_ERR,                        /* err   */
+    TOK_TRY,                        /* try   */
+    TOK_CATCH,                      /* catch */
+    TOK_ERRDEFER,                   /* errdefer */
 
     /* identifiers / builtins */
     TOK_IDENT,

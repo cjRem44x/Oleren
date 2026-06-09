@@ -130,6 +130,26 @@ void ast_free(AstNode *node)
             free(node->type_alias.name);
             ast_free(node->type_alias.target);
             break;
+        case NODE_ERR_DECL:
+            free(node->err_decl.name);
+            node_list_free(&node->err_decl.variants);
+            break;
+        case NODE_ERR_LIT:
+            free(node->err_lit.set_name);
+            free(node->err_lit.variant_name);
+            break;
+        case NODE_TRY_EXPR:
+            ast_free(node->try_expr.expr);
+            break;
+        case NODE_CATCH_EXPR:
+            ast_free(node->catch_expr.expr);
+            ast_free(node->catch_expr.fallback);
+            free(node->catch_expr.err_var);
+            ast_free(node->catch_expr.body);
+            break;
+        case NODE_ERRDEFER:
+            ast_free(node->errdefer_stmt.expr);
+            break;
         case NODE_VAR_DECL:
             free(node->var_decl.name);
             ast_free(node->var_decl.type_ref);
@@ -340,6 +360,31 @@ void ast_print(AstNode *node, int indent)
         case NODE_CHAR_LIT:  printf("CharLit('%c')\n",  node->char_lit.value); break;
         case NODE_BOOL_LIT:  printf("BoolLit(%s)\n",    node->bool_lit.value ? "true" : "false"); break;
         case NODE_IDENT:     printf("Ident(%s)\n",      node->ident.name);     break;
+        case NODE_ERR_DECL:
+            printf("ErrDecl(%s)\n", node->err_decl.name);
+            for (int i = 0; i < node->err_decl.variants.count; i++)
+                ast_print(node->err_decl.variants.items[i], indent + 1);
+            break;
+        case NODE_ERR_LIT:
+            printf("ErrLit(%s.%s)\n",
+                   node->err_lit.set_name ? node->err_lit.set_name : "err",
+                   node->err_lit.variant_name);
+            break;
+        case NODE_TRY_EXPR:
+            printf("TryExpr\n");
+            ast_print(node->try_expr.expr, indent + 1);
+            break;
+        case NODE_CATCH_EXPR:
+            printf("CatchExpr(%s)\n",
+                   node->catch_expr.err_var ? node->catch_expr.err_var : "value");
+            ast_print(node->catch_expr.expr, indent + 1);
+            if (node->catch_expr.fallback) ast_print(node->catch_expr.fallback, indent + 1);
+            if (node->catch_expr.body)     ast_print(node->catch_expr.body,     indent + 1);
+            break;
+        case NODE_ERRDEFER:
+            printf("Errdefer\n");
+            ast_print(node->errdefer_stmt.expr, indent + 1);
+            break;
         default:             printf("Node(%d)\n",       node->kind);            break;
     }
 }

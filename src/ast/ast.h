@@ -44,6 +44,12 @@ typedef enum {
     NODE_ENUM_VARIANT,  /* single enum variant               */
     NODE_UNN_DECL,      /* unn X { ... }                    */
     NODE_TYPE_ALIAS,    /* type X = T                       */
+    /* error handling */
+    NODE_ERR_DECL,      /* err Name { A, B, C }             */
+    NODE_ERR_LIT,       /* err.NAME — inline error literal  */
+    NODE_TRY_EXPR,      /* try expr                         */
+    NODE_CATCH_EXPR,    /* expr catch fallback|expr catch |e| {} */
+    NODE_ERRDEFER,      /* errdefer expr                    */
 } NodeKind;
 
 typedef struct AstNode AstNode;
@@ -78,11 +84,12 @@ struct AstNode {
         /* NODE_TYPE_REF */
         struct {
             char *name;
-            int   is_ptr;   /* * raw pointer  */
-            int   is_smart; /* ^ smart pointer */
-            int   is_arr;   /* [] or [N] array */
-            int   arr_size; /* 0 = dynamic, N = fixed [N] */
-            int   is_imu;   /* immutable elems */
+            int   is_ptr;    /* * raw pointer  */
+            int   is_smart;  /* ^ smart pointer */
+            int   is_arr;    /* [] or [N] array */
+            int   arr_size;  /* 0 = dynamic, N = fixed [N] */
+            int   is_imu;    /* immutable elems */
+            int   is_result; /* !T error union  */
         } type_ref;
 
         /* NODE_BUILTIN_CALL / NODE_CALL */
@@ -212,6 +219,26 @@ struct AstNode {
 
         /* NODE_TYPE_ALIAS — type Name = T */
         struct { char *name; AstNode *target; } type_alias;
+
+        /* NODE_ERR_DECL — err Name { A, B, C } */
+        struct { char *name; NodeList variants; } err_decl;
+
+        /* NODE_ERR_LIT — err.NAME (anonymous) or used as error value */
+        struct { char *set_name; char *variant_name; } err_lit;
+
+        /* NODE_TRY_EXPR — try expr */
+        struct { AstNode *expr; } try_expr;
+
+        /* NODE_CATCH_EXPR — expr catch fallback  or  expr catch |e| { body } */
+        struct {
+            AstNode *expr;
+            AstNode *fallback; /* NULL for block form */
+            char    *err_var;  /* NULL for value form */
+            AstNode *body;     /* NULL for value form */
+        } catch_expr;
+
+        /* NODE_ERRDEFER — errdefer expr */
+        struct { AstNode *expr; } errdefer_stmt;
     };
 };
 

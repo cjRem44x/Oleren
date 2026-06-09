@@ -61,12 +61,22 @@ static AstNode *parse_block(Parser *p);
 static AstNode *parse_if_chain(Parser *p);
 static AstNode *parse_when(Parser *p);
 static AstNode *parse_brace_literal(Parser *p);
+static AstNode *parse_err_decl(Parser *p);
 
 static AstNode *parse_expr(Parser *p) { return parse_expr_bp(p, 0); }
 
 static AstNode *parse_type(Parser *p)
 {
     AstNode *n = ast_node_new(NODE_TYPE_REF, p->cur.line);
+
+    /* !T or ErrSet!T error-union prefix */
+    if (match(p, TOK_BANG)) {
+        n->type_ref.is_result = 1;
+    } else if (check(p, TOK_IDENT) && p->peek.type == TOK_BANG) {
+        next_tok(p); /* consume ErrSet name (constraint info only, not used in codegen) */
+        next_tok(p); /* consume ! */
+        n->type_ref.is_result = 1;
+    }
 
     if (match(p, TOK_LBRACKET)) {
         /* [N]T = fixed-size, []T = dynamic */
@@ -143,6 +153,8 @@ static OpBp infix_bp(TokenType t)
         /* postfix: . -> [] () — highest */
         case TOK_DOT: case TOK_ARROW:
         case TOK_LBRACKET: case TOK_LPAREN:          return (OpBp){ 110, 111 };
+        /* catch: between or(10) and and(20) */
+        case TOK_CATCH:                              return (OpBp){ 12, 13 };
         default:                                     return (OpBp){ -1, -1 };
     }
 }
@@ -240,6 +252,20 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
             left->ident.name = tok_dup(name);
         }
     }
+    else if (check(p, TOK_TRY)) {
+        /* try expr — propagate error to caller */
+        next_tok(p);
+        left = ast_node_new(NODE_TRY_EXPR, line);
+        left->try_expr.expr = parse_expr_bp(p, 100);
+    }
+    else if (check(p, TOK_ERR)) {
+        /* err.NAME — inline anonymous error literal */
+        next_tok(p);
+        left = ast_node_new(NODE_ERR_LIT, line);
+        left->err_lit.set_name = NULL;
+        expect(p, TOK_DOT);
+        left->err_lit.variant_name = tok_dup(expect(p, TOK_IDENT));
+    }
     else {
         parse_err(p, "expected expression");
         next_tok(p);
@@ -314,6 +340,26 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
             AstNode *n  = ast_node_new(NODE_FIELD_PTR, line);
             n->field.target = left;
             n->field.name   = tok_dup(fname);
+            left = n;
+            continue;
+        }
+
+        /* catch: expr catch fallback  or  expr catch |e| { body } */
+        if (tt == TOK_CATCH) {
+            next_tok(p); /* consume 'catch' */
+            AstNode *n = ast_node_new(NODE_CATCH_EXPR, left->line);
+            n->catch_expr.expr = left;
+            if (check(p, TOK_PIPE)) {
+                next_tok(p); /* consume '|' */
+                n->catch_expr.err_var  = tok_dup(expect(p, TOK_IDENT));
+                expect(p, TOK_PIPE);
+                n->catch_expr.body     = parse_block(p);
+                n->catch_expr.fallback = NULL;
+            } else {
+                n->catch_expr.fallback = parse_expr_bp(p, 13);
+                n->catch_expr.err_var  = NULL;
+                n->catch_expr.body     = NULL;
+            }
             left = n;
             continue;
         }
@@ -654,6 +700,23 @@ static AstNode *parse_unn_decl(Parser *p)
     return n;
 }
 
+/* err Name { A, B, C } — error set declaration */
+static AstNode *parse_err_decl(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_ERR_DECL, p->cur.line);
+    next_tok(p); /* consume 'err' */
+    n->err_decl.name = tok_dup(expect(p, TOK_IDENT));
+    expect(p, TOK_LBRACE);
+    while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+        AstNode *v = ast_node_new(NODE_IDENT, p->cur.line);
+        v->ident.name = tok_dup(expect(p, TOK_IDENT));
+        node_list_push(&n->err_decl.variants, v);
+        match(p, TOK_COMMA);
+    }
+    expect(p, TOK_RBRACE);
+    return n;
+}
+
 /* defer expr  or  defer { stmt... } */
 static AstNode *parse_defer(Parser *p)
 {
@@ -736,6 +799,13 @@ static AstNode *parse_stmt(Parser *p)
     if (check(p, TOK_LOOP))  return parse_loop(p);
     if (check(p, TOK_FOR))   return parse_for(p);
     if (check(p, TOK_DEFER)) return parse_defer(p);
+    if (check(p, TOK_ERRDEFER)) {
+        AstNode *n = ast_node_new(NODE_ERRDEFER, p->cur.line);
+        next_tok(p);
+        if (check(p, TOK_LBRACE)) n->errdefer_stmt.expr = parse_block(p);
+        else                       n->errdefer_stmt.expr = parse_expr(p);
+        return n;
+    }
 
     /* variable declarations */
     if (check(p, TOK_MUT) || check(p, TOK_IMU))
@@ -816,6 +886,8 @@ AstNode *parser_parse_program(Parser *p)
             node_list_push(&prog->program.decls, parse_unn_decl(p));
         } else if (check(p, TOK_TYPE)) {
             node_list_push(&prog->program.decls, parse_type_alias(p));
+        } else if (check(p, TOK_ERR)) {
+            node_list_push(&prog->program.decls, parse_err_decl(p));
         } else if (check(p, TOK_MUT) || check(p, TOK_IMU)) {
             node_list_push(&prog->program.decls, parse_multi_var_decl(p));
         } else if (check(p, TOK_IDENT) &&

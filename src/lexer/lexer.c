@@ -47,9 +47,13 @@ static struct { const char *w; TokenType t; } kw_table[] = {
     {"true",   TOK_TRUE},  {"false",  TOK_FALSE}, {"undef",  TOK_UNDEF},
     {"mut",    TOK_MUT},   {"imu",    TOK_IMU},   {"static", TOK_STATIC},
     {"and",    TOK_AND_KW},{"or",     TOK_OR_KW},
-    {"import", TOK_IMPORT},
-    {"extern", TOK_EXTERN},
-    {"type",   TOK_TYPE},
+    {"import",   TOK_IMPORT},
+    {"extern",   TOK_EXTERN},
+    {"type",     TOK_TYPE},
+    {"err",      TOK_ERR},
+    {"try",      TOK_TRY},
+    {"catch",    TOK_CATCH},
+    {"errdefer", TOK_ERRDEFER},
     {NULL, 0},
 };
 
@@ -193,6 +197,10 @@ const char *tok_type_name(TokenType t)
         case TOK_IMPORT:    return "import";
         case TOK_EXTERN:    return "extern";
         case TOK_TYPE:      return "type";
+        case TOK_ERR:       return "err";
+        case TOK_TRY:       return "try";
+        case TOK_CATCH:     return "catch";
+        case TOK_ERRDEFER:  return "errdefer";
         case TOK_IDENT:     return "IDENT";
         case TOK_BUILTIN:   return "BUILTIN";
         case TOK_LPAREN:    return "(";
