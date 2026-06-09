@@ -35,7 +35,15 @@ typedef enum {
     NODE_CHAR_LIT,
     NODE_BOOL_LIT,
     NODE_IDENT,
-    NODE_DEFER,         /* defer expr | defer { } */
+    NODE_DEFER,         /* defer expr | defer { }           */
+    NODE_ARRAY_LIT,     /* {e0, e1, ...}                    */
+    NODE_STRUCT_LIT,    /* Foo{.f=v,...} or .{.f=v,...}     */
+    NODE_FIELD_INIT,    /* .name = val, within struct lit    */
+    NODE_STRUCT_DECL,   /* struct Foo { fields }             */
+    NODE_ENUM_DECL,     /* enum X { ... } or enum X => T {} */
+    NODE_ENUM_VARIANT,  /* single enum variant               */
+    NODE_UNN_DECL,      /* unn X { ... }                    */
+    NODE_TYPE_ALIAS,    /* type X = T                       */
 } NodeKind;
 
 typedef struct AstNode AstNode;
@@ -72,7 +80,8 @@ struct AstNode {
             char *name;
             int   is_ptr;   /* * raw pointer  */
             int   is_smart; /* ^ smart pointer */
-            int   is_arr;   /* [] array        */
+            int   is_arr;   /* [] or [N] array */
+            int   arr_size; /* 0 = dynamic, N = fixed [N] */
             int   is_imu;   /* immutable elems */
         } type_ref;
 
@@ -175,6 +184,34 @@ struct AstNode {
 
         /* NODE_DEFER — expr is a single expression or a NODE_BLOCK */
         struct { AstNode *expr; } defer_stmt;
+
+        /* NODE_ARRAY_LIT — {e0, e1, ...} */
+        struct { NodeList elems; } array_lit;
+
+        /* NODE_STRUCT_LIT — Foo{.f=v,...} or .{.f=v,...} (type_name NULL = anon) */
+        struct { char *type_name; NodeList fields; } struct_lit;
+
+        /* NODE_FIELD_INIT — .name = val entry within a struct literal */
+        struct { char *name; AstNode *value; } field_init;
+
+        /* NODE_STRUCT_DECL — struct Foo { field: type, ... } */
+        struct { char *name; NodeList fields; } struct_decl;
+
+        /* NODE_ENUM_DECL — plain or typed (base_type NULL = plain) */
+        struct {
+            char    *name;
+            AstNode *base_type;  /* NULL = plain enum class, else => T typed */
+            NodeList variants;
+        } enum_decl;
+
+        /* NODE_ENUM_VARIANT — name with optional value */
+        struct { char *name; AstNode *value; /* NULL for plain */ } enum_variant;
+
+        /* NODE_UNN_DECL — union Foo { a: T, b: U, ... } */
+        struct { char *name; int is_tagged; NodeList fields; } unn_decl;
+
+        /* NODE_TYPE_ALIAS — type Name = T */
+        struct { char *name; AstNode *target; } type_alias;
     };
 };
 

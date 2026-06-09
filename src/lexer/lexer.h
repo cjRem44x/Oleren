@@ -14,6 +14,7 @@ typedef enum {
     TOK_AND_KW, TOK_OR_KW,          /* and  or  — compile to && || */
     TOK_IMPORT,                     /* import */
     TOK_EXTERN,                     /* extern */
+    TOK_TYPE,                       /* type  */
 
     /* identifiers / builtins */
     TOK_IDENT,

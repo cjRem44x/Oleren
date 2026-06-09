@@ -6,6 +6,7 @@
 
 #define MAX_TYPE_VARS    32
 #define MAX_IMPORT_ALIAS 32
+#define MAX_ENUM_NAMES   64
 
 typedef struct {
     FILE *out;
@@ -17,6 +18,8 @@ typedef struct {
     int   import_alias_count;
     int   has_stdlib;    /* @libs.std was imported */
     int   defer_counter; /* unique ID for each deferred guard in a function */
+    const char *enum_names[MAX_ENUM_NAMES]; /* known enum type names for :: access */
+    int   enum_count;
 } Codegen;
 
 void codegen_init(Codegen *cg, FILE *out);

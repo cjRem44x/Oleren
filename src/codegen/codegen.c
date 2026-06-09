@@ -12,6 +12,8 @@ void codegen_init(Codegen *cg, FILE *out)
     cg->type_var_count     = 0;
     cg->import_alias_count = 0;
     cg->has_stdlib         = 0;
+    cg->enum_count         = 0;
+    cg->defer_counter      = 0;
 }
 
 static void codegen_reset_fn_state(Codegen *cg)
@@ -44,6 +46,13 @@ static int callee_is_import_qualified(Codegen *cg, AstNode *callee)
     while (callee->kind == NODE_FIELD || callee->kind == NODE_FIELD_PTR)
         callee = callee->field.target;
     return callee->kind == NODE_IDENT && is_import_alias(cg, callee->ident.name);
+}
+
+static int is_enum_name(Codegen *cg, const char *name)
+{
+    for (int i = 0; i < cg->enum_count; i++)
+        if (strcmp(cg->enum_names[i], name) == 0) return 1;
+    return 0;
 }
 
 static int is_type_var(Codegen *cg, const char *name)
@@ -105,15 +114,28 @@ static const char *map_type(const char *name)
 static void emit_type(Codegen *cg, AstNode *type_ref)
 {
     if (!type_ref) { fputs("void", cg->out); return; }
-    if (type_ref->type_ref.is_arr)   fputs("std::vector<", cg->out);
-    if (type_ref->type_ref.is_imu)   fputs("const ", cg->out);
-    if (type_ref->type_ref.is_smart) fputs("std::shared_ptr<", cg->out);
 
-    fputs(map_type(type_ref->type_ref.name), cg->out);
+    const char *base  = map_type(type_ref->type_ref.name);
+    int is_arr   = type_ref->type_ref.is_arr;
+    int arr_size = type_ref->type_ref.arr_size;
+    int is_imu   = type_ref->type_ref.is_imu;
+    int is_ptr   = type_ref->type_ref.is_ptr;
+    int is_smart = type_ref->type_ref.is_smart;
 
-    if (type_ref->type_ref.is_ptr)   fputs(" *", cg->out);
-    if (type_ref->type_ref.is_smart) fputc('>', cg->out);
-    if (type_ref->type_ref.is_arr)   fputc('>', cg->out);
+    if (is_imu) fputs("const ", cg->out);
+
+    if (is_arr && arr_size > 0) {
+        /* [N]T — fixed-size: std::array<T, N> */
+        fprintf(cg->out, "std::array<%s, %d>", base, arr_size);
+    } else if (is_arr) {
+        /* []T — dynamic: std::vector<T> */
+        fprintf(cg->out, "std::vector<%s>", base);
+    } else if (is_smart) {
+        fprintf(cg->out, "std::shared_ptr<%s>", base);
+    } else {
+        fputs(base, cg->out);
+        if (is_ptr) fputs(" *", cg->out);
+    }
 }
 
 /* emit a single builtin call as a statement */
@@ -184,9 +206,26 @@ static void emit_builtin_stmt(Codegen *cg, AstNode *node)
         return;
     }
 
+    /* @memcpy / @memset */
+    if (strcmp(name, "memcpy") == 0 && node->call.args.count == 3) {
+        fputs("std::memcpy(", cg->out);
+        for (int i = 0; i < 3; i++) { if (i > 0) fputs(", ", cg->out); emit_expr(cg, node->call.args.items[i]); }
+        fputs(");\n", cg->out);
+        return;
+    }
+    if (strcmp(name, "memset") == 0 && node->call.args.count == 3) {
+        fputs("std::memset(", cg->out);
+        for (int i = 0; i < 3; i++) { if (i > 0) fputs(", ", cg->out); emit_expr(cg, node->call.args.items[i]); }
+        fputs(");\n", cg->out);
+        return;
+    }
+    if (strcmp(name, "unreachable") == 0) {
+        fputs("__builtin_unreachable();\n", cg->out);
+        return;
+    }
+
     /* fallback: emit as a plain call */
-    fprintf(cg->out, "/* @%s */ ", name);
-    fputs("(", cg->out);
+    fprintf(cg->out, "/* @%s */ (", name);
     for (int i = 0; i < node->call.args.count; i++) {
         if (i > 0) fputs(", ", cg->out);
         emit_expr(cg, node->call.args.items[i]);
@@ -241,35 +280,69 @@ static void emit_expr(Codegen *cg, AstNode *node)
             }
             fputc(')', cg->out);
             break;
-        case NODE_BUILTIN_CALL:
+        case NODE_BUILTIN_CALL: {
+            const char *bname = node->call.name;
             if (node->call.args.count == 0) {
-                /* value builtins: @cout @endl */
-                if      (strcmp(node->call.name, "cout") == 0) fputs("std::cout", cg->out);
-                else if (strcmp(node->call.name, "endl") == 0) fputs("std::endl", cg->out);
-                else    fprintf(cg->out, "/* @%s */", node->call.name);
-            } else if (is_cast_builtin(node->call.name) && node->call.args.count == 1) {
-                /* @T(val) — type cast */
+                if      (strcmp(bname, "cout") == 0)       fputs("std::cout", cg->out);
+                else if (strcmp(bname, "endl") == 0)       fputs("std::endl", cg->out);
+                else if (strcmp(bname, "unreachable") == 0) fputs("(__builtin_unreachable(), 0)", cg->out);
+                else    fprintf(cg->out, "/* @%s */", bname);
+            } else if (is_cast_builtin(bname) && node->call.args.count == 1) {
                 AstNode *arg = node->call.args.items[0];
-                if (strcmp(node->call.name, "str") == 0 ||
-                    strcmp(node->call.name, "istr") == 0) {
-                    /* numeric/bool -> string */
-                    fputs("std::to_string(", cg->out);
-                    emit_expr(cg, arg);
-                    fputc(')', cg->out);
-                } else if (strcmp(node->call.name, "bool") == 0) {
-                    fputs("(bool)(", cg->out);
-                    emit_expr(cg, arg);
-                    fputc(')', cg->out);
+                if (strcmp(bname, "str") == 0 || strcmp(bname, "istr") == 0) {
+                    fputs("std::to_string(", cg->out); emit_expr(cg, arg); fputc(')', cg->out);
+                } else if (strcmp(bname, "bool") == 0) {
+                    fputs("(bool)(", cg->out); emit_expr(cg, arg); fputc(')', cg->out);
                 } else {
-                    /* numeric-to-numeric */
-                    fprintf(cg->out, "static_cast<%s>(", map_type(node->call.name));
-                    emit_expr(cg, arg);
-                    fputc(')', cg->out);
+                    fprintf(cg->out, "static_cast<%s>(", map_type(bname));
+                    emit_expr(cg, arg); fputc(')', cg->out);
                 }
+            } else if (strcmp(bname, "alo") == 0 && node->call.args.count == 1) {
+                AstNode *arg = node->call.args.items[0];
+                const char *t = (arg->kind == NODE_IDENT) ? map_type(arg->ident.name) : "void";
+                fprintf(cg->out, "((%s*)malloc(sizeof(%s)))", t, t);
+            } else if (strcmp(bname, "sizeof") == 0 && node->call.args.count == 1) {
+                AstNode *arg = node->call.args.items[0];
+                const char *t = (arg->kind == NODE_IDENT) ? map_type(arg->ident.name) : "void";
+                fprintf(cg->out, "(int64_t)sizeof(%s)", t);
+            } else if (strcmp(bname, "alignof") == 0 && node->call.args.count == 1) {
+                AstNode *arg = node->call.args.items[0];
+                const char *t = (arg->kind == NODE_IDENT) ? map_type(arg->ident.name) : "void";
+                fprintf(cg->out, "(int64_t)alignof(%s)", t);
+            } else if (strcmp(bname, "rng") == 0 && node->call.args.count == 3) {
+                AstNode *targ = node->call.args.items[0];
+                const char *t = (targ->kind == NODE_IDENT) ? map_type(targ->ident.name) : "int64_t";
+                fprintf(cg->out, "_olrn_rng<%s>(", t);
+                emit_expr(cg, node->call.args.items[1]); fputs(", ", cg->out);
+                emit_expr(cg, node->call.args.items[2]); fputc(')', cg->out);
+            } else if ((strcmp(bname, "min") == 0 || strcmp(bname, "max") == 0) &&
+                       node->call.args.count == 2) {
+                fprintf(cg->out, "std::%s(", bname);
+                emit_expr(cg, node->call.args.items[0]); fputs(", ", cg->out);
+                emit_expr(cg, node->call.args.items[1]); fputc(')', cg->out);
+            } else if (strcmp(bname, "clamp") == 0 && node->call.args.count == 3) {
+                fputs("std::clamp(", cg->out);
+                for (int i = 0; i < 3; i++) {
+                    if (i > 0) fputs(", ", cg->out);
+                    emit_expr(cg, node->call.args.items[i]);
+                }
+                fputc(')', cg->out);
+            } else if (strcmp(bname, "sqrt") == 0 && node->call.args.count == 1) {
+                fputs("std::sqrt(", cg->out);
+                emit_expr(cg, node->call.args.items[0]); fputc(')', cg->out);
+            } else if (strcmp(bname, "abs") == 0 && node->call.args.count == 1) {
+                fputs("std::abs(", cg->out);
+                emit_expr(cg, node->call.args.items[0]); fputc(')', cg->out);
+            } else if (strcmp(bname, "cin") == 0) {
+                fputs("_olrn_cin(", cg->out);
+                if (node->call.args.count > 0) emit_expr(cg, node->call.args.items[0]);
+                else fputs("\"\"", cg->out);
+                fputc(')', cg->out);
             } else {
                 emit_builtin_stmt(cg, node);
             }
             break;
+        }
         case NODE_BINARY: {
             /* wrap in parens so precedence is explicit in emitted C++ */
             fputc('(', cg->out);
@@ -312,6 +385,11 @@ static void emit_expr(Codegen *cg, AstNode *node)
             /* strip import alias prefix: std.math.PI → PI */
             if (callee_is_import_qualified(cg, node))
                 fputs(last_field_name(node), cg->out);
+            /* Color.Red → Color::Red for enum types */
+            else if (node->field.target->kind == NODE_IDENT &&
+                     is_enum_name(cg, node->field.target->ident.name))
+                fprintf(cg->out, "%s::%s",
+                        node->field.target->ident.name, node->field.name);
             else {
                 emit_expr(cg, node->field.target);
                 fprintf(cg->out, ".%s", node->field.name);
@@ -335,6 +413,26 @@ static void emit_expr(Codegen *cg, AstNode *node)
             break;
         case NODE_IF:
             emit_if_expr(cg, node);
+            break;
+        case NODE_ARRAY_LIT:
+            fputc('{', cg->out);
+            for (int i = 0; i < node->array_lit.elems.count; i++) {
+                if (i > 0) fputs(", ", cg->out);
+                emit_expr(cg, node->array_lit.elems.items[i]);
+            }
+            fputc('}', cg->out);
+            break;
+        case NODE_STRUCT_LIT:
+            if (node->struct_lit.type_name)
+                fputs(node->struct_lit.type_name, cg->out);
+            fputc('{', cg->out);
+            for (int i = 0; i < node->struct_lit.fields.count; i++) {
+                if (i > 0) fputs(", ", cg->out);
+                AstNode *fi = node->struct_lit.fields.items[i];
+                fprintf(cg->out, ".%s = ", fi->field_init.name);
+                emit_expr(cg, fi->field_init.value);
+            }
+            fputc('}', cg->out);
             break;
         case NODE_ASSIGN:
             emit_expr(cg, node->assign.lhs);
@@ -786,8 +884,13 @@ void codegen_emit(Codegen *cg, AstNode *program)
     fputs("#include <iostream>\n", cg->out);
     fputs("#include <string>\n", cg->out);
     fputs("#include <vector>\n", cg->out);
+    fputs("#include <array>\n", cg->out);
     fputs("#include <memory>\n", cg->out);
     fputs("#include <type_traits>\n", cg->out);
+    fputs("#include <algorithm>\n", cg->out);
+    fputs("#include <cmath>\n", cg->out);
+    fputs("#include <cstring>\n", cg->out);
+    fputs("#include <random>\n", cg->out);
     fputs("#include <cstdint>\n", cg->out);
     fputs("#include <cstdlib>\n", cg->out);
     fputs("#include <cstdio>\n", cg->out);
@@ -800,6 +903,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     fputs("    _OlrnDeferGuard(const _OlrnDeferGuard&) = delete;\n", cg->out);
     fputs("    _OlrnDeferGuard& operator=(const _OlrnDeferGuard&) = delete;\n", cg->out);
     fputs("};\n", cg->out);
+    fputs(BUILTINS_IMPL, cg->out);
 
     /* register import aliases; detect stdlib */
     for (int i = 0; i < program->program.imports.count; i++) {
@@ -815,6 +919,97 @@ void codegen_emit(Codegen *cg, AstNode *program)
         fputs(STDLIB_IMPL, cg->out);
     else if (program->program.imports.count)
         fputc('\n', cg->out);
+
+    /* type aliases — emitted before structs/enums so types are in scope */
+    int has_types = 0;
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind != NODE_TYPE_ALIAS) continue;
+        has_types = 1;
+        fputs("using ", cg->out);
+        fputs(decl->type_alias.name, cg->out);
+        fputs(" = ", cg->out);
+        emit_type(cg, decl->type_alias.target);
+        fputs(";\n", cg->out);
+    }
+    if (has_types) fputc('\n', cg->out);
+
+    /* enum declarations */
+    int has_enums = 0;
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind != NODE_ENUM_DECL) continue;
+        has_enums = 1;
+        /* register name for :: access in emit_expr */
+        if (cg->enum_count < MAX_ENUM_NAMES)
+            cg->enum_names[cg->enum_count++] = decl->enum_decl.name;
+        if (!decl->enum_decl.base_type) {
+            /* plain enum → enum class */
+            fprintf(cg->out, "enum class %s {", decl->enum_decl.name);
+            for (int j = 0; j < decl->enum_decl.variants.count; j++) {
+                AstNode *v = decl->enum_decl.variants.items[j];
+                fprintf(cg->out, "%s%s", j == 0 ? " " : ", ", v->enum_variant.name);
+            }
+            fputs(" };\n", cg->out);
+        } else {
+            /* typed enum → namespace of constexpr values */
+            fprintf(cg->out, "namespace %s {\n", decl->enum_decl.name);
+            for (int j = 0; j < decl->enum_decl.variants.count; j++) {
+                AstNode *v = decl->enum_decl.variants.items[j];
+                fputs("    static constexpr ", cg->out);
+                emit_type(cg, decl->enum_decl.base_type);
+                fprintf(cg->out, " %s", v->enum_variant.name);
+                if (v->enum_variant.value) {
+                    fputs(" = ", cg->out);
+                    /* emit raw literal to avoid narrowing in constexpr context */
+                    AstNode *val = v->enum_variant.value;
+                    if (val->kind == NODE_INT_LIT)
+                        fprintf(cg->out, "%lld", val->int_lit.value);
+                    else if (val->kind == NODE_FLOAT_LIT)
+                        fprintf(cg->out, "%g", val->float_lit.value);
+                    else
+                        emit_expr(cg, val);
+                }
+                fputs(";\n", cg->out);
+            }
+            fputs("}\n", cg->out);
+        }
+    }
+    if (has_enums) fputc('\n', cg->out);
+
+    /* struct declarations */
+    int has_structs = 0;
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind != NODE_STRUCT_DECL) continue;
+        has_structs = 1;
+        fprintf(cg->out, "struct %s {\n", decl->struct_decl.name);
+        for (int j = 0; j < decl->struct_decl.fields.count; j++) {
+            AstNode *f = decl->struct_decl.fields.items[j];
+            fputs("    ", cg->out);
+            emit_type(cg, f->param.type);
+            fprintf(cg->out, " %s;\n", f->param.name);
+        }
+        fputs("};\n", cg->out);
+    }
+    if (has_structs) fputc('\n', cg->out);
+
+    /* union declarations */
+    int has_unions = 0;
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind != NODE_UNN_DECL) continue;
+        has_unions = 1;
+        fprintf(cg->out, "union %s {\n", decl->unn_decl.name);
+        for (int j = 0; j < decl->unn_decl.fields.count; j++) {
+            AstNode *f = decl->unn_decl.fields.items[j];
+            fputs("    ", cg->out);
+            emit_type(cg, f->param.type);
+            fprintf(cg->out, " %s;\n", f->param.name);
+        }
+        fputs("};\n", cg->out);
+    }
+    if (has_unions) fputc('\n', cg->out);
 
     /* extern fn declarations — emitted first so they're visible to all fns */
     int has_extern = 0;
@@ -864,8 +1059,12 @@ void codegen_emit(Codegen *cg, AstNode *program)
     /* regular function definitions */
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
-        if (decl->kind == NODE_EXTERN_FN) continue;
+        if (decl->kind == NODE_EXTERN_FN)    continue;
         if (decl->kind == NODE_VAR_DECL || decl->kind == NODE_VAR_DECL_GROUP) continue;
+        if (decl->kind == NODE_TYPE_ALIAS)   continue;
+        if (decl->kind == NODE_ENUM_DECL)    continue;
+        if (decl->kind == NODE_STRUCT_DECL)  continue;
+        if (decl->kind == NODE_UNN_DECL)     continue;
         emit_fn(cg, decl);
         fputc('\n', cg->out);
     }

@@ -1,0 +1,46 @@
+# std.io — file and stream I/O
+
+type File = i64
+
+enum IOMode => i32 { Read=0, Write=1, ReadWrite=2, Append=3 }
+enum SeekFrom => i32 { Start=0, Current=1, End=2 }
+
+fn io_open(path: str, mode: i32) -> File
+{
+    ret _olrn_io_open(path, mode)
+}
+
+fn io_close(f: File)
+{
+    _olrn_io_close(f)
+}
+
+fn io_read(f: File, n: i64) -> []u8
+{
+    ret _olrn_io_read(f, n)
+}
+
+fn io_write(f: File, data: []u8)
+{
+    _olrn_io_write(f, data)
+}
+
+fn io_seek(f: File, pos: i64, from: i32)
+{
+    _olrn_io_seek(f, pos, from)
+}
+
+fn io_tell(f: File) -> i64
+{
+    ret _olrn_io_tell(f)
+}
+
+fn io_readline(f: File) -> str
+{
+    ret _olrn_io_readline(f)
+}
+
+fn io_eof(f: File) -> bool
+{
+    ret _olrn_io_eof(f)
+}

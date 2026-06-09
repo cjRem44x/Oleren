@@ -1,16 +1,29 @@
 #ifndef OLRN_STDLIB_IMPL_H
 #define OLRN_STDLIB_IMPL_H
 
+/* Always-emitted helpers for language builtins (@cin, @rng). */
+static const char *BUILTINS_IMPL =
+    "/* ── olrn builtins ─────────────────────────────────────────────── */\n"
+    "static inline std::string _olrn_cin(const std::string& prompt) {\n"
+    "    std::cout << prompt;\n"
+    "    std::string _line;\n"
+    "    std::getline(std::cin, _line);\n"
+    "    return _line; }\n"
+    "template<typename T>\n"
+    "static inline T _olrn_rng(T lo, T hi) {\n"
+    "    static std::mt19937 _eng(std::random_device{}());\n"
+    "    if constexpr (std::is_integral_v<T>)\n"
+    "        return std::uniform_int_distribution<T>(lo, hi)(_eng);\n"
+    "    else\n"
+    "        return std::uniform_real_distribution<T>(lo, hi)(_eng); }\n"
+    "/* ── end olrn builtins ──────────────────────────────────────────── */\n";
+
 /* C++ implementations injected when @libs.std is imported.
    All helpers use _olrn_ prefix to avoid collisions. */
-
 static const char *STDLIB_IMPL =
     "/* ── olrn stdlib ───────────────────────────────────────────────── */\n"
     "#include <chrono>\n"
     "#include <thread>\n"
-    "#include <cmath>\n"
-    "#include <algorithm>\n"
-    "#include <cctype>\n"
     "\n"
     "/* std.time */\n"
     "static inline int64_t _olrn_time_now() {\n"
@@ -45,10 +58,10 @@ static const char *STDLIB_IMPL =
     "static inline int64_t _olrn_str_parse_int(const std::string& s) { return std::stoll(s); }\n"
     "static inline double  _olrn_str_parse_f64(const std::string& s) { return std::stod(s); }\n"
     "static inline std::string _olrn_str_upper(std::string s) {\n"
-    "    std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return std::toupper(c);});\n"
+    "    std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return (char)std::toupper(c);});\n"
     "    return s; }\n"
     "static inline std::string _olrn_str_lower(std::string s) {\n"
-    "    std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return std::tolower(c);});\n"
+    "    std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return (char)std::tolower(c);});\n"
     "    return s; }\n"
     "static inline std::string _olrn_str_trim(std::string s) {\n"
     "    s.erase(s.begin(), std::find_if(s.begin(),s.end(),[](unsigned char c){return !std::isspace(c);}));\n"
@@ -60,6 +73,34 @@ static const char *STDLIB_IMPL =
     "    return s.size()>=p.size() && s.compare(s.size()-p.size(),p.size(),p)==0; }\n"
     "static inline bool _olrn_str_contains(const std::string& s, const std::string& p) {\n"
     "    return s.find(p)!=std::string::npos; }\n"
+    "\n"
+    "/* std.io */\n"
+    "static inline int64_t _olrn_io_open(const std::string& path, int32_t mode) {\n"
+    "    const char* modes[] = {\"r\", \"w\", \"r+\", \"a\"};\n"
+    "    if (mode < 0 || mode > 3) return 0;\n"
+    "    FILE* f = std::fopen(path.c_str(), modes[mode]);\n"
+    "    return (int64_t)(uintptr_t)f; }\n"
+    "static inline void _olrn_io_close(int64_t h) {\n"
+    "    if (h) std::fclose((FILE*)(uintptr_t)h); }\n"
+    "static inline std::vector<uint8_t> _olrn_io_read(int64_t h, int64_t n) {\n"
+    "    std::vector<uint8_t> buf((size_t)n);\n"
+    "    size_t r = std::fread(buf.data(), 1, (size_t)n, (FILE*)(uintptr_t)h);\n"
+    "    buf.resize(r); return buf; }\n"
+    "static inline void _olrn_io_write(int64_t h, const std::vector<uint8_t>& data) {\n"
+    "    std::fwrite(data.data(), 1, data.size(), (FILE*)(uintptr_t)h); }\n"
+    "static inline void _olrn_io_seek(int64_t h, int64_t pos, int32_t from) {\n"
+    "    int whence[] = {SEEK_SET, SEEK_CUR, SEEK_END};\n"
+    "    std::fseek((FILE*)(uintptr_t)h, (long)pos,\n"
+    "               whence[(from >= 0 && from <= 2) ? from : 0]); }\n"
+    "static inline int64_t _olrn_io_tell(int64_t h) {\n"
+    "    return (int64_t)std::ftell((FILE*)(uintptr_t)h); }\n"
+    "static inline std::string _olrn_io_readline(int64_t h) {\n"
+    "    FILE* f = (FILE*)(uintptr_t)h;\n"
+    "    std::string line; int c;\n"
+    "    while ((c = std::fgetc(f)) != EOF && c != '\\n') line += (char)c;\n"
+    "    return line; }\n"
+    "static inline bool _olrn_io_eof(int64_t h) {\n"
+    "    return std::feof((FILE*)(uintptr_t)h) != 0; }\n"
     "/* ── end olrn stdlib ─────────────────────────────────────────────── */\n";
 
 #endif /* OLRN_STDLIB_IMPL_H */

@@ -49,6 +49,7 @@ static struct { const char *w; TokenType t; } kw_table[] = {
     {"and",    TOK_AND_KW},{"or",     TOK_OR_KW},
     {"import", TOK_IMPORT},
     {"extern", TOK_EXTERN},
+    {"type",   TOK_TYPE},
     {NULL, 0},
 };
 
@@ -191,6 +192,7 @@ const char *tok_type_name(TokenType t)
         case TOK_OR_KW:     return "or";
         case TOK_IMPORT:    return "import";
         case TOK_EXTERN:    return "extern";
+        case TOK_TYPE:      return "type";
         case TOK_IDENT:     return "IDENT";
         case TOK_BUILTIN:   return "BUILTIN";
         case TOK_LPAREN:    return "(";

@@ -98,6 +98,38 @@ void ast_free(AstNode *node)
         case NODE_DEFER:
             ast_free(node->defer_stmt.expr);
             break;
+        case NODE_ARRAY_LIT:
+            node_list_free(&node->array_lit.elems);
+            break;
+        case NODE_STRUCT_LIT:
+            free(node->struct_lit.type_name);
+            node_list_free(&node->struct_lit.fields);
+            break;
+        case NODE_FIELD_INIT:
+            free(node->field_init.name);
+            ast_free(node->field_init.value);
+            break;
+        case NODE_STRUCT_DECL:
+            free(node->struct_decl.name);
+            node_list_free(&node->struct_decl.fields);
+            break;
+        case NODE_ENUM_DECL:
+            free(node->enum_decl.name);
+            ast_free(node->enum_decl.base_type);
+            node_list_free(&node->enum_decl.variants);
+            break;
+        case NODE_ENUM_VARIANT:
+            free(node->enum_variant.name);
+            ast_free(node->enum_variant.value);
+            break;
+        case NODE_UNN_DECL:
+            free(node->unn_decl.name);
+            node_list_free(&node->unn_decl.fields);
+            break;
+        case NODE_TYPE_ALIAS:
+            free(node->type_alias.name);
+            ast_free(node->type_alias.target);
+            break;
         case NODE_VAR_DECL:
             free(node->var_decl.name);
             ast_free(node->var_decl.type_ref);

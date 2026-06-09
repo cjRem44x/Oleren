@@ -60,6 +60,7 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp);
 static AstNode *parse_block(Parser *p);
 static AstNode *parse_if_chain(Parser *p);
 static AstNode *parse_when(Parser *p);
+static AstNode *parse_brace_literal(Parser *p);
 
 static AstNode *parse_expr(Parser *p) { return parse_expr_bp(p, 0); }
 
@@ -68,16 +69,32 @@ static AstNode *parse_type(Parser *p)
     AstNode *n = ast_node_new(NODE_TYPE_REF, p->cur.line);
 
     if (match(p, TOK_LBRACKET)) {
+        /* [N]T = fixed-size, []T = dynamic */
+        if (check(p, TOK_INT_LIT)) {
+            char buf[32];
+            int  len = p->cur.len < 31 ? p->cur.len : 31;
+            memcpy(buf, p->cur.start, len); buf[len] = '\0';
+            n->type_ref.arr_size = atoi(buf);
+            next_tok(p);
+        }
         expect(p, TOK_RBRACKET);
         n->type_ref.is_arr = 1;
     }
-    if (match(p, TOK_IMU))   n->type_ref.is_imu   = 1;
-    if (match(p, TOK_STAR))  n->type_ref.is_ptr   = 1;
+    if (match(p, TOK_IMU))        n->type_ref.is_imu   = 1;
+    if (match(p, TOK_STAR))       n->type_ref.is_ptr   = 1;
     else if (match(p, TOK_CARET)) n->type_ref.is_smart = 1;
 
     if (check(p, TOK_VOID)) {
         n->type_ref.name = strdup("void");
         next_tok(p);
+    } else if (check(p, TOK_BUILTIN)) {
+        /* @self — instance method marker; stored as "@self" */
+        Token bt = next_tok(p);
+        char *nm = malloc(bt.len + 2);
+        nm[0] = '@';
+        memcpy(nm + 1, bt.start, bt.len);
+        nm[bt.len + 1] = '\0';
+        n->type_ref.name = nm;
     } else if (check(p, TOK_IDENT)) {
         n->type_ref.name = tok_dup(next_tok(p));
     } else {
@@ -189,10 +206,39 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
     else if (check(p, TOK_WHEN)) {
         left = parse_when(p);
     }
+    else if (check(p, TOK_LBRACE)) {
+        /* { expr, ... } array literal  or  { .f=v, ... } struct literal */
+        left = parse_brace_literal(p);
+    }
+    else if (check(p, TOK_DOT) && p->peek.type == TOK_LBRACE) {
+        /* .{.f=v, ...} anonymous struct literal */
+        next_tok(p); /* consume . */
+        left = parse_brace_literal(p);
+        /* brace_literal sees { .f=v } and creates NODE_STRUCT_LIT with NULL type */
+    }
     else if (check(p, TOK_IDENT)) {
         Token name = next_tok(p);
-        left = ast_node_new(NODE_IDENT, name.line);
-        left->ident.name = tok_dup(name);
+        /* Foo{.f=v, ...} — named struct literal.
+         * Peek ensures { is followed by .field so we don't eat a loop body. */
+        if (check(p, TOK_LBRACE) && p->peek.type == TOK_DOT) {
+            AstNode *n = ast_node_new(NODE_STRUCT_LIT, name.line);
+            n->struct_lit.type_name = tok_dup(name);
+            next_tok(p); /* consume { */
+            while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+                expect(p, TOK_DOT);
+                AstNode *fi = ast_node_new(NODE_FIELD_INIT, p->cur.line);
+                fi->field_init.name = tok_dup(expect(p, TOK_IDENT));
+                expect(p, TOK_EQ);
+                fi->field_init.value = parse_expr_bp(p, 0);
+                node_list_push(&n->struct_lit.fields, fi);
+                match(p, TOK_COMMA);
+            }
+            expect(p, TOK_RBRACE);
+            left = n;
+        } else {
+            left = ast_node_new(NODE_IDENT, name.line);
+            left->ident.name = tok_dup(name);
+        }
     }
     else {
         parse_err(p, "expected expression");
@@ -500,6 +546,114 @@ static AstNode *parse_for(Parser *p)
     return n;
 }
 
+/* {e,...} array lit  or  {.f=v,...} struct lit (without a type name prefix) */
+static AstNode *parse_brace_literal(Parser *p)
+{
+    int line = p->cur.line;
+    next_tok(p); /* consume { */
+
+    /* { .field = val, ... } → struct literal */
+    if (check(p, TOK_DOT)) {
+        AstNode *n = ast_node_new(NODE_STRUCT_LIT, line);
+        n->struct_lit.type_name = NULL;
+        while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+            expect(p, TOK_DOT);
+            AstNode *fi = ast_node_new(NODE_FIELD_INIT, p->cur.line);
+            fi->field_init.name = tok_dup(expect(p, TOK_IDENT));
+            expect(p, TOK_EQ);
+            fi->field_init.value = parse_expr_bp(p, 0);
+            node_list_push(&n->struct_lit.fields, fi);
+            match(p, TOK_COMMA);
+        }
+        expect(p, TOK_RBRACE);
+        return n;
+    }
+
+    /* { expr, ... } → array literal */
+    AstNode *n = ast_node_new(NODE_ARRAY_LIT, line);
+    while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+        node_list_push(&n->array_lit.elems, parse_expr_bp(p, 0));
+        match(p, TOK_COMMA);
+    }
+    expect(p, TOK_RBRACE);
+    return n;
+}
+
+/* type Name = T */
+static AstNode *parse_type_alias(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_TYPE_ALIAS, p->cur.line);
+    next_tok(p); /* consume 'type' */
+    n->type_alias.name   = tok_dup(expect(p, TOK_IDENT));
+    expect(p, TOK_EQ);
+    n->type_alias.target = parse_type(p);
+    return n;
+}
+
+/* struct Name { field: type, ... } */
+static AstNode *parse_struct_decl(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_STRUCT_DECL, p->cur.line);
+    next_tok(p); /* consume 'struct' */
+    n->struct_decl.name = tok_dup(expect(p, TOK_IDENT));
+    expect(p, TOK_LBRACE);
+    while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+        AstNode *field = ast_node_new(NODE_PARAM, p->cur.line);
+        field->param.name = tok_dup(expect(p, TOK_IDENT));
+        expect(p, TOK_COLON);
+        field->param.type = parse_type(p);
+        node_list_push(&n->struct_decl.fields, field);
+        match(p, TOK_COMMA);
+    }
+    expect(p, TOK_RBRACE);
+    return n;
+}
+
+/* enum Name { A, B }  or  enum Name => T { A=val, B=val } */
+static AstNode *parse_enum_decl(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_ENUM_DECL, p->cur.line);
+    next_tok(p); /* consume 'enum' */
+    n->enum_decl.name = tok_dup(expect(p, TOK_IDENT));
+    if (match(p, TOK_FAT_ARROW))
+        n->enum_decl.base_type = parse_type(p);
+    expect(p, TOK_LBRACE);
+    while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+        AstNode *v = ast_node_new(NODE_ENUM_VARIANT, p->cur.line);
+        v->enum_variant.name  = tok_dup(expect(p, TOK_IDENT));
+        v->enum_variant.value = match(p, TOK_EQ) ? parse_expr_bp(p, 0) : NULL;
+        node_list_push(&n->enum_decl.variants, v);
+        match(p, TOK_COMMA);
+    }
+    expect(p, TOK_RBRACE);
+    return n;
+}
+
+/* unn Name { a: T, b: U }  or  unn(enum) Name { ... } */
+static AstNode *parse_unn_decl(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_UNN_DECL, p->cur.line);
+    next_tok(p); /* consume 'unn' */
+    if (match(p, TOK_LPAREN)) {
+        /* unn(enum) — tagged union; consume the 'enum' keyword */
+        next_tok(p);
+        expect(p, TOK_RPAREN);
+        n->unn_decl.is_tagged = 1;
+    }
+    n->unn_decl.name = tok_dup(expect(p, TOK_IDENT));
+    expect(p, TOK_LBRACE);
+    while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+        AstNode *field = ast_node_new(NODE_PARAM, p->cur.line);
+        field->param.name = tok_dup(expect(p, TOK_IDENT));
+        expect(p, TOK_COLON);
+        field->param.type = parse_type(p);
+        node_list_push(&n->unn_decl.fields, field);
+        match(p, TOK_COMMA);
+    }
+    expect(p, TOK_RBRACE);
+    return n;
+}
+
 /* defer expr  or  defer { stmt... } */
 static AstNode *parse_defer(Parser *p)
 {
@@ -654,6 +808,14 @@ AstNode *parser_parse_program(Parser *p)
         } else if (check(p, TOK_FN) || check(p, TOK_PUB)) {
             match(p, TOK_PUB);
             node_list_push(&prog->program.decls, parse_fn_decl(p));
+        } else if (check(p, TOK_STRUCT)) {
+            node_list_push(&prog->program.decls, parse_struct_decl(p));
+        } else if (check(p, TOK_ENUM)) {
+            node_list_push(&prog->program.decls, parse_enum_decl(p));
+        } else if (check(p, TOK_UNN)) {
+            node_list_push(&prog->program.decls, parse_unn_decl(p));
+        } else if (check(p, TOK_TYPE)) {
+            node_list_push(&prog->program.decls, parse_type_alias(p));
         } else if (check(p, TOK_MUT) || check(p, TOK_IMU)) {
             node_list_push(&prog->program.decls, parse_multi_var_decl(p));
         } else if (check(p, TOK_IDENT) &&

@@ -107,7 +107,7 @@ static void load_stdlib_module(AstNode *prog, const char *stdlib_path,
 
 /* stdlib module list for @libs.std */
 static const char *STD_MODULES[] = {
-    "time", "math", "mem", "str", "log", NULL
+    "io", "time", "math", "mem", "str", "log", NULL
 };
 
 /* merge file imports: for each local file import, parse it and prepend
@@ -196,6 +196,7 @@ int main(int argc, char **argv)
     codegen_init(&cg, stdout);
     codegen_emit(&cg, program);
 
+    fflush(stdout);
     ast_free(program);
     free(src);
     for (int i = 0; i < extra_count; i++) free(extra_srcs[i]);
