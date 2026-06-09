@@ -122,11 +122,10 @@ Zig-style error unions. See Notes.md § Error Handling for the full spec.
 
 Summary:
 - `err Name { FOO, BAR }` defines a named error set (`err` is the keyword)
-- `!T` generic union, `MyErrors!T` named set, `err.NAME!T` single error
+- `!T` generic union, `MyErrors!T` named set union
 - `ret err.NAME` / `ret MyErrors.NAME` returns an error value
 - `try expr` propagates an error to the caller
 - `catch` handles an error inline (fallback value or `|e|` block)
-- `if expr |val| { } else |e| { }` branches on success/error
 - `errdefer` runs cleanup only on the error path
 - `main -> void` or `main -> !void`; the `!void` form is the top-level handler (runtime prints error and exits)
 

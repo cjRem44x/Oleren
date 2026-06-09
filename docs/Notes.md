@@ -836,22 +836,20 @@ err NetError  { Timeout, Refused, BadAddr }
 
 ### Error Union Return Types
 
-Three forms for the return type:
+Two forms for the return type:
 
 ```rust
-fn foo() -> !type           # generic — any error (anyerror union)
-fn foo() -> err.ONEERR!type # specific error value
-fn foo() -> MyErrors!type   # all errors in a named set
+fn foo() -> !type          # generic — any error
+fn foo() -> MyErrors!type  # all errors in a named set
 ```
 
 A function that calls another `!T` function must itself return an error
 union, unless it handles the error with `catch`.
 
 ```rust
-fn read_file(path: []chr) -> ![]u8             # any error
-fn open(path: []chr) -> FileError!File         # named set
-fn get_val() -> err.NotFound!i32               # single specific error
-fn init() -> !void                             # can fail, no success value
+fn read_file(path: []chr) -> ![]u8         # any error
+fn open(path: []chr) -> FileError!File     # named set
+fn init() -> !void                         # can fail, no success value
 ```
 
 ### Returning Errors
@@ -860,7 +858,7 @@ Use `err.NAME` to return a value from the global namespace, or
 `MyErrors.NAME` to return from a specific set.
 
 ```rust
-fn validate(x: i32) -> err!void
+fn validate(x: i32) -> !void
 {
     if x < 0    { ret err.InvalidInput }
     if x > 1000 { ret err.OutOfRange   }
@@ -879,7 +877,7 @@ fn open_file(path: []chr) -> FileError!File
 from the current function (which must itself return an error union).
 
 ```rust
-fn load_config(path: []chr) -> err!Config
+fn load_config(path: []chr) -> !Config
 {
     data := try read_file(path)     # propagate on failure
     cfg  := try parse_config(data)  # propagate on failure
@@ -911,26 +909,12 @@ data := read_file(path) catch |e| {
 The catch block must either produce a value of the success type or exit the
 scope (`ret`, `@panic`, etc.).
 
-### `if` with Error Union Capture
-
-```rust
-if open_file(path) |f| {
-    defer io.close(f)
-    # f is the unwrapped File value
-} else |e| {
-    @pl("open failed")
-}
-```
-
-`|f|` captures the success value. `|e|` captures the error.
-`else {}` is valid if you want to silently ignore the error.
-
 ### `errdefer` — Cleanup on Error Path Only
 
 Runs at scope exit only if the scope exits with an error. LIFO like `defer`.
 
 ```rust
-fn init_system() -> err!System
+fn init_system() -> !System
 {
     s := try System.alloc()
     errdefer s.free()       # skipped on success, runs on any error below
@@ -952,7 +936,7 @@ fn parse_args(argc: i32) -> AppError!i32
     ret argc - 1
 }
 
-fn run() -> err!void
+fn run() -> !void
 {
     _ := try parse_args(1)
 
