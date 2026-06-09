@@ -252,6 +252,10 @@ static int cmd_init(int argc, char **argv)
 
     if (mkdir(name, 0755) != 0) { perror(name); return 1; }
 
+    /* use only the final path component as the display name */
+    const char *display = strrchr(name, '/');
+    display = display ? display + 1 : name;
+
     char path[512];
     snprintf(path, sizeof(path), "%s/main.olrn", name);
     FILE *f = fopen(path, "w");
@@ -260,7 +264,7 @@ static int cmd_init(int argc, char **argv)
         "fn main() -> void\n"
         "{\n"
         "    @pl(\"Hello from %s!\")\n"
-        "}\n", name);
+        "}\n", display);
     fclose(f);
 
     printf("created project: %s/\n", name);
