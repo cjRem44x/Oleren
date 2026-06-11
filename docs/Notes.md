@@ -45,35 +45,49 @@ olrn sac main.olrn util.olrn -o=myprog
 
 ## Imports
 
-All imports live in a single `import` block at the top of the file.
+All imports live in a single `@import` block at the top of the file.
 Every import is given an alias — that alias is how you access the module.
 
-Builtin libraries use the `@libs.name` path:
+The standard library (including builtin libs like Malkur) lives under
+`@std`. External dependencies declared in `olrn_pkg.toml` come in under
+`@pkg.libname`.
 
 ```rust
-import (
-    x   = "file.olrn",          # local file, relative to current file
-    y   = "../path/to/file",     # relative path (no extension needed)
+@import (
+    x   = "file.olrn",       # local file, relative to current file
+    y   = "../path/to/file", # relative path (no extension needed)
 
-    std = @libs.std,             # full standard library
-    mk  = @libs.malkur,          # Malkur gamedev library
+    std = @std,              # full standard library
+    mk  = @std.malkur,       # one stdlib submodule, Zig-style alias
+    sdl = @pkg.sdl2,         # external lib from olrn_pkg.toml
 )
 ```
 
-`@libs.std` gives you the entire stdlib namespace. Submodules are accessed
-via dot notation on the alias: `std.file`, `std.enc`, `std.hash`, etc.
+`@std` gives you the entire stdlib namespace; submodules are accessed
+via dot notation on the alias: `std.io`, `std.fs`, `std.math`, etc.
+`@std.module` binds a single submodule to the alias.
+
+Submodules can also be bound at the top level, after the `@import` block:
+
+```rust
+io :: @std.io
+mk :: @std.malkur
+
+f := io.open("data.bin", IOMode.Read)
+```
 
 Rules:
 - File imports use a quoted path string. The alias is required.
-- Builtin/stdlib imports use `@libs.name`. The alias is required.
-- The alias is how you call into that module: `mk.init_window(...)`, `std.file.file_rd(...)`
-- Only one `import` block per file; it must appear before any declarations.
+- Stdlib imports use `@std` or `@std.module`; external toml-managed
+  libs use `@pkg.libname`. The alias is required.
+- The alias is how you call into that module: `mk.init_window(...)`, `std.io.open(...)`
+- Only one `@import` block per file; it must appear before any declarations.
 - Unused imports are a compile error.
 
 ```rust
-import (
-    std = @libs.std,
-    mk  = @libs.malkur,
+@import (
+    std = @std,
+    mk  = @std.malkur,
 )
 
 fn main() -> !void

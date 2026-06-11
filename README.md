@@ -31,8 +31,8 @@ olrn sac main.olrn -o=main
 ## Language at a Glance
 
 ```rust
-import (
-    std = @libs.std,
+@import (
+    std = @std,
 )
 
 err AppError { BadInput, NotFound }
@@ -138,5 +138,5 @@ fn main() -> !void
 
 - [`docs/Notes.md`](docs/Notes.md) — full language reference
 - [`docs/StdLib.md`](docs/StdLib.md) — standard library (`std.math`, `std.io`, `std.mem`, `std.str`, `std.time`)
-- [`docs/Malkur.md`](docs/Malkur.md) — Malkur gamedev library (`@libs.malkur`)
+- [`docs/Malkur.md`](docs/Malkur.md) — Malkur gamedev library (`@std.malkur`)
 - [`docs/Roadmap.md`](docs/Roadmap.md) — design roadmap and implementation status

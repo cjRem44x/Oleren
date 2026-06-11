@@ -66,6 +66,7 @@ void ast_free(AstNode *node)
         case NODE_IMPORT_DECL:
             free(node->import_decl.alias);
             free(node->import_decl.source);
+            free(node->import_decl.module);
             break;
         case NODE_CALL_EXPR:
             ast_free(node->call_expr.callee);
@@ -220,10 +221,12 @@ void ast_print(AstNode *node, int indent)
             ast_print(node->extern_fn.ret_type, indent + 1);
             break;
         case NODE_IMPORT_DECL:
-            printf("Import(%s = %s%s)\n",
+            printf("Import(%s = %s%s%s%s)\n",
                    node->import_decl.alias,
-                   node->import_decl.is_lib ? "@libs." : "",
-                   node->import_decl.source);
+                   node->import_decl.is_lib ? "@" : "",
+                   node->import_decl.source,
+                   node->import_decl.module ? "." : "",
+                   node->import_decl.module ? node->import_decl.module : "");
             break;
         case NODE_CALL_EXPR:
             printf("CallExpr\n");

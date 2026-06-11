@@ -11,7 +11,7 @@ Naming convention across all stdlib:
 ## `std.file` — File I/O
 
 ```rust
-import ( std = @libs.std )  # access as std.file.*
+@import ( std = @std )  # access as std.file.*
 ```
 
 Four core types: `file_wr` and `file_rd` for text, `byte_wr` and `byte_rd`
@@ -169,7 +169,7 @@ Non-cryptographic hashes are for speed (maps, checksums).
 Cryptographic hashes are for integrity and security.
 
 ```rust
-import ( std = @libs.std )  # access as std.hash.*
+@import ( std = @std )  # access as std.hash.*
 ```
 
 ```rust
@@ -215,7 +215,7 @@ hash.bcrypt_verify(password: []u8, hashed: []chr) -> bool
 ## `std.crypto` — Encryption
 
 ```rust
-import ( std = @libs.std )  # access as std.crypto.*
+@import ( std = @std )  # access as std.crypto.*
 ```
 
 ```rust
@@ -292,7 +292,7 @@ SQLite is the primary embedded target. A generic `Conn` interface allows
 future drivers (Postgres, MySQL, etc.) to plug in.
 
 ```rust
-import ( std = @libs.std )  # access as std.db.*
+@import ( std = @std )  # access as std.db.*
 # driver specified in olrn_pkg.toml, not the import
 ```
 
@@ -356,7 +356,7 @@ id := db.last_insert_id(conn) -> i64
 ## `std.thread` — Threading & Parallelism
 
 ```rust
-import ( std = @libs.std )  # access as std.thread.* and std.sync.*
+@import ( std = @std )  # access as std.thread.* and std.sync.*
 ```
 
 ```rust
@@ -435,7 +435,7 @@ sync.cond_broadcast(cond)
 ## `std.net` — Networking
 
 ```rust
-import ( std = @libs.std )  # access as std.net.*
+@import ( std = @std )  # access as std.net.*
 ```
 
 ```rust
@@ -483,7 +483,7 @@ net.is_ipv6(addr: []chr)   -> bool
 ## `std.col` — Collections
 
 ```rust
-import ( std = @libs.std )  # access as std.col.*
+@import ( std = @std )  # access as std.col.*
 ```
 
 ```rust
@@ -546,7 +546,7 @@ val := col.stack_peek(stk)
 ## `std.ser` — Serialization
 
 ```rust
-import ( ser = @ser )
+@import ( ser = @std.ser )
 ```
 
 ```rust
@@ -581,7 +581,7 @@ val := try ser.toml_get_i32(cfg, "build.workers")
 ## `std.log` — Logging
 
 ```rust
-import ( log = @log )
+@import ( log = @std.log )
 ```
 
 ```rust
@@ -603,7 +603,7 @@ log.fatal("out of memory")     # logs then calls @panic
 ## `std.time` — Timing
 
 ```rust
-import ( time = @time )
+@import ( time = @std.time )
 ```
 
 ```rust

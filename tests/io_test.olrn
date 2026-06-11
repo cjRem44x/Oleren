@@ -1,6 +1,8 @@
-import (
-    std = @libs.std,
+@import (
+    std = @std,
 )
+
+io :: @std.io
 
 fn main() -> void
 {
@@ -15,10 +17,10 @@ fn main() -> void
     line :str = io_readline(rf)
     @pl(line)
 
-    # seek back and check tell
-    std.io.seek(rf, 0, SeekFrom.Start)
-    pos :i64 = std.io.tell(rf)
+    # seek back and check tell — via the io :: @std.io module bind
+    io.seek(rf, 0, SeekFrom.Start)
+    pos :i64 = io.tell(rf)
     @pl(pos)
 
-    std.io.close(rf)
+    io.close(rf)
 }

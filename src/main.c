@@ -102,19 +102,21 @@ static void load_stdlib_module(AstNode *prog, const char *stdlib_path,
 static int merge_imports(AstNode *program, const char *host_path,
                          char **extra_srcs, int *extra_count)
 {
+    /* any @std entry (whole-lib import or module bind) loads the stdlib once */
     for (int i = 0; i < program->program.imports.count; i++) {
         AstNode *imp = program->program.imports.items[i];
         if (!imp->import_decl.is_lib) continue;
         if (strcmp(imp->import_decl.source, "std") != 0) continue;
         char *stdlib_path = find_stdlib();
         if (!stdlib_path) {
-            fprintf(stderr, "warning: stdlib not found — @libs.std unavailable\n");
-            continue;
+            fprintf(stderr, "warning: stdlib not found — @std unavailable\n");
+            break;
         }
         for (int m = 0; STD_MODULES[m]; m++)
             load_stdlib_module(program, stdlib_path, "std",
                                STD_MODULES[m], extra_srcs, extra_count);
         free(stdlib_path);
+        break;
     }
     for (int i = 0; i < program->program.imports.count; i++) {
         AstNode *imp = program->program.imports.items[i];

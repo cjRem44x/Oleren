@@ -16,8 +16,9 @@ typedef struct {
     const char *type_vars[MAX_TYPE_VARS];     /* names bound via T :: @type(x) */
     int   type_var_count;
     const char *import_aliases[MAX_IMPORT_ALIAS]; /* import alias names */
+    const char *import_modules[MAX_IMPORT_ALIAS]; /* submodule per alias, NULL = whole lib */
     int   import_alias_count;
-    int   has_stdlib;    /* @libs.std was imported */
+    int   has_stdlib;    /* @std was imported */
     int   defer_counter; /* unique ID for each deferred guard in a function */
     const char *enum_names[MAX_ENUM_NAMES]; /* known enum type names for :: access */
     int   enum_count;

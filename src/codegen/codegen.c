@@ -39,6 +39,15 @@ static int is_import_alias(Codegen *cg, const char *name)
     return 0;
 }
 
+/* submodule bound to an alias (io :: @std.io → "io"), NULL if whole lib */
+static const char *alias_module(Codegen *cg, const char *name)
+{
+    for (int i = 0; i < cg->import_alias_count; i++)
+        if (strcmp(cg->import_aliases[i], name) == 0)
+            return cg->import_modules[i];
+    return NULL;
+}
+
 /* extract the final field name from a chain: a.b.c → "c" */
 static const char *last_field_name(AstNode *node)
 {
@@ -49,9 +58,10 @@ static const char *last_field_name(AstNode *node)
     return NULL;
 }
 
-/* emit an import-qualified callee as a flat name: the alias root is
-   dropped and the remaining fields join with '_', matching stdlib
-   fn naming — std.io.open → io_open, std.io_open → io_open.
+/* emit an import-qualified callee as a flat name: the alias root maps
+   to its bound submodule (or nothing for a whole-lib alias) and the
+   remaining fields join with '_', matching stdlib fn naming —
+   std.io.open → io_open, and with io :: @std.io, io.open → io_open.
    (constants/types are unprefixed, so plain field access keeps the
    last-field rule: std.math.PI → PI) */
 static void emit_qualified_fn(Codegen *cg, AstNode *node)
@@ -60,6 +70,9 @@ static void emit_qualified_fn(Codegen *cg, AstNode *node)
     if (target->kind == NODE_FIELD || target->kind == NODE_FIELD_PTR) {
         emit_qualified_fn(cg, target);
         fputc('_', cg->out);
+    } else if (target->kind == NODE_IDENT) {
+        const char *mod = alias_module(cg, target->ident.name);
+        if (mod) { fputs(mod, cg->out); fputc('_', cg->out); }
     }
     fputs(node->field.name, cg->out);
 }
@@ -1219,8 +1232,11 @@ void codegen_emit(Codegen *cg, AstNode *program)
     /* register import aliases; detect stdlib */
     for (int i = 0; i < program->program.imports.count; i++) {
         AstNode *imp = program->program.imports.items[i];
-        if (cg->import_alias_count < MAX_IMPORT_ALIAS)
-            cg->import_aliases[cg->import_alias_count++] = imp->import_decl.alias;
+        if (cg->import_alias_count < MAX_IMPORT_ALIAS) {
+            cg->import_aliases[cg->import_alias_count] = imp->import_decl.alias;
+            cg->import_modules[cg->import_alias_count] = imp->import_decl.module;
+            cg->import_alias_count++;
+        }
         if (imp->import_decl.is_lib && strcmp(imp->import_decl.source, "std") == 0)
             cg->has_stdlib = 1;
     }

@@ -103,14 +103,15 @@ Recommendation: struct return for now; revisit tuples later.
 
 ### 3. Module & Import System — RESOLVED
 
-Single `import` block at the top of each file. All imports aliased. See Notes.md § Imports.
+Single `@import` block at the top of each file. All imports aliased.
+Submodules can also be bound top-level: `io :: @std.io`. See Notes.md § Imports.
 
 ```rust
-import (
+@import (
     x   = "file.olrn",       # local file by path
     y   = "../other/file",    # relative path
-    std = @libs.std,          # full stdlib — access as std.file, std.enc, std.hash ...
-    mk  = @libs.malkur,       # Malkur gamedev library
+    std = @std,          # full stdlib — access as std.file, std.enc, std.hash ...
+    mk  = @std.malkur,       # Malkur gamedev library
 )
 ```
 
@@ -184,7 +185,7 @@ directly. Constants and types are unprefixed (`PI`, `File`, `IOMode`).
 
 **`std.io`** — file and stream I/O
 ```rust
-import ( std = @libs.std )
+@import ( std = @std )
 
 f := std.io.open("data.bin", IOMode.Read)
 defer std.io.close(f)
@@ -198,7 +199,7 @@ pos :: std.io.tell(f)
 
 **`std.math`** — scalar and vector math
 ```rust
-import ( std = @libs.std )
+@import ( std = @std )
 
 x := std.math.sqrt(2.0)
 x := std.math.sin(std.math.PI)
@@ -326,7 +327,7 @@ All planned v0.1.0 features are implemented and passing the test suite.
 - [x] Variable declarations — mutable/immutable, explicit/implicit
 - [x] Type casting (`@T(val)`)
 - [x] `any` type + `@type()` + `when T` dispatch (monomorphized generics)
-- [x] Import system (`import ( alias = "path" / @libs.name )`)
+- [x] Import system (`@import ( alias = "path" / @std / @std.module )`, top-level `io :: @std.io` binds; `@pkg.libname` reserved for toml deps)
 - [x] `extern` FFI declarations
 - [x] Loops — `for`, `loop`, `while`
 - [x] `defer` / `errdefer`

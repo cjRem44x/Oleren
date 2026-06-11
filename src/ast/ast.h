@@ -126,11 +126,13 @@ struct AstNode {
             int      is_variadic;
         } extern_fn;
 
-        /* NODE_IMPORT_DECL — one alias = source entry */
+        /* NODE_IMPORT_DECL — one alias = source entry, or a top-level
+           module bind (io :: @std.io) */
         struct {
             char *alias;
-            char *source;  /* file path or lib name ("std", "malkur", etc.) */
-            int   is_lib;  /* 0 = local file, 1 = @libs.X */
+            char *source;  /* file path or lib name ("std", "pkg", ...) */
+            char *module;  /* submodule for @std.X binds; NULL = whole lib */
+            int   is_lib;  /* 0 = local file, 1 = @std / @std.X */
         } import_decl;
 
         /* NODE_CALL_EXPR — callee is an arbitrary expression */

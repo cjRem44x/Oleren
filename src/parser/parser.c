@@ -423,10 +423,16 @@ static AstNode *parse_extern_fn(Parser *p)
     return n;
 }
 
-/* parse import ( alias = source, ... ) and push entries into prog.imports */
+/* true if token's text equals s exactly */
+static int tok_text_is(Token t, const char *s)
+{
+    return (int)strlen(s) == t.len && strncmp(t.start, s, t.len) == 0;
+}
+
+/* parse @import ( alias = source, ... ) and push entries into prog.imports */
 static void parse_import_block(Parser *p, AstNode *prog)
 {
-    next_tok(p);                    /* consume 'import' */
+    next_tok(p);                    /* consume '@import' */
     expect(p, TOK_LPAREN);
 
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
@@ -440,16 +446,23 @@ static void parse_import_block(Parser *p, AstNode *prog)
             entry->import_decl.source = tok_dup(p->cur);
             entry->import_decl.is_lib = 0;
             next_tok(p);
-        } else if (check(p, TOK_BUILTIN)) {
-            /* @libs.name */
-            next_tok(p);            /* consume 'libs' builtin */
-            expect(p, TOK_DOT);
-            entry->import_decl.source = tok_dup(expect(p, TOK_IDENT));
+        } else if (check(p, TOK_BUILTIN) && tok_text_is(p->cur, "std")) {
+            /* @std  or  @std.module */
+            entry->import_decl.source = tok_dup(p->cur);
             entry->import_decl.is_lib = 1;
-        } else {
-            parse_err(p, "expected import source (\"path\" or @libs.name)");
             next_tok(p);
+            if (match(p, TOK_DOT))
+                entry->import_decl.module = tok_dup(expect(p, TOK_IDENT));
+        } else if (check(p, TOK_BUILTIN) && tok_text_is(p->cur, "pkg")) {
+            /* @pkg.libname — external dep from olrn_pkg.toml */
+            parse_err(p, "@pkg imports need olrn_pkg.toml support (not implemented yet)");
             ast_free(entry);
+            while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) next_tok(p);
+            break;
+        } else {
+            parse_err(p, "expected import source (\"path\", @std, or @std.module)");
+            ast_free(entry);
+            while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) next_tok(p);
             break;
         }
 
@@ -864,12 +877,44 @@ static AstNode *parse_fn_decl(Parser *p)
     return n;
 }
 
+/* convert a parsed `name :: @std.module` (or `name :: @std`) top-level
+   decl into an import entry; returns 1 if converted, 0 to keep the decl */
+static int try_module_bind(AstNode *prog, AstNode *decl)
+{
+    if (decl->kind != NODE_VAR_DECL || !decl->var_decl.is_imu ||
+        decl->var_decl.type_ref || !decl->var_decl.init)
+        return 0;
+
+    AstNode *init = decl->var_decl.init;
+    AstNode *root = init;
+    const char *module = NULL;
+    if (init->kind == NODE_FIELD) {
+        root   = init->field.target;
+        module = init->field.name;
+    }
+    if (root->kind != NODE_BUILTIN_CALL || root->call.args.count != 0 ||
+        strcmp(root->call.name, "std") != 0)
+        return 0;
+
+    AstNode *entry = ast_node_new(NODE_IMPORT_DECL, decl->line);
+    entry->import_decl.alias  = decl->var_decl.name;   /* steal */
+    entry->import_decl.source = strdup("std");
+    entry->import_decl.module = module ? strdup(module) : NULL;
+    entry->import_decl.is_lib = 1;
+    node_list_push(&prog->program.imports, entry);
+
+    decl->var_decl.name = NULL;
+    ast_free(decl);
+    return 1;
+}
+
 AstNode *parser_parse_program(Parser *p)
 {
     AstNode *prog = ast_node_new(NODE_PROGRAM, 1);
 
-    /* optional import block at the top of the file */
-    if (check(p, TOK_IMPORT))
+    /* optional @import block at the top of the file */
+    if (check(p, TOK_IMPORT) ||
+        (check(p, TOK_BUILTIN) && tok_text_is(p->cur, "import")))
         parse_import_block(p, prog);
 
     while (!check(p, TOK_EOF)) {
@@ -893,8 +938,10 @@ AstNode *parser_parse_program(Parser *p)
         } else if (check(p, TOK_IDENT) &&
                    (p->peek.type == TOK_WALRUS || p->peek.type == TOK_COLCOL ||
                     p->peek.type == TOK_COLON)) {
-            /* top-level constant or variable declaration */
-            node_list_push(&prog->program.decls, parse_stmt(p));
+            /* top-level constant, variable, or module bind (io :: @std.io) */
+            AstNode *decl = parse_stmt(p);
+            if (!try_module_bind(prog, decl))
+                node_list_push(&prog->program.decls, decl);
         } else {
             parse_err(p, "expected top-level declaration");
             next_tok(p);

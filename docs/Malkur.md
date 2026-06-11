@@ -10,7 +10,7 @@ Include via the import block at the top of your file. The alias is how all
 Malkur calls are made — `mk` is the conventional short alias.
 
 ```rust
-import (
+@import (
     mk = @malkur,
 )
 ```
@@ -439,7 +439,7 @@ mk.check_boxes(min1: Vec3, max1: Vec3, min2: Vec3, max2: Vec3) -> bool
 ## Minimal Full Example
 
 ```rust
-import (
+@import (
     mk = @malkur,
 )
 

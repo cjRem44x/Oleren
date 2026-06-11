@@ -1,5 +1,5 @@
-import (
-    std = @libs.std,
+@import (
+    std = @std,
 )
 
 fn main() -> void
