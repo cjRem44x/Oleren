@@ -1,0 +1,52 @@
+struct Point { x: i32, y: i32 }
+
+fn bump(n: *i32)
+{
+    n.* = n.* + 1
+}
+
+fn point_len_sq(p: ^Point) -> i32
+{
+    ret p->x * p->x + p->y * p->y
+}
+
+fn main() -> void
+{
+    # raw: address-of a stack var, deref read/write
+    v :i32 = 41
+    p :*i32 = &v
+    p.* += 1
+    @pl(v)              # 42
+    @pl(p.*)            # 42
+
+    # raw: pointer arg through a fn
+    bump(&v)
+    @pl(v)              # 43
+
+    # raw: heap alloc, -> field access, free
+    pt :*Point = @alo(Point)
+    defer @free(pt)
+    pt->x = 3
+    pt->y = 4
+    @pl(pt->x * pt->x + pt->y * pt->y)   # 25
+
+    # raw: deref whole-struct read
+    cp :Point = pt.*
+    @pl(cp.x)           # 3
+
+    # smart: @alo into ^T — managed, no @free
+    s :^Point = @alo(Point)
+    s->x = 7
+    s->y = 1
+    @pl(s->x)           # 7
+
+    # smart: shared semantics — alias sees writes through the other handle
+    s2 :^Point = s
+    s2->y = 24
+    @pl(s->y)           # 24
+    @pl(point_len_sq(s))  # 625
+
+    # smart: whole-struct deref read
+    cs :Point = s.*
+    @pl(cs.y)           # 24
+}

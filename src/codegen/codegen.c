@@ -863,7 +863,18 @@ static void emit_stmt(Codegen *cg, AstNode *node)
             fprintf(cg->out, " %s", node->var_decl.name);
             if (node->var_decl.init) {
                 fputs(" = ", cg->out);
-                emit_expr(cg, node->var_decl.init);
+                /* p :^T = @alo(T) → make_shared (a malloc'd pointer can't
+                   seed a shared_ptr, and its deleter calls delete) */
+                if (node->var_decl.type_ref &&
+                    node->var_decl.type_ref->type_ref.is_smart &&
+                    init->kind == NODE_BUILTIN_CALL &&
+                    strcmp(init->call.name, "alo") == 0 &&
+                    init->call.args.count == 1 &&
+                    init->call.args.items[0]->kind == NODE_IDENT)
+                    fprintf(cg->out, "std::make_shared<%s>()",
+                            map_type(init->call.args.items[0]->ident.name));
+                else
+                    emit_expr(cg, init);
             }
             fputs(";\n", cg->out);
             break;
