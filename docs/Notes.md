@@ -10,8 +10,12 @@ The Oleren Project Manager allows for a more modern approach to building code, m
 
 To create a new Oleren project, `mkdir myGame` and `cd` into it, then run `olrn init`. It scaffolds inside the current directory, using the directory name as the project name.
 
-The project structure looks like:
+Projects are flat for now: `olrn init` creates `main.olrn`, and `olrn build`
+compiles it to a binary named after the directory. A fuller structure
+(`bin/`, `src/`, `olrn_out/`, `olrn_pkg.toml`) is planned alongside the
+package manager:
 ```
+# planned layout
 /myOlrnDir
     /bin
         # compiled binary
@@ -27,11 +31,12 @@ The project structure looks like:
 
 | Command | Description |
 |---|---|
-| `olrn build` | Compile Oleren → C++ → binary |
+| `olrn build` | Compile `main.olrn` → C++ → binary |
 | `olrn run` | Build then run the binary |
+| `olrn <file.olrn>` / `olrn emit <file.olrn>` | Emit generated C++ to stdout |
 | `olrn build-src <file.olrn>` | Compile Oleren → C++ file (no binary) |
 | `olrn build-out <file.cpp>` | Compile existing C++ → binary (skip frontend) |
-| `olrn check <file.olrn>` | Parse and check for errors, no output |
+| `olrn check <file.olrn>` | Parse + semantic checks, no output |
 | `olrn sac <files> [-o=name]` | Stand-alone: compile one or more files to binary |
 | `olrn --version` / `-V` | Print version |
 | `olrn --help` / `-h` | Print usage |
@@ -50,7 +55,7 @@ Every import is given an alias — that alias is how you access the module.
 
 The standard library (including builtin libs like Malkur) lives under
 `@std`. External dependencies declared in `olrn_pkg.toml` come in under
-`@pkg.libname`.
+`@pkg.libname` (planned — pkg manager not built yet).
 
 ```rust
 @import (
@@ -59,7 +64,7 @@ The standard library (including builtin libs like Malkur) lives under
 
     std = @std,              # full standard library
     mk  = @std.malkur,       # one stdlib submodule, Zig-style alias
-    sdl = @pkg.sdl2,         # external lib from olrn_pkg.toml
+    sdl = @pkg.sdl2,         # external lib from olrn_pkg.toml (planned)
 )
 ```
 
@@ -79,10 +84,10 @@ f := io.open("data.bin", IOMode.Read)
 Rules:
 - File imports use a quoted path string. The alias is required.
 - Stdlib imports use `@std` or `@std.module`; external toml-managed
-  libs use `@pkg.libname`. The alias is required.
+  libs use `@pkg.libname` (planned). The alias is required.
 - The alias is how you call into that module: `mk.init_window(...)`, `std.io.open(...)`
 - Only one `@import` block per file; it must appear before any declarations.
-- Unused imports are a compile error.
+- Unused imports are a compile error (planned — not enforced yet).
 
 ```rust
 @import (
@@ -92,11 +97,11 @@ Rules:
 
 fn main() -> !void
 {
-    win := try mk.init_window(800, 600, "Game")
-    defer win.close()
+    try mk.init_window(800, 600, "Game")
+    defer mk.close_window()
 
-    f := try std.file.file_rd("data.txt")
-    defer f.close()
+    f :File = std.io.open("data.txt", IOMode.Read)
+    defer std.io.close(f)
 }
 ```
 
@@ -260,49 +265,35 @@ if word.ptr == NULL {...} # .ptr is the internal field that holds the heap point
 ```rust
 grade : chr = 'A'
 
-name : []chr = "John" # very primitive C char arr
-name[i] = 'B'
-len :: name.len
+name : []chr = "John" # very primitive char array
+name[0] = 'B'
 # thats about it, no more. Very primitive, no builtin funcs like str
-
-final_name :[]imu chr = "Jack"
-len :: final_name.len
-final_name[i] ... # nope! contents are immut
+# (a .len property is planned; today use std.str.len on strs)
 
 # Chars are stack values, and arrays, that can be alloc if need be.
 
-# str is a wrapper of []chr with modern handling
-word: str = "hello" # modern string view handle
+# str is a managed string (std::string in the C++ output) — value
+# semantics, automatic cleanup, no manual @free
+word :str = "hello"
 
-# str funcs
-_ := word.has("foo") # if contains substr, ret bool
-_ := word.starts("foo") # if it starts with substr, ret bool
-_ := word.ends("foo") # if ends with substr, ret bool
+word = word + " world"      # concatenation with +
+same := word == "hello world"  # comparison with ==
+c    := word[0]             # indexing reads/writes single chars
+word[0] = 'H'
 
-_ := word.sub(pos, len) # return substr staring at pos and ending at pos+len, ret str
+# string functions live in std.str (and the @str/@i32 cast builtins):
+n    := std.str.len(word)            # -> i64
+up   := std.str.to_upper(word)
+has  := std.str.contains(word, "wor")
+st   := std.str.starts_with(word, "He")
+en   := std.str.ends_with(word, "ld")
+trim := std.str.trim("  pad  ")
+s    := @str(42)                     # number -> str
+num  := try @i32("42")               # str -> number, fallible (!i32)
 
-word.add("gh") # append str
-word.ins(pos, "gh") # insert substr at pos
-word.rep(pos, "gh") # starting at pos, replace existing chars/append if longer then str with substr
-word.del(pos, len) # delete (erase) chars starting at pos and ending at pos+len
-
-word.upper() # set chars to uppercase
-word.lower() # set chars to lowercase
-word.trim() # trim str
-
-word.eql("dfds") # is equal to other str, ret bool
-
-arr := word.spl("regrex") # split on regrex and return []str
-
-word[i] = 'A'
-len :: word.len
-
-# and most important
-@free(word) # all str's and istr's are heap alloc strings and MUST be freed
-
-imustr: istr = "foo" #@ the value can be cahned as is ais mut, but the string array (contents) is immutable
-imustr[i] = 'F' # cannot do this, istr => immut arr, elems are init then const
-@free(imustr)
+# planned (not implemented yet):
+#   word.len property, method-style calls (word.has(...)),
+#   sub/ins/rep/del/spl, and the istr immutable-string type
 ```
 
 ## Loops
@@ -382,7 +373,7 @@ when X {
 ```rust
 # single expression
 defer @free(ptr)
-defer win.close()
+defer std.io.close(f)
 
 # block form
 defer {
@@ -417,65 +408,50 @@ x = 2
 ## Heap Allocation and Pointers
 
 ```rust
-# using builtin alo
-_ = @alo(<size_in_bytes>) # retuns pointer array to heap
+# @alo(T) allocates space for one T on the heap and returns a plain *T
+x :*i32 = @alo(i32)
+defer @free(x)       # raw pointers must be freed; defer is the idiom
+x.* = 42             # deref with .*
+@pl(x.*)
 
-x : *i32 = @alo(i32) # alloc space for i32, alo knows size
-defer @free(x) # dfr is defer and it works just like it does in Zig: places instruction0 to end of scope...
-x[0].* ...
-
-# ONLY structs can be allocated or pointerd too, dats are prohibited
 struct Foo {
     x: i32, y: f32
 }
 
-foo : *Foo = @alo(Foo) # just like C, where alo gets size of Foo
+foo :*Foo = @alo(Foo)
+defer @free(foo)
+foo->x = 1           # pointers use -> to reach fields, like C
+foo->y = 2.0
+whole :Foo = foo.*   # .* reads/writes the whole pointee
 
-# alo always rets an array, this one is just and array of len 1
-foo[0]->x = ... # all pointers (Stack|Heap) use -> like C to ref fields (p.*).e
-@free(foo)
+# smart pointers: ^T — reference-counted, frees itself, no @free
+p2 :^Foo = @alo(Foo) # compiles to a shared_ptr + make_shared
+p2->x = 7
+alias :^Foo = p2     # shared: writes through one handle visible in the other
 
-# ALL pointers and there value assignments must be explicit,
+# ALL pointers and their value assignments must be explicit
 
 V : type = value
-P : *type = &V
-P = <new_ref> can be ref or another pointer holding a ref
+P : *type = &V       # & takes an address
 P.* = <new_value>
 
-x :i32 = 5 # explicit
+x :i32 = 5     # explicit
 p_x :*i32 = &x # explicit
 # GOOD
 
-y := 3.145 # implicit
+y := 3.145     # implicit
 p_y :*f32 = &y # explicit
-# WRONG
+# WRONG — pointee must be explicitly typed
 
 z :str = "Hello"
 p_z := &z # pointers MUST always be explicit!
 
-# immutable pointers
-PI :f32: 3.145
-p_PI :*imu f32 = &PI # this is equ to *const f32, the underlinging value is immutable
+# pointers work through function params too
+fn bump(n: *i32) { n.* = n.* + 1 }
+bump(&x)
 
-p_PI2 :*imu f32: &PI # this is a `const P : *const f32` the value is immut and the pointer is immut
-
-W :[]chr = "word"
-p_W :*[]chr: &W # a immut pointer to a mut value
-
-# on the topic of array pointers
-nums :[]f32 = ...
-p_nums :*[]f32 = &nums
-p_nums[i].* = ...
-
-struct Y {z: f32, x: u8, p: *chr}
-
-ys :[]Y = { .{.z=0, .x=0, .p = ...}, .{...}, ...} # the . here expands to known type, in this case Y is the known type
-p_ys :*[]Y = &ys
-
-p_ys[i].* = .{...} # set to new Y
-p_ys[i]->z ... # access field
-
-p_ys[i]->p.* = ... # set value to pointer field p
+# planned (not implemented yet):
+#   immutable pointers (*imu T), pointer-to-array indexing (p_arr[i].*)
 
 # Implicit inference
 x := undef OR x :: undef # this, in all cases, is illegal and should fail
@@ -747,38 +723,34 @@ fn main() -> void
     p : *Person = @alo(Person) # alloc space for Person and return raw pointer
     defer @free(p) # needed for raw ptr
 
-    p.* = .{.name="john", .age=23}
+    p.* = .{.name="john", .age=23}  # .{} expands to the known type (Person)
 
-    p2 : ^Person = @alo(Person) # no free is needed as this is wrapped in a smart pointer that manaages itself
+    # prefer ^T for structs with str fields — @alo is malloc, which does
+    # not run constructors; make_shared (what ^T = @alo(T) compiles to) does
+    p2 : ^Person = @alo(Person) # no free needed — manages itself
 }
 ```
 
 ## More on Str's
-```rust
-name : str = "john" # by default `str` is a raw pointer
-defer @free(name)
 
-word : ^str = "hello" # by using `^` we are directing the compiler to wrap str with a smart pointer
-```
+`str` is a managed string (`std::string` in the C++ output): value
+semantics, automatic cleanup, no `@free`, no pointer wrapping needed.
+See § String VS Chars Arrays for the function surface (`std.str.*`).
 
 ## Console I/O
 ```rust
 fn main() -> void
 {
     # Console Builtins
-    @pl("hello world") # PrintLine
-    @pf("\\{\\}  the value is {x}\n") # PrintF where {} is for formatting and \\{ \\} are literals
+    @pl("hello world")       # PrintLine; multiple args are streamed:
+    x :: 3.14546             # => f64
+    @pl("X = ", x)           # X = 3.14546
 
-    @cout << "Hello World is " << x << @endl # we also offer a C++ stream style
+    @pf("X = %.3f\n", x)     # PrintF — C printf formatting (%d %s %.3f ...)
 
-    input := @cin("enter prompt: ") # console input func that takes a string prompt and returns a `str` value
-    defer @free(input) # free bec input is `str`
+    @cout << "X = " << x << @endl  # C++ stream style
 
-    X :: 3.14546 # => f64
-    @pl("X = "+x) # pl is Java styled
-    @pf("X = {X}\n") # prints all digits
-    @pf("X = {X:.3}\n") # prints only 3 digits, the formatt is `<var>:n.nT`, just lie %0.0T
-    @cout << "X = " << x:.3 << @endl
+    input := @cin("enter prompt: ") # prompt + read a line; returns str (no free)
 }
 ```
 
@@ -788,12 +760,12 @@ All builtins use the `@` prefix and are resolved at compile time.
 
 ```rust
 # ── Output ────────────────────────────────────────────
-@pl(val)                   # print line (Java-style concat with +)
-@pf("fmt {x}\n", x)        # printf-style formatted print
+@pl(val)                   # print line; multiple args stream: @pl("x = ", x)
+@pf("x = %.3f\n", x)       # printf-style — C format specifiers (%d %s %f)
 @cout << val << @endl      # C++ stream style
 
 # ── Input ─────────────────────────────────────────────
-input := @cin("prompt: ")  # read line from stdin, returns str (must @free)
+input := @cin("prompt: ")  # read line from stdin, returns str (no free needed)
 
 # ── Memory ────────────────────────────────────────────
 @alo(T)                    # allocate heap space for type T, returns *T
@@ -826,7 +798,7 @@ f  := @rng(f32, 0.0, 1.0)  # random f32 from 0.0 to 1.0
 b  := @rng(i64, -50, 50)   # random i64 from -50 to 50
 
 # ── Assertions / Safety ───────────────────────────────
-@assert(cond, "msg")       # debug assertion; no-op in release builds
+@assert(cond, "msg")       # assertion — prints and aborts on failure (always on)
 @panic("msg")              # immediate abort with message
 @unreachable()             # marks a code path that must never be reached
 

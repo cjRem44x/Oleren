@@ -6,18 +6,179 @@ Naming convention across all stdlib:
 - When a func references a camelCase var, the var name keeps its casing: `set_fooBarThing`
 - Long names use readable abbreviations: `get_file_wr`, `buf_rd`, `init`, `deinit`
 
----
-
-## `std.file` — File I/O
+Import the whole stdlib or bind one module; the alias is how you call in.
+Qualified calls map to flat function names (`std.io.open` → `io_open`):
 
 ```rust
-@import ( std = @std )  # access as std.file.*
+@import (
+    std = @std,        # everything: std.io.*, std.fs.*, ...
+    io  = @std.io,     # or bind one module: io.open(...)
+)
+# or a top-level bind, no block needed:
+io :: @std.io
 ```
+
+Implemented today: `std.io`, `std.fs`, `std.time`, `std.math`, `std.mem`,
+`std.str`, `std.log`, and `std.malkur` (see [`Malkur.md`](Malkur.md)).
+Everything under **Planned Modules** further down is design spec.
+
+---
+
+## `std.io` — File I/O
+
+```rust
+type File = i64
+enum IOMode   { Read, Write, ReadWrite, Append }
+enum SeekFrom { Start, Current, End }
+
+f :File = std.io.open("data.bin", IOMode.Write)
+defer std.io.close(f)
+
+std.io.write(f, data)               # data: []u8
+buf  :[]u8 = std.io.read(f, n)      # read n bytes
+line :str  = std.io.readline(f)
+std.io.seek(f, pos, SeekFrom.Start)
+pos := std.io.tell(f)               # -> i64
+done := std.io.eof(f)               # -> bool
+```
+
+---
+
+## `std.fs` — Filesystem
+
+```rust
+std.fs.exists(path: str)        -> bool
+std.fs.is_dir(path: str)        -> bool
+std.fs.is_file(path: str)       -> bool
+std.fs.size(path: str)          -> i64    # -1 if missing
+std.fs.mkdir(path: str)         -> bool   # creates parents too
+std.fs.rm(path: str)            -> bool
+std.fs.rm_all(path: str)        -> i64    # recursive; count removed
+std.fs.ls(path: str)            -> []str  # sorted names
+std.fs.rename(from: str, to: str) -> bool
+std.fs.copy(from: str, to: str)   -> bool
+std.fs.cwd()                    -> str
+```
+
+---
+
+## `std.time` — Timing
+
+```rust
+now  := std.time.now()          # -> i64, nanoseconds since epoch
+mono := std.time.mono()         # -> i64, monotonic ns (intervals, not wall time)
+std.time.sleep(secs: f64)
+dt   := std.time.since(t0)      # -> f64 seconds since an earlier mono/now stamp
+
+# simple stopwatch
+sw := std.time.sw_start()
+# ... do work
+dt := std.time.sw_elapsed(sw)   # -> f64 seconds
+
+# conversions
+std.time.ns_to_ms(ns: i64)  -> f64
+std.time.ns_to_sec(ns: i64) -> f64
+```
+
+---
+
+## `std.math` — Math
+
+Constants: `std.math.PI`, `std.math.TAU`, `std.math.E`. All functions take
+and return `f64` — cast at the edges (`@f64(x)` / `@f32(y)`).
+
+```rust
+# core
+sqrt  abs  pow  log  log2  exp
+# trig
+sin  cos  tan  asin  acos  atan  atan2(y, x)
+# rounding
+floor  ceil  round  sign
+# ranges
+clamp(v, lo, hi)  lerp(a, b, t)  min(a, b)  max(a, b)
+# angles
+deg_to_rad(deg)  rad_to_deg(rad)
+```
+
+Called as `std.math.sqrt(2.0)` or via a bound alias (`m :: @std.math` →
+`m.sqrt(2.0)`).
+
+---
+
+## `std.mem` — Memory
+
+```rust
+std.mem.copy(dst: *u8, src: *u8, n: i64)
+std.mem.set(ptr: *u8, val: u8, n: i64)
+std.mem.zero(ptr: *u8, n: i64)
+
+# size helpers — bytes for n KB/MB/GB
+std.mem.kb(n: i64) -> i64
+std.mem.mb(n: i64) -> i64
+std.mem.gb(n: i64) -> i64
+```
+
+---
+
+## `std.str` — Strings
+
+`str` is a managed string (C++ `std::string` under the hood) — concatenate
+with `+`, compare with `==`, index with `[i]`. No manual free.
+
+```rust
+std.str.len(s: str)                    -> i64
+std.str.from_int(n: i64)               -> str
+std.str.from_f64(x: f64)               -> str
+std.str.parse_int(s: str)              -> i64   # 0 on bad input; see also try @i32(s)
+std.str.parse_f64(s: str)              -> f64
+std.str.to_upper(s: str)               -> str
+std.str.to_lower(s: str)               -> str
+std.str.trim(s: str)                   -> str
+std.str.starts_with(s: str, prefix: str) -> bool
+std.str.ends_with(s: str, suffix: str)   -> bool
+std.str.contains(s: str, sub: str)       -> bool
+```
+
+For fallible parsing prefer the cast builtins: `n := try @i32(s)` returns
+`!i32` and rejects trailing garbage.
+
+---
+
+## `std.log` — Logging
+
+Five level-tagged printers; `fatal` logs then panics.
+
+```rust
+std.log.debug(msg: str)    # [DEBUG] msg
+std.log.info(msg: str)     # [INFO]  msg
+std.log.warn(msg: str)     # [WARN]  msg
+std.log.error(msg: str)    # [ERROR] msg
+std.log.fatal(msg: str)    # [FATAL] msg, then @panic
+```
+
+Level filtering, file output, and color (`set_level`, `set_output`,
+`set_color`) are planned.
+
+---
+
+## `std.malkur` — Gamedev
+
+See [`Malkur.md`](Malkur.md) for the full surface: window/core loop,
+keyboard/mouse input, 2D shapes, BMP textures, colors, Vec2 math, and 2D
+collision on an SDL2 backend.
+
+---
+---
+
+# Planned Modules (design spec — not yet implemented)
+
+Everything below is the design target for future versions. APIs may change
+when they land.
+
+## `std.io` extensions — Buffered Readers/Writers
 
 Four core types: `file_wr` and `file_rd` for text, `byte_wr` and `byte_rd`
 for binary. Open the one you need directly — no raw handle required.
-
----
 
 ### `file_wr` — Text File Writer
 
@@ -31,8 +192,6 @@ try wr.write_ln("world")               # write string + newline
 try wr.write_fmt("score: {}\n", score) # formatted write
 try wr.flush()                         # flush internal buffer to disk
 ```
-
----
 
 ### `file_rd` — Text File Reader
 
@@ -51,8 +210,6 @@ while rd.has_ln() {
 }
 ```
 
----
-
 ### `byte_wr` — Binary Byte Writer
 
 ```rust
@@ -61,16 +218,7 @@ bwr := try io.byte_wr_app("data.bin")  # append mode
 defer bwr.close()
 
 try bwr.write(buf: []u8)               # write raw bytes
-try bwr.write_u8(val: u8)
-try bwr.write_u16(val: u16)
-try bwr.write_u32(val: u32)
-try bwr.write_u64(val: u64)
-try bwr.write_i8(val: i8)
-try bwr.write_i16(val: i16)
-try bwr.write_i32(val: i32)
-try bwr.write_i64(val: i64)
-try bwr.write_f32(val: f32)
-try bwr.write_f64(val: f64)
+try bwr.write_u8(val: u8)              # ... u16/u32/u64, i8..i64, f32/f64
 try bwr.flush()
 
 # seek (useful for writing headers after data)
@@ -78,73 +226,39 @@ try bwr.seek(pos: i64, .Start)         # .Start  .Cur  .End
 pos := bwr.tell()  -> i64
 ```
 
----
-
 ### `byte_rd` — Binary Byte Reader
 
 ```rust
 brd := try io.byte_rd("data.bin")
 defer brd.close()
 
-buf   := try brd.read(n: i32) -> []u8  # read n bytes
-b     := try brd.read_u8()    -> u8
-b     := try brd.read_u16()   -> u16
-b     := try brd.read_u32()   -> u32
-b     := try brd.read_u64()   -> u64
-b     := try brd.read_i8()    -> i8
-b     := try brd.read_i16()   -> i16
-b     := try brd.read_i32()   -> i32
-b     := try brd.read_i64()   -> i64
-b     := try brd.read_f32()   -> f32
-b     := try brd.read_f64()   -> f64
+buf := try brd.read(n: i32) -> []u8    # read n bytes
+b   := try brd.read_u8()    -> u8      # ... u16/u32/u64, i8..i64, f32/f64
 
-ok  := brd.has_next() -> bool           # false at EOF
-sz  := brd.size()     -> i64
-rem := brd.remaining() -> i64           # bytes left to read
+ok  := brd.has_next()  -> bool         # false at EOF
+sz  := brd.size()      -> i64
+rem := brd.remaining() -> i64          # bytes left to read
 
-# seek (random access binary files)
 try brd.seek(pos: i64, .Start)
 pos := brd.tell() -> i64
 ```
 
----
-
 ### Whole-file Shortcuts
 
-For cases where you just want to read/write in one call:
-
 ```rust
-# read
 bytes := try io.read_bytes("data.bin") -> []u8
 text  := try io.read_text("notes.txt") -> str
 lines := try io.read_lines("log.txt")  -> []str
 
-# write
 try io.write_bytes("data.bin", buf)
 try io.write_text("notes.txt", "hello\n")
 ```
 
-### Filesystem
+## `std.fs` extensions
 
 ```rust
-# Query
-file.exists(path: []chr)    -> bool
-file.is_dir(path: []chr)    -> bool
-file.is_file(path: []chr)   -> bool
-file.size_of(path: []chr)   -> !i64
-file.mod_time(path: []chr)  -> !i64   # unix timestamp
-
-# Ops
-try file.mkdir(path)
-try file.mkdir_all(path)           # create parent dirs too
-try file.rm(path)
-try file.rm_all(path)              # recursive delete
-try file.mv(src, dst)
-try file.cp(src, dst)
-
-# Directory listing
-entries := try file.ls(path)       -> []str      # names only
-entries := try file.ls_full(path)  -> []FileInfo # name, size, is_dir, mod_time
+fs.mod_time(path: str)  -> !i64   # unix timestamp
+fs.ls_full(path)        -> []FileInfo  # name, size, is_dir, mod_time
 
 struct FileInfo {
     name:     str,
@@ -154,14 +268,12 @@ struct FileInfo {
 }
 
 # Path helpers
-file.path_join(a: []chr, b: []chr)   -> str
-file.path_dir(path: []chr)           -> str   # parent dir
-file.path_base(path: []chr)          -> str   # filename
-file.path_ext(path: []chr)           -> str   # extension with dot
-file.path_stem(path: []chr)          -> str   # filename without ext
+fs.path_join(a: str, b: str)  -> str
+fs.path_dir(path: str)        -> str   # parent dir
+fs.path_base(path: str)       -> str   # filename
+fs.path_ext(path: str)        -> str   # extension with dot
+fs.path_stem(path: str)       -> str   # filename without ext
 ```
-
----
 
 ## `std.hash` — Hashing
 
@@ -169,11 +281,6 @@ Non-cryptographic hashes are for speed (maps, checksums).
 Cryptographic hashes are for integrity and security.
 
 ```rust
-@import ( std = @std )  # access as std.hash.*
-```
-
-```rust
-
 # ── Non-cryptographic ─────────────────────────────────
 hash.fnv32(data: []u8)              -> u32
 hash.fnv64(data: []u8)              -> u64
@@ -203,30 +310,23 @@ result := hash.xxhash64_fin(ctx)    -> u64
 
 # ── Helpers ───────────────────────────────────────────
 hash.to_hex(bytes: []u8)   -> str    # [32]u8 -> "a3f9..."
-hash.from_hex(s: []chr)    -> ![]u8
+hash.from_hex(s: str)      -> ![]u8
 
 # ── Password hashing (slow by design) ────────────────
 hash.bcrypt(password: []u8, cost: i32) -> !str
-hash.bcrypt_verify(password: []u8, hashed: []chr) -> bool
+hash.bcrypt_verify(password: []u8, hashed: str) -> bool
 ```
-
----
 
 ## `std.crypto` — Encryption
 
 ```rust
-@import ( std = @std )  # access as std.crypto.*
-```
-
-```rust
-
 # ── Password Hashing (high-level, most common use) ────
-secret := try std.crypto.pkhash(s: str)               -> !str   # hash a password/string
-ok     := try std.crypto.pkhash_auth(secret: str, s: str) -> !bool  # verify against original
+secret := try crypto.pkhash(s: str)                 -> !str   # hash a password/string
+ok     := try crypto.pkhash_auth(secret: str, s: str) -> !bool  # verify against original
 
 # ── File Encryption ───────────────────────────────────
-try std.crypto.enc_file(path: str, pk: str)   # encrypt file in-place with private key
-try std.crypto.dec_file(path: str, pk: str)   # decrypt file in-place with private key
+try crypto.enc_file(path: str, pk: str)   # encrypt file in-place with private key
+try crypto.dec_file(path: str, pk: str)   # decrypt file in-place with private key
 
 # ── Random ────────────────────────────────────────────
 crypto.rand_bytes(buf: []u8)     # fill with CSPRNG bytes
@@ -284,20 +384,12 @@ crypto.secure_zero(buf: []u8)       # zero memory in a way compilers won't remov
 crypto.const_eq(a: []u8, b: []u8) -> bool  # timing-safe compare
 ```
 
----
-
 ## `std.db` — Databases
 
 SQLite is the primary embedded target. A generic `Conn` interface allows
 future drivers (Postgres, MySQL, etc.) to plug in.
 
 ```rust
-@import ( std = @std )  # access as std.db.*
-# driver specified in olrn_pkg.toml, not the import
-```
-
-```rust
-
 # ── Open / Close ──────────────────────────────────────
 conn := try db.open("game.db")          # SQLite file
 conn := try db.open(":memory:")         # in-memory SQLite
@@ -341,7 +433,7 @@ defer db.rows_close(rows)
 # ── Transactions ──────────────────────────────────────
 try db.begin_tx(conn)
 try db.exec(conn, "UPDATE scores SET score = score + 100 WHERE name = ?", "Alice")
-db.commit_tx(conn) catch |e| {
+db.commit_tx(conn) catch {
     db.rollback_tx(conn)
     ret err.DbFail
 }
@@ -351,16 +443,9 @@ n  := db.rows_affected(conn) -> i64
 id := db.last_insert_id(conn) -> i64
 ```
 
----
-
 ## `std.thread` — Threading & Parallelism
 
 ```rust
-@import ( std = @std )  # access as std.thread.* and std.sync.*
-```
-
-```rust
-
 # ── Basic threads ─────────────────────────────────────
 t := try thread.spawn(my_fn, arg)
 thread.join(t)
@@ -430,16 +515,9 @@ sync.cond_signal(cond)
 sync.cond_broadcast(cond)
 ```
 
----
-
 ## `std.net` — Networking
 
 ```rust
-@import ( std = @std )  # access as std.net.*
-```
-
-```rust
-
 # ── TCP ───────────────────────────────────────────────
 conn := try net.tcp_connect("127.0.0.1", 8080)
 defer net.close(conn)
@@ -474,20 +552,13 @@ resp := try net.http_post("https://api.example.com/upload", body, "application/j
 
 # ── Address helpers ───────────────────────────────────
 addr := try net.resolve("example.com")   -> str   # DNS lookup
-net.is_ipv4(addr: []chr)   -> bool
-net.is_ipv6(addr: []chr)   -> bool
+net.is_ipv4(addr: str)   -> bool
+net.is_ipv6(addr: str)   -> bool
 ```
-
----
 
 ## `std.col` — Collections
 
 ```rust
-@import ( std = @std )  # access as std.col.*
-```
-
-```rust
-
 # ── Dynamic array (Vec) ───────────────────────────────
 v := col.vec_init(i32)
 defer col.vec_deinit(v)
@@ -541,16 +612,9 @@ val := col.stack_pop(stk)
 val := col.stack_peek(stk)
 ```
 
----
-
 ## `std.ser` — Serialization
 
 ```rust
-@import ( ser = @std.ser )
-```
-
-```rust
-
 # ── JSON ──────────────────────────────────────────────
 json_str := try ser.to_json(my_struct)      -> str
 my_struct := try ser.from_json(json_str, MyStruct)
@@ -574,53 +638,4 @@ my_struct := try ser.from_bin(bytes, MyStruct)
 cfg := try ser.toml_load("config.toml")
 val := try ser.toml_get_str(cfg, "project.name")
 val := try ser.toml_get_i32(cfg, "build.workers")
-```
-
----
-
-## `std.log` — Logging
-
-```rust
-@import ( log = @std.log )
-```
-
-```rust
-
-# log levels: .Debug  .Info  .Warn  .Error  .Fatal
-log.set_level(.Info)
-log.set_output(file_writer)   # redirect to file
-log.set_color(true)           # colored terminal output
-
-log.debug("frame {}", frame_n)
-log.info("window created {}x{}", w, h)
-log.warn("texture not found: {}", path)
-log.error("failed to open db: {}", err)
-log.fatal("out of memory")     # logs then calls @panic
-```
-
----
-
-## `std.time` — Timing
-
-```rust
-@import ( time = @std.time )
-```
-
-```rust
-
-now  := time.now()           -> i64    # nanoseconds since epoch
-mono := time.mono()          -> i64    # monotonic ns (for intervals, not wall time)
-
-elapsed := time.since(mono)  -> f64    # seconds as f64
-time.sleep(secs: f64)
-
-# timestamp helpers
-time.ns_to_ms(ns: i64)  -> f64
-time.ns_to_sec(ns: i64) -> f64
-
-# simple stopwatch
-sw := time.sw_start()
-# ... do work
-dt := time.sw_elapsed(sw)   -> f64   # seconds
-time.sw_reset(sw)
 ```

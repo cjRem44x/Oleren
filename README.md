@@ -58,13 +58,16 @@ fn main() -> !void
 | Mutable var | `x := 42` / `x :i32 = 42` |
 | Immutable var | `x :: 42` / `x :i32: 42` |
 | Defer | `defer @free(ptr)` |
-| Error union | `fn foo() -> !T` / `fn foo() -> ErrSet!T` |
+| Error union | `fn foo() -> !T` / `fn foo() -> ErrSet!T` (set enforced) |
 | Propagate error | `val := try expr` |
-| Handle error | `val := expr catch fallback` |
+| Handle error | `expr catch fallback` / `catch { }` / `catch \|e\| { }` |
 | Error cleanup | `errdefer s.free()` |
+| Pointers | `p :*T = &v` / `p :*T = @alo(T)` raw, `s :^T = @alo(T)` smart |
+| Structs/enums | `struct P { x: i32 }` / `enum Dir { North }` / `unn U { ... }` |
 | Loops | `for e => arr {}` / `while cond {}` / `loop i:=0, i<N, i+=1 {}` |
 | Generics | `fn f(x: any)` + `when @type(x) { i64 => ... }` |
 | Extern FFI | `extern fn SDL_Init(flags: u32) -> i32` |
+| Fallible casts | `n := try @i32("42")` — string→numeric returns `!T` |
 
 ---
 
@@ -72,12 +75,13 @@ fn main() -> !void
 
 | Command | Description |
 |---|---|
-| `olrn init` | Scaffold a new project in cwd |
-| `olrn build` | Compile Oleren → C++ → binary |
+| `olrn init` | Scaffold `main.olrn` in cwd |
+| `olrn build` | Compile `main.olrn` → binary named after the directory |
 | `olrn run` | Build then run the output binary |
+| `olrn <file.olrn>` / `olrn emit <file.olrn>` | Emit generated C++ to stdout |
 | `olrn build-src <file.olrn>` | Compile Oleren → C++ file |
 | `olrn build-out <file.cpp>` | Compile existing C++ output → binary |
-| `olrn check <file.olrn>` | Parse and check for errors, no output |
+| `olrn check <file.olrn>` | Parse + semantic checks, no output |
 | `olrn sac <files> -o=<name>` | Stand-alone compiler — no project required |
 | `olrn --version` / `-V` | Print compiler version |
 | `olrn --help` / `-h` | Print usage |
@@ -122,21 +126,23 @@ fn main() -> !void
 
 ## Project Layout
 
+Projects are flat for now — `olrn init` creates `main.olrn`, and
+`olrn build` compiles it to a binary named after the directory:
+
 ```
 /myGame
-    /bin          # compiled binary
-    /src/main/olrn
-        main.olrn # entry point
-    /olrn_out     # generated C++
-    olrn_pkg.toml # build config
-    README.md
+    main.olrn     # entry point
+    myGame        # compiled binary (after olrn build)
 ```
+
+A fuller layout (`bin/`, `src/`, `olrn_out/`, `olrn_pkg.toml`) is planned
+alongside the package manager.
 
 ---
 
 ## Docs
 
 - [`docs/Notes.md`](docs/Notes.md) — full language reference
-- [`docs/StdLib.md`](docs/StdLib.md) — standard library (`std.math`, `std.io`, `std.mem`, `std.str`, `std.time`)
+- [`docs/StdLib.md`](docs/StdLib.md) — standard library (`std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`)
 - [`docs/Malkur.md`](docs/Malkur.md) — Malkur gamedev library (`@std.malkur`)
 - [`docs/Roadmap.md`](docs/Roadmap.md) — design roadmap and implementation status

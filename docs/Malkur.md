@@ -211,8 +211,8 @@ struct Camera2D {
     zoom:     f32,
 }
 
-win.begin_camera2d(cam: Camera2D)
-win.end_camera2d()
+mk.begin_camera2d(cam: Camera2D)
+mk.end_camera2d()
 
 # coordinate conversion
 mk.screen_to_world2d(pos: Vec2, cam: Camera2D) -> Vec2
@@ -228,13 +228,13 @@ cam := Camera2D{
     .zoom     = 1.0,
 }
 
-win.begin_draw()
-    win.clear_bg(mk.colors.BLACK)
-    win.begin_camera2d(cam)
-        mk.draw_texture(map_tex, 0.0, 0.0, mk.colors.WHITE)
-        mk.draw_texture(player_tex, player.x, player.y, mk.colors.WHITE)
-    win.end_camera2d()
-win.end_draw()
+mk.begin_draw()
+    mk.clear_bg(mk.BLACK)
+    mk.begin_camera2d(cam)
+        mk.draw_texture(map_tex, 0.0, 0.0, mk.WHITE)
+        mk.draw_texture(player_tex, player.x, player.y, mk.WHITE)
+    mk.end_camera2d()
+mk.end_draw()
 ```
 
 ---
@@ -252,8 +252,8 @@ struct Camera3D {
     proj:   CamProj,  # mk.proj.PERSPECTIVE | mk.proj.ORTHOGRAPHIC
 }
 
-win.begin_camera3d(cam: Camera3D)
-win.end_camera3d()
+mk.begin_camera3d(cam: Camera3D)
+mk.end_camera3d()
 
 mk.screen_to_world3d(pos: Vec2, cam: Camera3D) -> Ray
 ```
@@ -356,8 +356,8 @@ mk.load_shader(vs_path: []chr, fs_path: []chr) -> !Shader
 mk.load_shader_src(vs_src: []chr, fs_src: []chr) -> !Shader
 mk.unload_shader(shader: Shader)
 
-win.begin_shader(shader: Shader)
-win.end_shader()
+mk.begin_shader(shader: Shader)
+mk.end_shader()
 
 mk.shader_set_i32(shader: Shader, name: []chr, val: i32)
 mk.shader_set_f32(shader: Shader, name: []chr, val: f32)

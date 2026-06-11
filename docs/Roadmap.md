@@ -126,7 +126,7 @@ Summary:
 - `!T` generic union, `MyErrors!T` named set union
 - `ret err.NAME` / `ret MyErrors.NAME` returns an error value
 - `try expr` propagates an error to the caller
-- `catch` handles an error inline (fallback value or `|e|` block)
+- `catch` handles an error inline (fallback value, capture-less `{ }` block, or `|e|` block)
 - `errdefer` runs cleanup only on the error path
 - `MyErrors!T` is enforced by a sema pass: returned errors must belong to
   the declared set (and name a real variant), and `try` may not propagate
@@ -339,8 +339,9 @@ All planned v0.1.0 features are implemented and passing the test suite.
 - [x] Structs, enums, unions
 - [x] Heap allocation (`@alo`, `@free`), raw and smart pointers
 - [x] Standard library — `std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`
-- [x] CLI — `build`, `run`, `build-src`, `build-out`, `check`, `sac`, `init`
+- [x] CLI — `build`, `run`, `build-src`, `build-out`, `check`, `emit`, `sac`, `init`
 - [x] Malkur gamedev library v0.1 — 2D core via `@std.malkur` (SDL2 backend)
+- [x] Sema pass — `ErrSet!T` enforcement (set membership, variant existence, try propagation)
 
 ## Next (v0.2.0 candidates)
 
