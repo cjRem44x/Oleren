@@ -927,10 +927,15 @@ data := read_file(path) catch |e| {
     @pl("read failed")
     ret undef
 }
+
+# capture-less block — when the error value itself doesn't matter
+n := parse_int(s) catch { ret err.BadInput }
+cleanup() catch { @pl("cleanup failed, ignoring") }
 ```
 
 The catch block must either produce a value of the success type or exit the
-scope (`ret`, `@panic`, etc.).
+scope (`ret`, `@panic`, etc.). `catch {` always starts a block — an
+array-literal fallback needs parens: `catch ({1, 2})`.
 
 ### `errdefer` — Cleanup on Error Path Only
 

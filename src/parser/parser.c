@@ -345,7 +345,7 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
             continue;
         }
 
-        /* catch: expr catch fallback  or  expr catch |e| { body } */
+        /* catch: expr catch fallback | expr catch { body } | expr catch |e| { body } */
         if (tt == TOK_CATCH) {
             next_tok(p); /* consume 'catch' */
             AstNode *n = ast_node_new(NODE_CATCH_EXPR, left->line);
@@ -354,6 +354,12 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
                 next_tok(p); /* consume '|' */
                 n->catch_expr.err_var  = tok_dup(expect(p, TOK_IDENT));
                 expect(p, TOK_PIPE);
+                n->catch_expr.body     = parse_block(p);
+                n->catch_expr.fallback = NULL;
+            } else if (check(p, TOK_LBRACE)) {
+                /* capture-less block — 'catch {' always means a block, so an
+                   array-literal fallback needs parens: catch ({1, 2}) */
+                n->catch_expr.err_var  = NULL;
                 n->catch_expr.body     = parse_block(p);
                 n->catch_expr.fallback = NULL;
             } else {

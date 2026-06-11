@@ -589,11 +589,13 @@ static void emit_expr(Codegen *cg, AstNode *node)
         case NODE_CATCH_EXPR: {
             int n = cg->try_counter++;
             if (node->catch_expr.body) {
-                /* expr catch |e| { body } — body must bail/ret on error path */
+                /* expr catch [|e|] { body } — body must bail/ret on error path */
                 fprintf(cg->out, "(__extension__({auto _r_%d=(", n);
                 emit_expr(cg, node->catch_expr.expr);
-                fprintf(cg->out, ");if(!_r_%d.is_ok()){_OlrnError %s=_r_%d.error();",
-                        n, node->catch_expr.err_var, n);
+                fprintf(cg->out, ");if(!_r_%d.is_ok()){", n);
+                if (node->catch_expr.err_var)
+                    fprintf(cg->out, "_OlrnError %s=_r_%d.error();",
+                            node->catch_expr.err_var, n);
                 AstNode *bdy = node->catch_expr.body;
                 if (bdy->kind == NODE_BLOCK) {
                     int saved = cg->indent;
@@ -1065,9 +1067,11 @@ static void emit_stmt(Codegen *cg, AstNode *node)
                 emit_indent(cg);
                 fprintf(cg->out, "if (!_r_%d.is_ok()) {\n", n);
                 cg->indent++;
-                emit_indent(cg);
-                fprintf(cg->out, "_OlrnError %s = _r_%d.error();\n",
-                        node->catch_expr.err_var, n);
+                if (node->catch_expr.err_var) {
+                    emit_indent(cg);
+                    fprintf(cg->out, "_OlrnError %s = _r_%d.error();\n",
+                            node->catch_expr.err_var, n);
+                }
                 AstNode *bdy = node->catch_expr.body;
                 if (bdy->kind == NODE_BLOCK)
                     for (int j = 0; j < bdy->block.stmts.count; j++)

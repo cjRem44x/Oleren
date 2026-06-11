@@ -25,7 +25,7 @@ err ParseError { BadFormat, OutOfRange }
 
 fn digit(s: str) -> ParseError!i32
 {
-    n := @i32(s) catch |e| { ret ParseError.BadFormat }
+    n := @i32(s) catch { ret ParseError.BadFormat }
     if n < 0 or n > 9 { ret ParseError.OutOfRange }
     ret n
 }
@@ -82,6 +82,11 @@ fn do_work() -> !void
 
 fn main() -> !void
 {
+    # capture-less catch block in statement position
+    connect("") catch {
+        @pl("connect failed, ignoring")
+    }
+
     do_work() catch |e| {
         @pl("main caught error:")
         @pl(e.msg)
