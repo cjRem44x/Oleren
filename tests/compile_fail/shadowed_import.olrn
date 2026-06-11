@@ -1,0 +1,19 @@
+# locals shadowing the alias must not count as using the import — FAIL
+@import (
+    std = @std,
+)
+
+fn param_shadow(std: i64) -> i64
+{
+    ret std * 2
+}
+
+fn main() -> void
+{
+    std := 42            # var shadow
+    @pl(std)
+    for std => "abc" {   # for-each binding shadow
+        @pl(std)
+    }
+    @pl(param_shadow(3))
+}

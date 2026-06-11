@@ -5,6 +5,8 @@
 #define MAX_ERR_SETS 64
 #define MAX_FNS      1024
 #define MAX_IMPORTS  64
+#define MAX_SYMS     1024
+#define MAX_SCOPES   128
 
 typedef struct {
     AstNode    *err_decls[MAX_ERR_SETS];
@@ -14,14 +16,50 @@ typedef struct {
     AstNode    *imports[MAX_IMPORTS];
     int         import_used[MAX_IMPORTS];
     int         import_count;
+    /* symbol table — a stack of local names (vars, params, bindings),
+       so a local that shadows an import alias doesn't count as a use */
+    const char *syms[MAX_SYMS];
+    int         sym_count;
+    int         scope_start[MAX_SCOPES];
+    int         scope_depth;
     const char *fn_name; /* fn being walked */
     const char *fn_set;  /* its declared err set; NULL = generic !T or no result */
     int         errors;
 } Check;
 
-/* an alias ident appeared in an expression — the import is used */
+static void push_scope(Check *c)
+{
+    if (c->scope_depth < MAX_SCOPES)
+        c->scope_start[c->scope_depth] = c->sym_count;
+    c->scope_depth++;
+}
+
+static void pop_scope(Check *c)
+{
+    c->scope_depth--;
+    if (c->scope_depth < MAX_SCOPES)
+        c->sym_count = c->scope_start[c->scope_depth];
+}
+
+static void declare(Check *c, const char *name)
+{
+    if (!name || strcmp(name, "_") == 0) return;
+    if (c->sym_count < MAX_SYMS)
+        c->syms[c->sym_count++] = name;
+}
+
+static int is_local(Check *c, const char *name)
+{
+    for (int i = c->sym_count - 1; i >= 0; i--)
+        if (strcmp(c->syms[i], name) == 0) return 1;
+    return 0;
+}
+
+/* an alias ident appeared in an expression — the import is used,
+   unless a local binding shadows the alias */
 static void mark_import_used(Check *c, const char *name)
 {
+    if (is_local(c, name)) return;
     for (int i = 0; i < c->import_count; i++)
         if (strcmp(c->imports[i]->import_decl.alias, name) == 0)
             c->import_used[i] = 1;
@@ -103,7 +141,11 @@ static void walk(Check *c, AstNode *n)
 {
     if (!n) return;
     switch (n->kind) {
-        case NODE_BLOCK:    walk_list(c, &n->block.stmts); break;
+        case NODE_BLOCK:
+            push_scope(c);
+            walk_list(c, &n->block.stmts);
+            pop_scope(c);
+            break;
         case NODE_RET:
             if (n->ret.value) {
                 check_ret_value(c, n->ret.value, n->line);
@@ -130,17 +172,34 @@ static void walk(Check *c, AstNode *n)
         case NODE_CATCH_EXPR:
             walk(c, n->catch_expr.expr);
             walk(c, n->catch_expr.fallback);
-            walk(c, n->catch_expr.body);
+            if (n->catch_expr.body) {
+                push_scope(c);
+                declare(c, n->catch_expr.err_var);
+                walk(c, n->catch_expr.body);
+                pop_scope(c);
+            }
             break;
         case NODE_ASSIGN:    walk(c, n->assign.lhs); walk(c, n->assign.rhs); break;
         case NODE_WHILE:     walk(c, n->while_loop.cond); walk(c, n->while_loop.body); break;
         case NODE_LOOP:
+            push_scope(c); /* loop init declares into the loop's scope */
             walk(c, n->loop_stmt.init); walk(c, n->loop_stmt.cond);
             walk(c, n->loop_stmt.step); walk(c, n->loop_stmt.body);
+            pop_scope(c);
             break;
         case NODE_FOR_RANGE: walk(c, n->for_range.lo); walk(c, n->for_range.hi); walk(c, n->for_range.body); break;
-        case NODE_FOR_EACH:  walk(c, n->for_each.iter); walk(c, n->for_each.body); break;
-        case NODE_VAR_DECL:  walk(c, n->var_decl.init); break;
+        case NODE_FOR_EACH:
+            walk(c, n->for_each.iter);
+            push_scope(c);
+            declare(c, n->for_each.elem);
+            declare(c, n->for_each.idx);
+            walk(c, n->for_each.body);
+            pop_scope(c);
+            break;
+        case NODE_VAR_DECL:
+            walk(c, n->var_decl.init);   /* init may reference outer names */
+            declare(c, n->var_decl.name);
+            break;
         case NODE_VAR_DECL_GROUP: walk_list(c, &n->var_decl_group.entries); break;
         case NODE_IF:
             walk(c, n->if_expr.cond); walk(c, n->if_expr.then_block);
@@ -210,7 +269,11 @@ int check_program(AstNode *program)
         AstNode *fn = c.fns[i];
         c.fn_name = fn->fn_decl.name;
         c.fn_set  = fn_err_set(fn);
+        push_scope(&c);
+        for (int j = 0; j < fn->fn_decl.params.count; j++)
+            declare(&c, fn->fn_decl.params.items[j]->param.name);
         walk(&c, fn->fn_decl.body);
+        pop_scope(&c);
     }
 
     for (int i = 0; i < c.import_count; i++) {
