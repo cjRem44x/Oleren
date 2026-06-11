@@ -20,8 +20,22 @@ fn connect(host: str) -> !i32
     ret 42
 }
 
+# errdefer: runs only when the scope exits with an error, LIFO after defer
+fn cleanup_demo(fail: bool) -> !i32
+{
+    errdefer @pl("errdefer ran")
+    defer @pl("defer ran")
+    if fail { ret err.Boom }
+    ret 1
+}
+
 fn do_work() -> !void
 {
+    v1 := try cleanup_demo(false)    # defer only
+    @pl(v1)
+    v2 := cleanup_demo(true) catch 0 # defer, then errdefer
+    @pl(v2)
+
     content := try read_file("myfile.txt")
     @pl(content)
 
