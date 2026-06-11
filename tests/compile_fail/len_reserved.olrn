@@ -1,0 +1,11 @@
+# 'len' is a reserved field name (the .len property) — must FAIL
+struct Buffer {
+    data: []u8,
+    len:  i64,
+}
+
+fn main() -> void
+{
+    b :Buffer = .{.data={1,2}, .len=2}
+    @pl(b.len)
+}

@@ -84,4 +84,10 @@ fn main() -> void
     @pl(name)
     copy :str = name        # istr -> str copies fine
     @pl(copy + "!")
+
+    # .len property — i64 length of strings and arrays
+    @pl(s.len)              # 8 ("John doe")
+    @pl(nums.len)           # 3
+    @pl(v2.len)             # 2 (fixed-size)
+    @pl("abc".len)          # 3 (literal)
 }

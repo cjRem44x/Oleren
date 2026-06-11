@@ -64,6 +64,7 @@ fn main() -> !void
 | Error cleanup | `errdefer s.free()` |
 | Pointers | `p :*T = &v` / `p :*T = @alo(T)` raw, `s :^T = @alo(T)` smart |
 | Structs/enums | `struct P { x: i32 }` / `enum Dir { North }` / `unn U { ... }` |
+| Length | `s.len` / `arr.len` — i64, on `str` and arrays |
 | Loops | `for e => arr {}` / `while cond {}` / `loop i:=0, i<N, i+=1 {}` |
 | Generics | `fn f(x: any)` + `when @type(x) { i64 => ... }` |
 | Extern FFI | `extern fn SDL_Init(flags: u32) -> i32` |
@@ -75,8 +76,8 @@ fn main() -> !void
 
 | Command | Description |
 |---|---|
-| `olrn init` | Scaffold `main.olrn` in cwd |
-| `olrn build` | Compile `main.olrn` → binary named after the directory |
+| `olrn init` | Scaffold a project (`src/`, `bin/`, `olrn_out/`, …) in cwd |
+| `olrn build` | Compile the project entry point → `bin/<name>` |
 | `olrn run` | Build then run the output binary |
 | `olrn <file.olrn>` / `olrn emit <file.olrn>` | Emit generated C++ to stdout |
 | `olrn build-src <file.olrn>` | Compile Oleren → C++ file |
@@ -126,17 +127,21 @@ fn main() -> !void
 
 ## Project Layout
 
-Projects are flat for now — `olrn init` creates `main.olrn`, and
-`olrn build` compiles it to a binary named after the directory:
+`olrn init` scaffolds the tree; `olrn build` compiles the entry point to
+`olrn_out/<name>.cpp` and then to `bin/<name>` (named after the directory):
 
 ```
 /myGame
-    main.olrn     # entry point
-    myGame        # compiled binary (after olrn build)
+    /bin          # compiled binary
+    /src/main/olrn
+        main.olrn # entry point
+    /olrn_out     # generated C++
+    olrn_pkg.toml # build config (scaffolded; not read by the build yet)
+    README.md
 ```
 
-A fuller layout (`bin/`, `src/`, `olrn_out/`, `olrn_pkg.toml`) is planned
-alongside the package manager.
+A bare `main.olrn` in the current directory also works (flat mode) and
+builds to `./<name>`.
 
 ---
 

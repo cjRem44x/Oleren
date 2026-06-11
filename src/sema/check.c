@@ -164,6 +164,19 @@ int check_program(AstNode *program)
             c.err_decls[c.err_decl_count++] = d;
         else if (d->kind == NODE_FN_DECL && c.fn_count < MAX_FNS)
             c.fns[c.fn_count++] = d;
+        else if (d->kind == NODE_STRUCT_DECL) {
+            /* 'len' is reserved — it's the length property on str/arrays */
+            for (int j = 0; j < d->struct_decl.fields.count; j++) {
+                AstNode *f = d->struct_decl.fields.items[j];
+                if (strcmp(f->param.name, "len") == 0) {
+                    fprintf(stderr,
+                            "error: line %d: struct '%s': field name 'len' "
+                            "is reserved (the .len length property)\n",
+                            f->line, d->struct_decl.name);
+                    c.errors++;
+                }
+            }
+        }
     }
 
     for (int i = 0; i < c.fn_count; i++) {

@@ -123,10 +123,11 @@ std.mem.gb(n: i64) -> i64
 ## `std.str` — Strings
 
 `str` is a managed string (C++ `std::string` under the hood) — concatenate
-with `+`, compare with `==`, index with `[i]`. No manual free.
+with `+`, compare with `==`, index with `[i]`, length via the `.len`
+property. No manual free. `istr` is the immutable-contents variant.
 
 ```rust
-std.str.len(s: str)                    -> i64
+std.str.len(s: str)                    -> i64   # or just s.len
 std.str.from_int(n: i64)               -> str
 std.str.from_f64(x: f64)               -> str
 std.str.parse_int(s: str)              -> i64   # 0 on bad input; see also try @i32(s)

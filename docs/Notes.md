@@ -10,24 +10,25 @@ The Oleren Project Manager allows for a more modern approach to building code, m
 
 To create a new Oleren project, `mkdir myGame` and `cd` into it, then run `olrn init`. It scaffolds inside the current directory, using the directory name as the project name.
 
-Projects are flat for now: `olrn init` creates `main.olrn`, and `olrn build`
-compiles it to a binary named after the directory. A fuller structure
-(`bin/`, `src/`, `olrn_out/`, `olrn_pkg.toml`) is planned alongside the
-package manager:
+The project structure looks like:
 ```
-# planned layout
 /myOlrnDir
     /bin
-        # compiled binary
+        # compiled binary (bin/<name>, named after the directory)
     /src
         /main
             /olrn
                 main.olrn # entry point
     /olrn_out
-        # generated C++ output
-    olrn_pkg.toml # build config
+        # generated C++ output (<name>.cpp)
+    olrn_pkg.toml # build config (scaffolded; not read by the build yet)
     README.md
 ```
+
+`olrn init` scaffolds this tree (never overwriting existing files), and
+`olrn build` compiles `src/main/olrn/main.olrn` → `olrn_out/<name>.cpp` →
+`bin/<name>`. A bare `main.olrn` in the current directory still works
+(flat mode) and builds to `./<name>`.
 
 | Command | Description |
 |---|---|
@@ -215,11 +216,13 @@ myColor :mk.Color = ...       # single, different type — back to :T= form
 ```rust
 
 nums :[]u32 = {1,2,3,4,5}
+len :: nums.len # i64 length — works on []T, [N]T, str
 nums[i] = ...
-# (a .len property is planned — iterate with for e => nums for now)
 
 final_arr :[]imu u8 = {1,0,0,1,1} # create an array where the contents are immutable
 final_arr[i] = ... # not allowed
+
+# 'len' is reserved: structs cannot declare a field named len
 
 empnums :[N]i32 = undef # `undef` or undefined reps a empty (not null) value, for arrays this create a empty array of N elems
 empnums[i] = ...
@@ -274,8 +277,10 @@ copy :str = name    # istr -> str copies fine
 # name = "jane"     # error
 # name[0] = 'J'     # error
 
+# length is the .len property (i64); also on arrays
+n := word.len
+
 # string functions live in std.str (and the @str/@i32 cast builtins):
-n    := std.str.len(word)            # -> i64
 up   := std.str.to_upper(word)
 has  := std.str.contains(word, "wor")
 st   := std.str.starts_with(word, "He")
@@ -285,8 +290,7 @@ s    := @str(42)                     # number -> str
 num  := try @i32("42")               # str -> number, fallible (!i32)
 
 # planned (not implemented yet):
-#   word.len property, method-style calls (word.has(...)),
-#   sub/ins/rep/del/spl
+#   method-style calls (word.has(...)), sub/ins/rep/del/spl
 ```
 
 ## Loops

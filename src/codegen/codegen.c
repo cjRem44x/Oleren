@@ -526,6 +526,18 @@ static void emit_expr(Codegen *cg, AstNode *node)
                      is_err_name(cg, node->field.target->ident.name))
                 fprintf(cg->out, "_olrn_err_%s::%s",
                         node->field.target->ident.name, node->field.name);
+            /* .len property — i64 length of str / arrays ('len' is a
+               reserved field name, enforced in sema) */
+            else if (strcmp(node->field.name, "len") == 0) {
+                fputs("(int64_t)", cg->out);
+                if (node->field.target->kind == NODE_STR_LIT) {
+                    fputs("std::string(", cg->out);
+                    emit_expr(cg, node->field.target);
+                    fputc(')', cg->out);
+                } else
+                    emit_expr(cg, node->field.target);
+                fputs(".size()", cg->out);
+            }
             else {
                 emit_expr(cg, node->field.target);
                 fprintf(cg->out, ".%s", node->field.name);

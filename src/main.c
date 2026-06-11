@@ -164,6 +164,27 @@ static int merge_imports(AstNode *program, const char *host_path,
 
 /* ── core compilation pipeline ────────────────────────────────── */
 
+/* compile a generated .cpp to a binary; probes the file for the SDL
+   include (malkur) to decide the link line. Returns 0 on success. */
+static int gxx_compile(const char *cpp_path, const char *output)
+{
+    int link_sdl = 0;
+    FILE *probe = fopen(cpp_path, "r");
+    if (probe) {
+        char line[512];
+        while (fgets(line, sizeof(line), probe)) {
+            if (strstr(line, "SDL2/SDL.h")) { link_sdl = 1; break; }
+        }
+        fclose(probe);
+    }
+
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "g++ -std=c++17 -O2 \"%s\" -o \"%s\"%s 2>&1", cpp_path, output,
+             link_sdl ? " -lSDL2" : "");
+    return (system(cmd) == 0) ? 0 : 1;
+}
+
 /* Parse olrn_path, merge imports, emit C++ to out. Returns 0 on success. */
 static int compile_to_out(const char *olrn_path, FILE *out)
 {
@@ -281,26 +302,65 @@ static void print_help(void)
 }
 
 /* olrn init — scaffold in the current directory */
+/* current directory name — used as the project/binary name */
+static const char *project_name(void)
+{
+    static char cwd[512];
+    if (!getcwd(cwd, sizeof(cwd))) { perror("getcwd"); return NULL; }
+    const char *name = strrchr(cwd, '/');
+    return name ? name + 1 : cwd;
+}
+
+#define PROJECT_MAIN "src/main/olrn/main.olrn"
+
+/* write a file only if it doesn't exist yet; returns 0 on success */
+static int write_if_missing(const char *path, const char *fmt,
+                            const char *arg)
+{
+    if (access(path, F_OK) == 0) return 0;
+    FILE *f = fopen(path, "w");
+    if (!f) { perror(path); return 1; }
+    fprintf(f, fmt, arg);
+    fclose(f);
+    printf("  %s\n", path);
+    return 0;
+}
+
 static int cmd_init(int argc, char **argv)
 {
     (void)argc; (void)argv;
 
-    char cwd[512];
-    if (!getcwd(cwd, sizeof(cwd))) { perror("getcwd"); return 1; }
-    const char *name = strrchr(cwd, '/');
-    name = name ? name + 1 : cwd;
+    const char *name = project_name();
+    if (!name) return 1;
 
-    FILE *f = fopen("main.olrn", "w");
-    if (!f) { perror("main.olrn"); return 1; }
-    fprintf(f,
+    mkdir("bin", 0755);
+    mkdir("src", 0755);
+    mkdir("src/main", 0755);
+    mkdir("src/main/olrn", 0755);
+    mkdir("olrn_out", 0755);
+
+    printf("initialized project: %s\n", name);
+    if (write_if_missing(PROJECT_MAIN,
         "fn main() -> void\n"
         "{\n"
         "    @pl(\"Hello from %s!\")\n"
-        "}\n", name);
-    fclose(f);
-
-    printf("initialized project: %s\n", name);
-    printf("  main.olrn\n");
+        "}\n", name)) return 1;
+    if (write_if_missing("olrn_pkg.toml",
+        "[project]\n"
+        "name = \"%s\"\n"
+        "version = \"0.1.0\"\n"
+        "\n"
+        "# external dependencies land here once the package manager exists:\n"
+        "# [deps]\n", name)) return 1;
+    if (write_if_missing("README.md",
+        "# %s\n"
+        "\n"
+        "An Oleren project.\n"
+        "\n"
+        "```sh\n"
+        "olrn build   # compile src/main/olrn/main.olrn -> bin/\n"
+        "olrn run     # build then execute\n"
+        "```\n", name)) return 1;
     return 0;
 }
 
@@ -396,24 +456,9 @@ static int cmd_build_out(int argc, char **argv)
         output = derived;
     }
 
-    /* malkur output includes SDL — detect it for the link line */
-    int link_sdl = 0;
-    FILE *probe = fopen(cpp_path, "r");
-    if (probe) {
-        char line[512];
-        while (fgets(line, sizeof(line), probe)) {
-            if (strstr(line, "SDL2/SDL.h")) { link_sdl = 1; break; }
-        }
-        fclose(probe);
-    }
-
-    char cmd[1024];
-    snprintf(cmd, sizeof(cmd),
-             "g++ -std=c++17 -O2 \"%s\" -o \"%s\"%s 2>&1", cpp_path, output,
-             link_sdl ? " -lSDL2" : "");
-    int rc = system(cmd);
+    int rc = gxx_compile(cpp_path, output);
     if (rc == 0) printf("built: %s\n", output);
-    return (rc == 0) ? 0 : 1;
+    return rc;
 }
 
 /* olrn sac <file(s)> [-o=name] */
@@ -456,24 +501,45 @@ static int cmd_sac(int argc, char **argv)
     return rc;
 }
 
-/* olrn build  — compile main.olrn in cwd to a binary */
+/* olrn build — compile the project entry point.
+   Project layout: src/main/olrn/main.olrn → olrn_out/<name>.cpp →
+   bin/<name>. A bare main.olrn in cwd still works (flat mode) and
+   builds to ./<name>. */
 static int cmd_build(void)
 {
-    if (access("main.olrn", F_OK) != 0) {
-        fprintf(stderr, "build: no main.olrn found in current directory\n");
-        return 1;
+    const char *name = project_name();
+    if (!name) return 1;
+
+    if (access(PROJECT_MAIN, F_OK) == 0) {
+        mkdir("olrn_out", 0755);
+        mkdir("bin", 0755);
+
+        char cpp_path[600], bin_path[600];
+        snprintf(cpp_path, sizeof(cpp_path), "olrn_out/%s.cpp", name);
+        snprintf(bin_path, sizeof(bin_path), "bin/%s", name);
+
+        FILE *out = fopen(cpp_path, "w");
+        if (!out) { perror(cpp_path); return 1; }
+        int rc = compile_to_out(PROJECT_MAIN, out);
+        fclose(out);
+        if (rc != 0) { remove(cpp_path); return 1; }
+
+        rc = gxx_compile(cpp_path, bin_path);
+        if (rc == 0) { printf("built: %s\n", bin_path); fflush(stdout); }
+        return rc;
     }
 
-    /* name the binary after the current directory */
-    char cwd[512];
-    if (!getcwd(cwd, sizeof(cwd))) { perror("getcwd"); return 1; }
-    const char *name = strrchr(cwd, '/');
-    name = name ? name + 1 : cwd;
+    if (access("main.olrn", F_OK) == 0) {
+        /* flat mode — single file next to you, binary in cwd */
+        const char *inputs[] = { "main.olrn" };
+        int rc = compile_to_binary(inputs, 1, name);
+        if (rc == 0) { printf("built: %s\n", name); fflush(stdout); }
+        return rc;
+    }
 
-    const char *inputs[] = { "main.olrn" };
-    int rc = compile_to_binary(inputs, 1, name);
-    if (rc == 0) { printf("built: %s\n", name); fflush(stdout); }
-    return rc;
+    fprintf(stderr, "build: no %s or main.olrn found — run 'olrn init'\n",
+            PROJECT_MAIN);
+    return 1;
 }
 
 /* olrn run  — build then execute */
@@ -481,13 +547,14 @@ static int cmd_run(void)
 {
     if (cmd_build() != 0) return 1;
 
-    char cwd[512];
-    if (!getcwd(cwd, sizeof(cwd))) { perror("getcwd"); return 1; }
-    const char *name = strrchr(cwd, '/');
-    name = name ? name + 1 : cwd;
+    const char *name = project_name();
+    if (!name) return 1;
 
     char cmd[768];
-    snprintf(cmd, sizeof(cmd), "./%s", name);
+    if (access(PROJECT_MAIN, F_OK) == 0)
+        snprintf(cmd, sizeof(cmd), "./bin/%s", name);
+    else
+        snprintf(cmd, sizeof(cmd), "./%s", name);
     return system(cmd);
 }
 
