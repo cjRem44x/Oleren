@@ -246,7 +246,7 @@ cwd := std.fs.cwd()
 
 **`std.time`** — timing (critical for game loops)
 
-**`@malkur` (Malkur)** — built-in gamedev library. See `docs/Malkur.md` for the full API surface. Covers window, input, 2D/3D drawing, textures, fonts, models, shaders, audio, math types, and collision. Raylib-inspired API; raw OpenGL/SDL2/Vulkan backend.
+**`@std.malkur` (Malkur)** — built-in gamedev library. See `docs/Malkur.md` for the full API surface. Covers window, input, 2D/3D drawing, textures, fonts, models, shaders, audio, math types, and collision. Raylib-inspired flat API. v0.1 shipped: 2D core (window/loop, keyboard, mouse, shapes, BMP textures, colors, Vec2 math, 2D collision) on an SDL2 backend; importing it auto-links `-lSDL2`.
 ```rust
 t0 := std.time.now()          # nanosecond timestamp
 dt := std.time.since(t0)      # elapsed as f64 seconds
@@ -336,11 +336,12 @@ All planned v0.1.0 features are implemented and passing the test suite.
 - [x] Heap allocation (`@alo`, `@free`), raw and smart pointers
 - [x] Standard library — `std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`
 - [x] CLI — `build`, `run`, `build-src`, `build-out`, `check`, `sac`, `init`
+- [x] Malkur gamedev library v0.1 — 2D core via `@std.malkur` (SDL2 backend)
 
 ## Next (v0.2.0 candidates)
 
 - Multi-return / tuple values
 - `std.thread` — basic threading
-- Malkur gamedev library (builtin, via `@std.malkur`)
+- Malkur v0.2 — fonts/text, audio, gamepad, camera 2D, PNG/JPG via SDL_image
 - `olrn_pkg.toml` — deferred; only needed for *outside* resources
   (vendored C/C++ deps, link flags). Builtin libs don't need it.

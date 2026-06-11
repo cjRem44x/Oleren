@@ -1,0 +1,357 @@
+# malkur — Oleren gamedev library (SDL2 backend)
+# Import explicitly: mk :: @std.malkur  (or  mk = @std.malkur  in @import)
+# Types Color, Vec2, Rect come from the C++ backend.
+
+err MalkurError { InitFailed, LoadFailed }
+
+type Texture = i64
+
+# SDL scancodes
+enum keys => i32 {
+    A=4,  B=5,  C=6,  D=7,  E=8,  F=9,  G=10, H=11, I=12, J=13,
+    K=14, L=15, M=16, N=17, O=18, P=19, Q=20, R=21, S=22, T=23,
+    U=24, V=25, W=26, X=27, Y=28, Z=29,
+    N1=30, N2=31, N3=32, N4=33, N5=34, N6=35, N7=36, N8=37, N9=38, N0=39,
+    ENTER=40, ESCAPE=41, BACKSPACE=42, TAB=43, SPACE=44,
+    F1=58, F2=59, F3=60, F4=61, F5=62,  F6=63,
+    F7=64, F8=65, F9=66, F10=67, F11=68, F12=69,
+    RIGHT=79, LEFT=80, DOWN=81, UP=82,
+    LCTRL=224, LSHIFT=225, LALT=226, RCTRL=228, RSHIFT=229, RALT=230,
+}
+
+# SDL mouse button numbers
+enum mbtn => i32 { LEFT=1, MIDDLE=2, RIGHT=3 }
+
+# built-in palette — mk.NAME
+BLACK       :Color: Color{.r=0,   .g=0,   .b=0,   .a=255}
+WHITE       :Color: Color{.r=255, .g=255, .b=255, .a=255}
+RED         :Color: Color{.r=230, .g=41,  .b=55,  .a=255}
+GREEN       :Color: Color{.r=0,   .g=228, .b=48,  .a=255}
+BLUE        :Color: Color{.r=0,   .g=121, .b=241, .a=255}
+YELLOW      :Color: Color{.r=253, .g=249, .b=0,   .a=255}
+ORANGE      :Color: Color{.r=255, .g=161, .b=0,   .a=255}
+PURPLE      :Color: Color{.r=200, .g=122, .b=255, .a=255}
+PINK        :Color: Color{.r=255, .g=109, .b=194, .a=255}
+GRAY        :Color: Color{.r=130, .g=130, .b=130, .a=255}
+DARKGRAY    :Color: Color{.r=80,  .g=80,  .b=80,  .a=255}
+TRANSPARENT :Color: Color{.r=0,   .g=0,   .b=0,   .a=0}
+
+# ── window & core loop ──────────────────────────────────────────
+
+fn malkur_init_window(w: i32, h: i32, title: str) -> !void
+{
+    ok :: _olrn_mk_init_window(w, h, title)
+    if !ok { ret MalkurError.InitFailed }
+}
+
+fn malkur_close_window()
+{
+    _olrn_mk_close_window()
+}
+
+fn malkur_should_close() -> bool
+{
+    ret _olrn_mk_should_close()
+}
+
+fn malkur_begin_draw()
+{
+    _olrn_mk_begin_draw()
+}
+
+fn malkur_end_draw()
+{
+    _olrn_mk_end_draw()
+}
+
+fn malkur_clear_bg(c: Color)
+{
+    _olrn_mk_clear_bg(c)
+}
+
+fn malkur_set_fps(target: i32)
+{
+    _olrn_mk_set_fps(target)
+}
+
+fn malkur_set_vsync(on: bool)
+{
+    _olrn_mk_set_vsync(on)
+}
+
+fn malkur_set_title(title: str)
+{
+    _olrn_mk_set_title(title)
+}
+
+fn malkur_fullscreen(on: bool)
+{
+    _olrn_mk_fullscreen(on)
+}
+
+fn malkur_dt() -> f32
+{
+    ret _olrn_mk_dt()
+}
+
+fn malkur_fps() -> i32
+{
+    ret _olrn_mk_fps()
+}
+
+fn malkur_width() -> i32
+{
+    ret _olrn_mk_width()
+}
+
+fn malkur_height() -> i32
+{
+    ret _olrn_mk_height()
+}
+
+# ── keyboard ────────────────────────────────────────────────────
+
+fn malkur_key_down(k: i32) -> bool
+{
+    ret _olrn_mk_key_down(k)
+}
+
+fn malkur_key_pressed(k: i32) -> bool
+{
+    ret _olrn_mk_key_pressed(k)
+}
+
+fn malkur_key_released(k: i32) -> bool
+{
+    ret _olrn_mk_key_released(k)
+}
+
+fn malkur_key_char() -> chr
+{
+    ret _olrn_mk_key_char()
+}
+
+# ── mouse ───────────────────────────────────────────────────────
+
+fn malkur_mouse_pos() -> Vec2
+{
+    ret _olrn_mk_mouse_pos()
+}
+
+fn malkur_mouse_delta() -> Vec2
+{
+    ret _olrn_mk_mouse_delta()
+}
+
+fn malkur_mouse_scroll() -> f32
+{
+    ret _olrn_mk_mouse_scroll()
+}
+
+fn malkur_mouse_btn(b: i32) -> bool
+{
+    ret _olrn_mk_mouse_btn(b)
+}
+
+fn malkur_mouse_btn_pressed(b: i32) -> bool
+{
+    ret _olrn_mk_mouse_btn_pressed(b)
+}
+
+fn malkur_mouse_btn_released(b: i32) -> bool
+{
+    ret _olrn_mk_mouse_btn_released(b)
+}
+
+fn malkur_mouse_set_pos(p: Vec2)
+{
+    _olrn_mk_mouse_set_pos(p)
+}
+
+fn malkur_mouse_hide()
+{
+    _olrn_mk_mouse_hide()
+}
+
+fn malkur_mouse_show()
+{
+    _olrn_mk_mouse_show()
+}
+
+# ── 2D drawing ──────────────────────────────────────────────────
+
+fn malkur_draw_rect(x: f32, y: f32, w: f32, h: f32, c: Color)
+{
+    _olrn_mk_draw_rect(x, y, w, h, c)
+}
+
+fn malkur_draw_rect_lines(x: f32, y: f32, w: f32, h: f32, thick: f32, c: Color)
+{
+    _olrn_mk_draw_rect_lines(x, y, w, h, thick, c)
+}
+
+fn malkur_draw_circle(cx: f32, cy: f32, r: f32, c: Color)
+{
+    _olrn_mk_draw_circle(cx, cy, r, c)
+}
+
+fn malkur_draw_circle_lines(cx: f32, cy: f32, r: f32, c: Color)
+{
+    _olrn_mk_draw_circle_lines(cx, cy, r, c)
+}
+
+fn malkur_draw_line(x1: f32, y1: f32, x2: f32, y2: f32, thick: f32, c: Color)
+{
+    _olrn_mk_draw_line(x1, y1, x2, y2, thick, c)
+}
+
+fn malkur_draw_triangle(v1: Vec2, v2: Vec2, v3: Vec2, c: Color)
+{
+    _olrn_mk_draw_tri(v1, v2, v3, c)
+}
+
+fn malkur_draw_poly(center: Vec2, sides: i32, r: f32, rot: f32, c: Color)
+{
+    _olrn_mk_draw_poly(center, sides, r, rot, c)
+}
+
+# ── textures (BMP for now; PNG/JPG when SDL_image lands) ────────
+
+fn malkur_load_texture(path: str) -> !Texture
+{
+    t :: _olrn_mk_load_texture(path)
+    if t == 0 { ret MalkurError.LoadFailed }
+    ret t
+}
+
+fn malkur_unload_texture(t: Texture)
+{
+    _olrn_mk_unload_texture(t)
+}
+
+fn malkur_draw_texture(t: Texture, x: f32, y: f32, tint: Color)
+{
+    _olrn_mk_draw_texture(t, x, y, tint)
+}
+
+fn malkur_draw_texture_ex(t: Texture, pos: Vec2, rot: f32, scale: f32, tint: Color)
+{
+    _olrn_mk_draw_texture_ex(t, pos, rot, scale, tint)
+}
+
+# ── color helpers (pure Oleren) ─────────────────────────────────
+
+fn malkur_rgba(r: i32, g: i32, b: i32, a: i32) -> Color
+{
+    ret Color{.r=@u8(r), .g=@u8(g), .b=@u8(b), .a=@u8(a)}
+}
+
+fn malkur_color_fade(c: Color, alpha: f32) -> Color
+{
+    a :: math_clamp(@f64(alpha), 0.0, 1.0)
+    ret Color{.r=c.r, .g=c.g, .b=c.b, .a=@u8(@f64(255.0) * a)}
+}
+
+fn malkur_color_lerp(a: Color, b: Color, t: f32) -> Color
+{
+    k :: math_clamp(@f64(t), 0.0, 1.0)
+    ret Color{
+        .r=@u8(@f64(a.r) + (@f64(b.r) - @f64(a.r)) * k),
+        .g=@u8(@f64(a.g) + (@f64(b.g) - @f64(a.g)) * k),
+        .b=@u8(@f64(a.b) + (@f64(b.b) - @f64(a.b)) * k),
+        .a=@u8(@f64(a.a) + (@f64(b.a) - @f64(a.a)) * k),
+    }
+}
+
+# ── Vec2 math (pure Oleren) ─────────────────────────────────────
+
+fn malkur_vec2(x: f32, y: f32) -> Vec2
+{
+    ret Vec2{.x=x, .y=y}
+}
+
+fn malkur_vec2_zero() -> Vec2
+{
+    ret Vec2{.x=0.0, .y=0.0}
+}
+
+fn malkur_rect(x: f32, y: f32, w: f32, h: f32) -> Rect
+{
+    ret Rect{.x=x, .y=y, .w=w, .h=h}
+}
+
+fn malkur_v2_add(a: Vec2, b: Vec2) -> Vec2
+{
+    ret Vec2{.x=a.x+b.x, .y=a.y+b.y}
+}
+
+fn malkur_v2_sub(a: Vec2, b: Vec2) -> Vec2
+{
+    ret Vec2{.x=a.x-b.x, .y=a.y-b.y}
+}
+
+fn malkur_v2_scale(v: Vec2, s: f32) -> Vec2
+{
+    ret Vec2{.x=v.x*s, .y=v.y*s}
+}
+
+fn malkur_v2_dot(a: Vec2, b: Vec2) -> f32
+{
+    ret a.x*b.x + a.y*b.y
+}
+
+fn malkur_v2_len(v: Vec2) -> f32
+{
+    ret @f32(math_sqrt(@f64(v.x*v.x + v.y*v.y)))
+}
+
+fn malkur_v2_dist(a: Vec2, b: Vec2) -> f32
+{
+    dx :: a.x - b.x
+    dy :: a.y - b.y
+    ret @f32(math_sqrt(@f64(dx*dx + dy*dy)))
+}
+
+fn malkur_v2_norm(v: Vec2) -> Vec2
+{
+    l :: malkur_v2_len(v)
+    if l == 0.0 { ret Vec2{.x=0.0, .y=0.0} }
+    ret Vec2{.x=v.x/l, .y=v.y/l}
+}
+
+fn malkur_v2_lerp(a: Vec2, b: Vec2, t: f32) -> Vec2
+{
+    ret Vec2{.x=a.x + (b.x-a.x)*t, .y=a.y + (b.y-a.y)*t}
+}
+
+# ── 2D collision (pure Oleren) ──────────────────────────────────
+
+fn malkur_check_rects(a: Rect, b: Rect) -> bool
+{
+    ret a.x < b.x+b.w and a.x+a.w > b.x and a.y < b.y+b.h and a.y+a.h > b.y
+}
+
+fn malkur_check_circles(c1: Vec2, r1: f32, c2: Vec2, r2: f32) -> bool
+{
+    ret malkur_v2_dist(c1, c2) <= r1 + r2
+}
+
+fn malkur_check_point_rect(pt: Vec2, r: Rect) -> bool
+{
+    ret pt.x >= r.x and pt.x <= r.x+r.w and pt.y >= r.y and pt.y <= r.y+r.h
+}
+
+fn malkur_check_point_circle(pt: Vec2, center: Vec2, r: f32) -> bool
+{
+    ret malkur_v2_dist(pt, center) <= r
+}
+
+fn malkur_rect_intersect(a: Rect, b: Rect) -> Rect
+{
+    x1 :: @f32(math_max(@f64(a.x), @f64(b.x)))
+    y1 :: @f32(math_max(@f64(a.y), @f64(b.y)))
+    x2 :: @f32(math_min(@f64(a.x+a.w), @f64(b.x+b.w)))
+    y2 :: @f32(math_min(@f64(a.y+a.h), @f64(b.y+b.h)))
+    if x2 <= x1 or y2 <= y1 { ret Rect{.x=0.0, .y=0.0, .w=0.0, .h=0.0} }
+    ret Rect{.x=x1, .y=y1, .w=x2-x1, .h=y2-y1}
+}

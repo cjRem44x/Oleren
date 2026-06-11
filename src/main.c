@@ -78,6 +78,18 @@ static const char *STD_MODULES[] = {
     "io", "fs", "time", "math", "mem", "str", "log", NULL
 };
 
+/* true if any import binds the malkur module (mk = @std.malkur) */
+static int imports_use_malkur(AstNode *program)
+{
+    for (int i = 0; i < program->program.imports.count; i++) {
+        AstNode *imp = program->program.imports.items[i];
+        if (imp->import_decl.is_lib && imp->import_decl.module &&
+            strcmp(imp->import_decl.module, "malkur") == 0)
+            return 1;
+    }
+    return 0;
+}
+
 static void load_stdlib_module(AstNode *prog, const char *stdlib_path,
                                const char *lib, const char *mod,
                                char **srcs, int *count)
@@ -102,21 +114,30 @@ static void load_stdlib_module(AstNode *prog, const char *stdlib_path,
 static int merge_imports(AstNode *program, const char *host_path,
                          char **extra_srcs, int *extra_count)
 {
-    /* any @std entry (whole-lib import or module bind) loads the stdlib once */
+    /* any @std entry (whole-lib import or module bind) loads the stdlib once.
+       malkur only loads when explicitly bound (mk = @std.malkur), since it
+       drags in SDL2; it loads first so it lands after std.math in decl order
+       (no fn prototypes are emitted — callees must precede callers). */
+    int wants_std = 0;
     for (int i = 0; i < program->program.imports.count; i++) {
         AstNode *imp = program->program.imports.items[i];
-        if (!imp->import_decl.is_lib) continue;
-        if (strcmp(imp->import_decl.source, "std") != 0) continue;
+        if (imp->import_decl.is_lib &&
+            strcmp(imp->import_decl.source, "std") == 0)
+            wants_std = 1;
+    }
+    if (wants_std) {
         char *stdlib_path = find_stdlib();
         if (!stdlib_path) {
             fprintf(stderr, "warning: stdlib not found — @std unavailable\n");
-            break;
+        } else {
+            if (imports_use_malkur(program))
+                load_stdlib_module(program, stdlib_path, "std",
+                                   "malkur", extra_srcs, extra_count);
+            for (int m = 0; STD_MODULES[m]; m++)
+                load_stdlib_module(program, stdlib_path, "std",
+                                   STD_MODULES[m], extra_srcs, extra_count);
+            free(stdlib_path);
         }
-        for (int m = 0; STD_MODULES[m]; m++)
-            load_stdlib_module(program, stdlib_path, "std",
-                               STD_MODULES[m], extra_srcs, extra_count);
-        free(stdlib_path);
-        break;
     }
     for (int i = 0; i < program->program.imports.count; i++) {
         AstNode *imp = program->program.imports.items[i];
@@ -213,13 +234,15 @@ static int compile_to_binary(const char **inputs, int input_count,
     fflush(cpp_file);
     fclose(cpp_file);
 
+    int link_sdl = imports_use_malkur(program);
     ast_free(program); free(main_src);
     for (int i = 0; i < extra_count; i++) free(extra_srcs[i]);
 
-    /* invoke g++ */
+    /* invoke g++ — malkur needs SDL2 */
     char cmd[1024];
     snprintf(cmd, sizeof(cmd),
-             "g++ -std=c++17 -O2 \"%s\" -o \"%s\" 2>&1", tmp_cpp, output);
+             "g++ -std=c++17 -O2 \"%s\" -o \"%s\"%s 2>&1", tmp_cpp, output,
+             link_sdl ? " -lSDL2" : "");
     int rc = system(cmd);
     remove(tmp_cpp);
     return (rc == 0) ? 0 : 1;
@@ -359,9 +382,21 @@ static int cmd_build_out(int argc, char **argv)
         output = derived;
     }
 
+    /* malkur output includes SDL — detect it for the link line */
+    int link_sdl = 0;
+    FILE *probe = fopen(cpp_path, "r");
+    if (probe) {
+        char line[512];
+        while (fgets(line, sizeof(line), probe)) {
+            if (strstr(line, "SDL2/SDL.h")) { link_sdl = 1; break; }
+        }
+        fclose(probe);
+    }
+
     char cmd[1024];
     snprintf(cmd, sizeof(cmd),
-             "g++ -std=c++17 -O2 \"%s\" -o \"%s\" 2>&1", cpp_path, output);
+             "g++ -std=c++17 -O2 \"%s\" -o \"%s\"%s 2>&1", cpp_path, output,
+             link_sdl ? " -lSDL2" : "");
     int rc = system(cmd);
     if (rc == 0) printf("built: %s\n", output);
     return (rc == 0) ? 0 : 1;

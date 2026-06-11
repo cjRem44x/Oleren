@@ -6,37 +6,49 @@ Malkur is the built-in gamedev library for Oleren. Its API is inspired by
 Raylib — simple, flat, and readable — but the implementation compiles down
 to raw backend code (OpenGL, SDL2, Vulkan, etc.) with no managed runtime.
 
-Include via the import block at the top of your file. The alias is how all
-Malkur calls are made — `mk` is the conventional short alias.
+Include via the import block at the top of your file (or a top-level bind:
+`mk :: @std.malkur`). The alias is how all Malkur calls are made — `mk` is
+the conventional short alias. Importing malkur pulls in the SDL2 backend;
+the compiler adds `-lSDL2` to the link line automatically.
 
 ```rust
 @import (
-    mk = @malkur,
+    mk = @std.malkur,
 )
 ```
+
+## Status (v0.1)
+
+The API is flat — every call goes through the alias (`mk.draw_rect(...)`),
+Raylib-style; window/renderer/input state lives in the backend.
+
+**Implemented (SDL2 backend):** window & core loop, keyboard, mouse,
+2D shapes, textures (BMP only), colors, Vec2 math, 2D collision.
+
+**Planned:** gamepad, fonts/text, cameras, 3D, images/render textures,
+models, shaders, audio, Vec3/Mat4 math, 3D collision, PNG/JPG via SDL_image.
+Sections below marked *Planned* are design spec, not yet implemented.
 
 ---
 
 ## Window & Core Loop
 
-The window handle owns the core loop, timing, and draw state.
-
 ```rust
 fn main() -> !void
 {
-    win := try mk.init_window(1280, 720, "My Game")
-    defer win.close()
+    try mk.init_window(1280, 720, "My Game")
+    defer mk.close_window()
 
-    win.set_fps(60)
-    win.set_vsync(true)
+    mk.set_fps(60)
+    mk.set_vsync(true)
 
-    while !win.should_close() {
-        dt :: win.dt()   # delta time in seconds (f32)
+    while !mk.should_close() {
+        dt :: mk.dt()   # delta time in seconds (f32)
 
-        win.begin_draw()
-            win.clear_bg(mk.colors.BLACK)
+        mk.begin_draw()
+            mk.clear_bg(mk.BLACK)
             # ... drawing calls go here
-        win.end_draw()
+        mk.end_draw()
     }
 }
 ```
@@ -44,24 +56,23 @@ fn main() -> !void
 ### Window API
 
 ```rust
-mk.init_window(w: i32, h: i32, title: []chr) -> !Window
+mk.init_window(w: i32, h: i32, title: str) -> !void
 
-win.close()
-win.set_fps(target: i32)
-win.set_vsync(on: bool)
-win.should_close() -> bool
+mk.close_window()
+mk.set_fps(target: i32)
+mk.set_vsync(on: bool)
+mk.should_close() -> bool   # polls events + refreshes input state; call once per frame
 
-win.dt()      -> f32   # delta time (seconds since last frame)
-win.fps()     -> i32   # current frames per second
-win.width()   -> i32
-win.height()  -> i32
-win.resize(w: i32, h: i32)
-win.set_title(title: []chr)
-win.fullscreen(on: bool)
+mk.dt()      -> f32   # delta time (seconds since last frame)
+mk.fps()     -> i32   # current frames per second
+mk.width()   -> i32
+mk.height()  -> i32
+mk.set_title(title: str)
+mk.fullscreen(on: bool)
 
-win.begin_draw()
-win.end_draw()
-win.clear_bg(color: Color)
+mk.begin_draw()
+mk.end_draw()
+mk.clear_bg(color: Color)
 ```
 
 ---
@@ -73,26 +84,26 @@ win.clear_bg(color: Color)
 struct Color { r: u8, g: u8, b: u8, a: u8 }
 
 # construct
-mk.rgba(r: u8, g: u8, b: u8, a: u8) -> Color
-mk.hex(val: u32) -> Color                       # 0xRRGGBBAA
+mk.rgba(r: i32, g: i32, b: i32, a: i32) -> Color
+mk.hex(val: u32) -> Color                       # 0xRRGGBBAA (planned)
 
 # modify
 mk.color_fade(c: Color, alpha: f32) -> Color    # alpha 0.0 - 1.0
 mk.color_lerp(a: Color, b: Color, t: f32) -> Color
 
-# built-in palette (accessed as mk.colors.NAME)
-mk.colors.BLACK
-mk.colors.WHITE
-mk.colors.RED
-mk.colors.GREEN
-mk.colors.BLUE
-mk.colors.YELLOW
-mk.colors.ORANGE
-mk.colors.PURPLE
-mk.colors.PINK
-mk.colors.GRAY
-mk.colors.DARKGRAY
-mk.colors.TRANSPARENT
+# built-in palette (accessed as mk.NAME)
+mk.BLACK
+mk.WHITE
+mk.RED
+mk.GREEN
+mk.BLUE
+mk.YELLOW
+mk.ORANGE
+mk.PURPLE
+mk.PINK
+mk.GRAY
+mk.DARKGRAY
+mk.TRANSPARENT
 ```
 
 ---
@@ -101,10 +112,12 @@ mk.colors.TRANSPARENT
 
 ### Keyboard
 
+Key constants are the `keys` enum (i32 SDL scancodes) — pass `mk.keys.NAME`.
+
 ```rust
-mk.key_pressed(key: Key)  -> bool   # true on the frame the key was first pressed
-mk.key_down(key: Key)     -> bool   # true while the key is held
-mk.key_released(key: Key) -> bool   # true on the frame the key was released
+mk.key_pressed(key: i32)  -> bool   # true on the frame the key was first pressed
+mk.key_down(key: i32)     -> bool   # true while the key is held
+mk.key_released(key: i32) -> bool   # true on the frame the key was released
 mk.key_char()             -> chr    # last character typed this frame (0 if none)
 
 # key constants: mk.keys.NAME
@@ -128,7 +141,7 @@ mk.keys.LALT    mk.keys.RALT
 mk.mouse_pos()             -> Vec2   # screen position
 mk.mouse_delta()           -> Vec2   # movement since last frame
 mk.mouse_scroll()          -> f32    # scroll wheel delta
-mk.mouse_btn(btn: MBtn)    -> bool   # held
+mk.mouse_btn(btn: i32)     -> bool   # held — pass mk.mbtn.NAME
 mk.mouse_btn_pressed(btn)  -> bool   # first frame
 mk.mouse_btn_released(btn) -> bool   # release frame
 mk.mouse_set_pos(pos: Vec2)
@@ -139,6 +152,8 @@ mk.mouse_show()
 ```
 
 ### Gamepad
+
+> **Planned** — not yet implemented.
 
 ```rust
 mk.pad_connected(id: i32)           -> bool
@@ -156,12 +171,11 @@ mk.pad_axis(id: i32, axis: PadAxis) -> f32   # -1.0 to 1.0
 
 ## 2D Drawing
 
-All 2D draw calls must be inside `win.begin_draw()` / `win.end_draw()`.
+All 2D draw calls must be inside `mk.begin_draw()` / `mk.end_draw()`.
 
 ```rust
 # Shapes
 mk.draw_rect(x: f32, y: f32, w: f32, h: f32, color: Color)
-mk.draw_rect_rot(x, y, w, h: f32, origin: Vec2, rot: f32, color: Color)
 mk.draw_rect_lines(x, y, w, h: f32, thick: f32, color: Color)
 mk.draw_circle(cx: f32, cy: f32, r: f32, color: Color)
 mk.draw_circle_lines(cx, cy, r: f32, color: Color)
@@ -169,20 +183,25 @@ mk.draw_line(x1, y1, x2, y2: f32, thick: f32, color: Color)
 mk.draw_triangle(v1, v2, v3: Vec2, color: Color)
 mk.draw_poly(center: Vec2, sides: i32, r: f32, rot: f32, color: Color)
 
-# Text
-mk.draw_text(text: []chr, x: f32, y: f32, size: f32, color: Color)
-mk.draw_text_ex(font: Font, text: []chr, pos: Vec2, size: f32, spacing: f32, color: Color)
-mk.measure_text(text: []chr, size: f32) -> Vec2
+# planned
+mk.draw_rect_rot(x, y, w, h: f32, origin: Vec2, rot: f32, color: Color)
+
+# Text (planned — needs font support)
+mk.draw_text(text: str, x: f32, y: f32, size: f32, color: Color)
+mk.draw_text_ex(font: Font, text: str, pos: Vec2, size: f32, spacing: f32, color: Color)
+mk.measure_text(text: str, size: f32) -> Vec2
 
 # Textures / Sprites
 mk.draw_texture(tex: Texture, x: f32, y: f32, tint: Color)
 mk.draw_texture_ex(tex: Texture, pos: Vec2, rot: f32, scale: f32, tint: Color)
-mk.draw_texture_rect(tex: Texture, src: Rect, dst: Rect, origin: Vec2, rot: f32, tint: Color)
+mk.draw_texture_rect(...)   # planned
 ```
 
 ---
 
 ## Camera 2D
+
+> **Planned** — not yet implemented.
 
 ```rust
 struct Camera2D {
@@ -222,6 +241,8 @@ win.end_draw()
 
 ## Camera 3D
 
+> **Planned** — not yet implemented.
+
 ```rust
 struct Camera3D {
     pos:    Vec3,
@@ -240,6 +261,8 @@ mk.screen_to_world3d(pos: Vec2, cam: Camera3D) -> Ray
 ---
 
 ## 3D Drawing
+
+> **Planned** — not yet implemented.
 
 ```rust
 mk.draw_cube(pos: Vec3, w: f32, h: f32, d: f32, color: Color)
@@ -262,30 +285,33 @@ mk.draw_billboard(cam: Camera3D, tex: Texture, pos: Vec3, size: f32, tint: Color
 ## Textures & Images
 
 ```rust
-# loading
-mk.load_texture(path: []chr) -> !Texture
-mk.load_texture_from_image(img: Image) -> Texture
+# loading — implemented; BMP only until SDL_image lands
+mk.load_texture(path: str) -> !Texture
 mk.unload_texture(tex: Texture)
 
-mk.load_image(path: []chr) -> !Image
+# planned
+mk.load_texture_from_image(img: Image) -> Texture
+mk.load_image(path: str) -> !Image
 mk.unload_image(img: Image)
 
-# image manipulation (CPU-side, before upload)
+# image manipulation (planned; CPU-side, before upload)
 mk.image_resize(img: *Image, w: i32, h: i32)
 mk.image_flip_v(img: *Image)
 mk.image_flip_h(img: *Image)
 mk.image_crop(img: *Image, rect: Rect)
 
-# render texture (draw to texture)
+# render texture (planned; draw to texture)
 mk.load_render_tex(w: i32, h: i32) -> RenderTex
 mk.unload_render_tex(rt: RenderTex)
-win.begin_render_tex(rt: RenderTex)
-win.end_render_tex()
+mk.begin_render_tex(rt: RenderTex)
+mk.end_render_tex()
 ```
 
 ---
 
 ## Fonts & Text
+
+> **Planned** — not yet implemented.
 
 ```rust
 mk.load_font(path: []chr) -> !Font
@@ -301,6 +327,8 @@ mk.measure_text_ex(font: Font, text: []chr, size: f32, spacing: f32) -> Vec2
 ---
 
 ## Models & Meshes
+
+> **Planned** — not yet implemented.
 
 ```rust
 mk.load_model(path: []chr) -> !Model       # .obj .gltf .glb etc.
@@ -320,6 +348,8 @@ mk.model_set_material(model: *Model, slot: i32, mat: Material)
 ---
 
 ## Shaders
+
+> **Planned** — not yet implemented.
 
 ```rust
 mk.load_shader(vs_path: []chr, fs_path: []chr) -> !Shader
@@ -341,6 +371,8 @@ mk.shader_set_texture(shader: Shader, name: []chr, tex: Texture)
 ---
 
 ## Audio
+
+> **Planned** — not yet implemented.
 
 ```rust
 mk.init_audio()       # call once at startup
@@ -376,22 +408,26 @@ mk.music_pos(music: Music)    -> f32    # current playback position
 
 ## Math Types
 
-These are also available via `std.math` but Malkur re-exports them for
-convenience since they are used everywhere in gamedev.
+`Vec2`, `Rect`, and `Color` come from the backend and are usable directly
+(struct literals work: `Vec2{.x=1.0, .y=2.0}`).
 
 ```rust
-struct Vec2 { x: f32, y: f32 }
+struct Color { r: u8, g: u8, b: u8, a: u8 }
+struct Vec2  { x: f32, y: f32 }
+struct Rect  { x: f32, y: f32, w: f32, h: f32 }
+
+# planned
 struct Vec3 { x: f32, y: f32, z: f32 }
 struct Vec4 { x: f32, y: f32, z: f32, w: f32 }
-struct Rect { x: f32, y: f32, w: f32, h: f32 }
 struct Ray  { pos: Vec3, dir: Vec3 }
 struct Mat4 { m: [16]f32 }   # column-major
 
-# common constructors
-mk.vec2(x: f32, y: f32)             -> Vec2
-mk.vec3(x: f32, y: f32, z: f32)    -> Vec3
-mk.vec2_zero() -> Vec2
-mk.vec3_zero() -> Vec3
+# constructors
+mk.vec2(x: f32, y: f32)                -> Vec2
+mk.vec2_zero()                         -> Vec2
+mk.rect(x: f32, y: f32, w: f32, h: f32) -> Rect
+mk.vec3(x: f32, y: f32, z: f32)        -> Vec3   # planned
+mk.vec3_zero()                         -> Vec3   # planned
 
 # Vec2 ops
 mk.v2_add(a: Vec2, b: Vec2)  -> Vec2
@@ -403,8 +439,8 @@ mk.v2_dot(a: Vec2, b: Vec2)  -> f32
 mk.v2_dist(a: Vec2, b: Vec2) -> f32
 mk.v2_lerp(a: Vec2, b: Vec2, t: f32) -> Vec2
 
-# Vec3 ops (same pattern: mk.v3_*)
-# Mat4 ops
+# Vec3 ops (planned; same pattern: mk.v3_*)
+# Mat4 ops (planned)
 mk.mat4_identity()                         -> Mat4
 mk.mat4_translate(m: Mat4, v: Vec3)        -> Mat4
 mk.mat4_rotate(m: Mat4, axis: Vec3, angle: f32) -> Mat4
@@ -428,7 +464,7 @@ mk.check_point_rect(pt: Vec2, rect: Rect)            -> bool
 mk.check_point_circle(pt: Vec2, center: Vec2, r: f32) -> bool
 mk.rect_intersect(a: Rect, b: Rect)                  -> Rect  # overlap rect
 
-# 3D
+# 3D (planned)
 mk.check_ray_sphere(ray: Ray, center: Vec3, r: f32)  -> bool
 mk.check_ray_box(ray: Ray, min: Vec3, max: Vec3)     -> bool
 mk.check_boxes(min1: Vec3, max1: Vec3, min2: Vec3, max2: Vec3) -> bool
@@ -440,39 +476,31 @@ mk.check_boxes(min1: Vec3, max1: Vec3, min2: Vec3, max2: Vec3) -> bool
 
 ```rust
 @import (
-    mk = @malkur,
+    mk = @std.malkur,
 )
 
 fn main() -> !void
 {
-    win := try mk.init_window(800, 600, "Hello Malkur")
-    defer win.close()
-    win.set_fps(60)
+    try mk.init_window(800, 600, "Hello Malkur")
+    defer mk.close_window()
+    mk.set_fps(60)
 
-    tex := try mk.load_texture("assets/sprite.png")
+    tex := try mk.load_texture("assets/sprite.bmp")
     defer mk.unload_texture(tex)
-
-    try mk.init_audio()
-    defer mk.close_audio()
-
-    music := try mk.load_music("assets/bg.ogg")
-    mk.play_music(music)
 
     pos := mk.vec2(400.0, 300.0)
 
-    while !win.should_close() {
-        dt :: win.dt()
+    while !mk.should_close() {
+        dt :: mk.dt()
 
         if mk.key_down(mk.keys.RIGHT) { pos.x += 200.0 * dt }
         if mk.key_down(mk.keys.LEFT)  { pos.x -= 200.0 * dt }
 
-        mk.update_music(music)
-
-        win.begin_draw()
-            win.clear_bg(mk.colors.BLACK)
-            mk.draw_texture(tex, pos.x, pos.y, mk.colors.WHITE)
-            mk.draw_text("Arrow keys to move", 10, 10, 20.0, mk.colors.WHITE)
-        win.end_draw()
+        mk.begin_draw()
+            mk.clear_bg(mk.BLACK)
+            mk.draw_texture(tex, pos.x, pos.y, mk.WHITE)
+            mk.draw_circle(pos.x, pos.y - 40.0, 12.0, mk.RED)
+        mk.end_draw()
     }
 }
 ```

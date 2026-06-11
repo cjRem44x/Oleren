@@ -1,5 +1,6 @@
 #include "codegen.h"
 #include "stdlib_impl.h"
+#include "malkur_impl.h"
 #include "../lexer/lexer.h"
 #include <string.h>
 #include <stdio.h>
@@ -12,6 +13,7 @@ void codegen_init(Codegen *cg, FILE *out)
     cg->type_var_count     = 0;
     cg->import_alias_count = 0;
     cg->has_stdlib         = 0;
+    cg->has_malkur         = 0;
     cg->enum_count         = 0;
     cg->defer_counter      = 0;
     cg->err_count          = 0;
@@ -486,9 +488,18 @@ static void emit_expr(Codegen *cg, AstNode *node)
             emit_expr(cg, node->unary.operand);
             break;
         case NODE_FIELD:
-            /* strip import alias prefix: std.math.PI → PI */
-            if (callee_is_import_qualified(cg, node))
-                fputs(last_field_name(node), cg->out);
+            /* strip import alias prefix: std.math.PI → PI;
+               enums/err sets keep their namespace: mk.keys.SPACE → keys::SPACE */
+            if (callee_is_import_qualified(cg, node)) {
+                AstNode *t = node->field.target;
+                if (t->kind == NODE_FIELD && is_enum_name(cg, t->field.name))
+                    fprintf(cg->out, "%s::%s", t->field.name, node->field.name);
+                else if (t->kind == NODE_FIELD && is_err_name(cg, t->field.name))
+                    fprintf(cg->out, "_olrn_err_%s::%s",
+                            t->field.name, node->field.name);
+                else
+                    fputs(last_field_name(node), cg->out);
+            }
             /* Color.Red → Color::Red for enum types */
             else if (node->field.target->kind == NODE_IDENT &&
                      is_enum_name(cg, node->field.target->ident.name))
@@ -1237,14 +1248,21 @@ void codegen_emit(Codegen *cg, AstNode *program)
             cg->import_modules[cg->import_alias_count] = imp->import_decl.module;
             cg->import_alias_count++;
         }
-        if (imp->import_decl.is_lib && strcmp(imp->import_decl.source, "std") == 0)
+        if (imp->import_decl.is_lib && strcmp(imp->import_decl.source, "std") == 0) {
             cg->has_stdlib = 1;
+            if (imp->import_decl.module &&
+                strcmp(imp->import_decl.module, "malkur") == 0)
+                cg->has_malkur = 1;
+        }
     }
 
-    /* emit stdlib C++ preamble if needed */
+    /* emit stdlib C++ preamble if needed; malkur adds the SDL2 backend
+       (defines Color/Vec2/Rect used by the malkur .olrn functions) */
     if (cg->has_stdlib)
         fputs(STDLIB_IMPL, cg->out);
-    else if (program->program.imports.count)
+    if (cg->has_malkur)
+        fputs(MALKUR_IMPL, cg->out);
+    if (!cg->has_stdlib && program->program.imports.count)
         fputc('\n', cg->out);
 
     /* error set declarations */
