@@ -1,0 +1,75 @@
+type Vec2 = [2]f32
+type Index = i32
+
+enum Direction {North, South, East, West}
+
+enum Gravity => f32 {
+    Earth = 9.81,
+    Moon  = 1.62,
+    Mars  = 3.72,
+}
+
+struct Particle {
+    x: f32,
+    y: f32,
+    dir: Direction,
+}
+
+unn Number {
+    as_int: i32,
+    as_flt: f32,
+}
+
+fn make_particle(x: f32, y: f32) -> Particle
+{
+    ret Particle{.x=x, .y=y, .dir=Direction.North}
+}
+
+fn main() -> void
+{
+    # array literal
+    nums :[]i32 = {10, 20, 30}
+
+    # for-each over array
+    for v => nums {
+        @pl(v)
+    }
+
+    # for-each with index
+    for v, i => nums {
+        @pl(i)
+    }
+
+    # type alias usage
+    idx :Index = 0
+
+    # fixed-size array
+    v2 :Vec2 = {1.0, 2.0}
+    @pl(v2[0])
+
+    # enum
+    d :Direction = Direction.East
+    when d {
+        Direction.North => @pl("north"),
+        Direction.South => @pl("south"),
+        Direction.East  => @pl("east"),
+        Direction.West  => @pl("west"),
+        _ => @pl("?"),
+    }
+
+    # typed enum (namespace constants)
+    g :f32 = Gravity.Earth
+    @pl(g)
+
+    # struct init
+    p := make_particle(3.0, 4.0)
+    @pl(p.x)
+
+    # anonymous struct init
+    p2 :Particle = .{.x=5.0, .y=6.0, .dir=Direction.South}
+    @pl(p2.y)
+
+    # union
+    n :Number = Number{.as_int=42}
+    @pl(n.as_int)
+}
