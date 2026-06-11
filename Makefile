@@ -8,6 +8,7 @@ SRCS = \
     src/lexer/lexer.c   \
     src/ast/ast.c       \
     src/parser/parser.c \
+    src/sema/check.c    \
     src/codegen/codegen.c
 
 OBJS = $(SRCS:.c=.o)
@@ -29,6 +30,12 @@ test: $(TARGET)
 		printf '== %s ==\n' $$t; \
 		./$(TARGET) sac $$t -o=/tmp/olrn_test_bin || exit 1; \
 		/tmp/olrn_test_bin || exit 1; \
+	done
+	@for t in tests/compile_fail/*.olrn; do \
+		printf '== %s (must fail) ==\n' $$t; \
+		if ./$(TARGET) sac $$t -o=/tmp/olrn_test_bin 2>/dev/null; then \
+			echo "ERROR: $$t compiled but should have failed"; exit 1; \
+		fi; \
 	done
 	@echo "all tests passed"
 

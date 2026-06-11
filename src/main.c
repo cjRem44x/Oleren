@@ -7,6 +7,7 @@
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "ast/ast.h"
+#include "sema/check.h"
 #include "codegen/codegen.h"
 
 /* ── file helpers ─────────────────────────────────────────────── */
@@ -175,6 +176,12 @@ static int compile_to_out(const char *olrn_path, FILE *out)
         ast_free(program); free(src); return 1;
     }
 
+    if (check_program(program)) {
+        ast_free(program); free(src);
+        for (int i = 0; i < extra_count; i++) free(extra_srcs[i]);
+        return 1;
+    }
+
     Codegen cg;
     codegen_init(&cg, out);
     codegen_emit(&cg, program);
@@ -226,6 +233,12 @@ static int compile_to_binary(const char **inputs, int input_count,
         imported->program.decls.count = 0;
         ast_free(imported);
         extra_srcs[extra_count++] = fsrc;
+    }
+
+    if (check_program(program)) {
+        ast_free(program); free(main_src);
+        for (int i = 0; i < extra_count; i++) free(extra_srcs[i]);
+        fclose(cpp_file); remove(tmp_cpp); return 1;
     }
 
     Codegen cg;
@@ -306,6 +319,7 @@ static int cmd_check(int argc, char **argv)
     /* also resolve imports to surface import-level errors */
     char *extra_srcs[64]; int extra_count = 0;
     int ok = merge_imports(program, path, extra_srcs, &extra_count);
+    if (ok && check_program(program)) ok = 0;
 
     ast_free(program); free(src);
     for (int i = 0; i < extra_count; i++) free(extra_srcs[i]);

@@ -1,0 +1,38 @@
+# every fn here violates ErrSet!T — compilation must FAIL with 4 errors
+err FileError { NotFound, PermDenied }
+err NetError  { Timeout, Refused }
+
+# returns an error from the wrong set
+fn wrong_set() -> FileError!i32
+{
+    ret NetError.Timeout
+}
+
+# ad-hoc err.X not allowed when a set is declared
+fn adhoc_in_set() -> FileError!i32
+{
+    ret err.Surprise
+}
+
+# unknown variant (checked even with generic !T)
+fn bad_variant() -> !i32
+{
+    ret FileError.Missing
+}
+
+fn net_op() -> NetError!i32
+{
+    ret NetError.Refused
+}
+
+# try may not propagate a different named set
+fn cross_try() -> FileError!i32
+{
+    n := try net_op()
+    ret n
+}
+
+fn main() -> void
+{
+    @pl("must never compile")
+}

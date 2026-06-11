@@ -128,6 +128,10 @@ Summary:
 - `try expr` propagates an error to the caller
 - `catch` handles an error inline (fallback value or `|e|` block)
 - `errdefer` runs cleanup only on the error path
+- `MyErrors!T` is enforced by a sema pass: returned errors must belong to
+  the declared set (and name a real variant), and `try` may not propagate
+  a different named set (generic `!T` callees are the escape hatch)
+- string→numeric casts are fallible: `@i32("42")` returns `!i32`
 - `main -> void` or `main -> !void`; the `!void` form is the top-level handler (runtime prints error and exits)
 
 ---

@@ -73,7 +73,8 @@ static AstNode *parse_type(Parser *p)
     if (match(p, TOK_BANG)) {
         n->type_ref.is_result = 1;
     } else if (check(p, TOK_IDENT) && p->peek.type == TOK_BANG) {
-        next_tok(p); /* consume ErrSet name (constraint info only, not used in codegen) */
+        n->type_ref.err_set = tok_dup(p->cur); /* set constraint, checked in sema */
+        next_tok(p); /* consume ErrSet name */
         next_tok(p); /* consume ! */
         n->type_ref.is_result = 1;
     }

@@ -20,6 +20,21 @@ fn connect(host: str) -> !i32
     ret 42
 }
 
+# named error set: ret and try must stay within the declared set
+err ParseError { BadFormat, OutOfRange }
+
+fn digit(s: str) -> ParseError!i32
+{
+    n := @i32(s) catch |e| { ret ParseError.BadFormat }
+    if n < 0 or n > 9 { ret ParseError.OutOfRange }
+    ret n
+}
+
+fn first_digit(s: str) -> ParseError!i32
+{
+    ret try digit(s)
+}
+
 # errdefer: runs only when the scope exits with an error, LIFO after defer
 fn cleanup_demo(fail: bool) -> !i32
 {
@@ -35,6 +50,22 @@ fn do_work() -> !void
     @pl(v1)
     v2 := cleanup_demo(true) catch 0 # defer, then errdefer
     @pl(v2)
+
+    # fallible string casts — @i32(str) returns !i32
+    parsed := try @i32("42")
+    @pl(parsed)                      # 42
+    @pl(@i32("abc") catch -1)        # -1
+    @pl(@i32("12x") catch -2)        # -2 (trailing garbage rejected)
+    @pl(@u32("-5") catch 7)          # 7  (negative into unsigned rejected)
+    f := try @f64("3.14")
+    @pl(f)                           # 3.14
+    @pl(@i32(3.9))                   # 3 (numeric casts stay plain)
+
+    # named-set fns
+    d := try first_digit("5")
+    @pl(d)                           # 5
+    bad := first_digit("99") catch -9
+    @pl(bad)                         # -9 (OutOfRange swallowed)
 
     content := try read_file("myfile.txt")
     @pl(content)

@@ -90,6 +90,7 @@ struct AstNode {
             int   arr_size;  /* 0 = dynamic, N = fixed [N] */
             int   is_imu;    /* immutable elems */
             int   is_result; /* !T error union  */
+            char *err_set;   /* ErrSet!T set name; NULL = generic !T */
         } type_ref;
 
         /* NODE_BUILTIN_CALL / NODE_CALL */

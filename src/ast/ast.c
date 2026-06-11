@@ -87,6 +87,7 @@ void ast_free(AstNode *node)
             break;
         case NODE_TYPE_REF:
             free(node->type_ref.name);
+            free(node->type_ref.err_set);
             break;
         case NODE_BUILTIN_CALL:
         case NODE_CALL:

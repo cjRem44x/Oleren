@@ -400,7 +400,9 @@ static void emit_expr(Codegen *cg, AstNode *node)
                 } else if (strcmp(bname, "bool") == 0) {
                     fputs("(bool)(", cg->out); emit_expr(cg, arg); fputc(')', cg->out);
                 } else {
-                    fprintf(cg->out, "static_cast<%s>(", map_type(bname));
+                    /* _olrn_cast: static_cast for numerics, fallible
+                       _OlrnResult<T> parse for string args */
+                    fprintf(cg->out, "_olrn_cast<%s>(", map_type(bname));
                     emit_expr(cg, arg); fputc(')', cg->out);
                 }
             } else if (strcmp(bname, "alo") == 0 && node->call.args.count == 1) {
