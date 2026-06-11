@@ -1,0 +1,37 @@
+import (
+    std = @libs.std,
+)
+
+fn main() -> void
+{
+    root :: "/tmp/olrn_fs_test"
+
+    # clean slate, then build a small tree
+    std.fs.rm_all(root)
+    @pl(std.fs.mkdir("/tmp/olrn_fs_test/sub"))   # true — created
+    @pl(std.fs.exists(root))                     # true
+    @pl(std.fs.is_dir(root))                     # true
+    @pl(std.fs.is_file(root))                    # false
+
+    # drop a file in it, check size
+    f :File = std.io.open("/tmp/olrn_fs_test/a.txt", IOMode.Write)
+    data :[]u8 = {104, 105, 10}                  # "hi\n"
+    std.io.write(f, data)
+    std.io.close(f)
+    @pl(std.fs.size("/tmp/olrn_fs_test/a.txt"))  # 3
+
+    # copy + rename
+    @pl(std.fs.copy("/tmp/olrn_fs_test/a.txt", "/tmp/olrn_fs_test/b.txt"))  # true
+    @pl(std.fs.rename("/tmp/olrn_fs_test/b.txt", "/tmp/olrn_fs_test/c.txt")) # true
+
+    # listing is sorted: a.txt, c.txt, sub
+    names :[]str = std.fs.ls(root)
+    for n => names {
+        @pl(n)
+    }
+
+    # remove one file, then the whole tree
+    @pl(std.fs.rm("/tmp/olrn_fs_test/a.txt"))    # true
+    @pl(std.fs.rm_all(root))                     # 3 — c.txt, sub, root
+    @pl(std.fs.exists(root))                     # false
+}

@@ -11,6 +11,7 @@ SRCS = \
     src/codegen/codegen.c
 
 OBJS = $(SRCS:.c=.o)
+HDRS = $(wildcard src/*.h src/*/*.h)
 
 .PHONY: all clean test
 

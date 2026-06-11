@@ -75,7 +75,7 @@ static char *find_stdlib(void)
 }
 
 static const char *STD_MODULES[] = {
-    "io", "time", "math", "mem", "str", "log", NULL
+    "io", "fs", "time", "math", "mem", "str", "log", NULL
 };
 
 static void load_stdlib_module(AstNode *prog, const char *stdlib_path,

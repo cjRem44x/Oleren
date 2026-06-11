@@ -232,11 +232,15 @@ s   := std.str.fmt("x = {}", x)      # heap-alloc formatted string
 arr := std.str.split(s, ",")
 ```
 
-**`std.fs`** — filesystem (paths, dir listing)
+**`std.fs`** — filesystem (paths, dir listing) — IMPLEMENTED
 ```rust
-exists := std.fs.exists("assets/tex.png")
-std.fs.mkdir("out/")
-entries := std.fs.ls("assets/")
+exists := std.fs.exists("assets/tex.png")    # also: is_dir, is_file
+std.fs.mkdir("out/")                          # recursive, like mkdir -p
+entries :[]str = std.fs.ls("assets/")         # sorted file names
+n := std.fs.size("a.bin")                     # -1 if missing
+std.fs.copy(from, to); std.fs.rename(from, to)
+std.fs.rm(path); std.fs.rm_all(path)          # rm_all returns count removed
+cwd := std.fs.cwd()
 ```
 
 **`std.time`** — timing (critical for game loops)
@@ -329,13 +333,13 @@ All planned v0.1.0 features are implemented and passing the test suite.
 - [x] Error handling — `err`, `!T`, `ErrSet!T`, `try`, `catch`, `errdefer`
 - [x] Structs, enums, unions
 - [x] Heap allocation (`@alo`, `@free`), raw and smart pointers
-- [x] Standard library — `std.io`, `std.math`, `std.mem`, `std.str`, `std.time`
+- [x] Standard library — `std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`
 - [x] CLI — `build`, `run`, `build-src`, `build-out`, `check`, `sac`, `init`
 
 ## Next (v0.2.0 candidates)
 
 - Multi-return / tuple values
-- `std.fs` — filesystem (path, dir listing)
 - `std.thread` — basic threading
-- `olrn_pkg.toml` — full build config spec
-- Malkur gamedev library (`@libs.malkur`)
+- Malkur gamedev library (builtin, via `@std.malkur`)
+- `olrn_pkg.toml` — deferred; only needed for *outside* resources
+  (vendored C/C++ deps, link flags). Builtin libs don't need it.

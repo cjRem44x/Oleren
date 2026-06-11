@@ -1,0 +1,56 @@
+# std.fs — filesystem: paths, directories, file metadata
+
+fn fs_exists(path: str) -> bool
+{
+    ret _olrn_fs_exists(path)
+}
+
+fn fs_is_dir(path: str) -> bool
+{
+    ret _olrn_fs_is_dir(path)
+}
+
+fn fs_is_file(path: str) -> bool
+{
+    ret _olrn_fs_is_file(path)
+}
+
+fn fs_mkdir(path: str) -> bool
+{
+    ret _olrn_fs_mkdir(path)
+}
+
+fn fs_rm(path: str) -> bool
+{
+    ret _olrn_fs_rm(path)
+}
+
+fn fs_rm_all(path: str) -> i64
+{
+    ret _olrn_fs_rm_all(path)
+}
+
+fn fs_ls(path: str) -> []str
+{
+    ret _olrn_fs_ls(path)
+}
+
+fn fs_size(path: str) -> i64
+{
+    ret _olrn_fs_size(path)
+}
+
+fn fs_rename(from: str, to: str) -> bool
+{
+    ret _olrn_fs_rename(from, to)
+}
+
+fn fs_copy(from: str, to: str) -> bool
+{
+    ret _olrn_fs_copy(from, to)
+}
+
+fn fs_cwd() -> str
+{
+    ret _olrn_fs_cwd()
+}
