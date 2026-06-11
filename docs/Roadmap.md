@@ -14,9 +14,9 @@ No runtime, no GC, no OOP. Close to the metal; readable by default.
 - [x] Project directory layout
 - [x] Functions (`fn`, `ret`, `-> type`, void shorthand)
 - [x] Variables — mutable/immutable, explicit/implicit inference
-- [x] Primitive types (`i8`–`i64`, `u8`–`u64`, `f32`, `f64`, `chr`, `bool`)
+- [x] Primitive types (`i8`–`i64`, `u8`–`u64`, `f32`, `f64`, `bool`)
 - [x] Arrays (`[]T`, `[N]T`, `[]imu T`, `undef`)
-- [x] Strings (`chr`, `[]chr`, `str`, `istr`) and `str` method surface
+- [x] Strings — `str` (managed, std::string-backed) and `istr` (immutable contents); `chr`/`[]chr` removed
 - [x] Loops (`for`, `loop`, `while`)
 - [x] `if / elif / else`
 - [x] `when` (switch/match statement)

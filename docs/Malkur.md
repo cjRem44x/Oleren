@@ -118,7 +118,7 @@ Key constants are the `keys` enum (i32 SDL scancodes) — pass `mk.keys.NAME`.
 mk.key_pressed(key: i32)  -> bool   # true on the frame the key was first pressed
 mk.key_down(key: i32)     -> bool   # true while the key is held
 mk.key_released(key: i32) -> bool   # true on the frame the key was released
-mk.key_char()             -> chr    # last character typed this frame (0 if none)
+mk.key_char()             -> str    # last character typed this frame ("" if none)
 
 # key constants: mk.keys.NAME
 mk.keys.A ... mk.keys.Z
@@ -314,14 +314,14 @@ mk.end_render_tex()
 > **Planned** — not yet implemented.
 
 ```rust
-mk.load_font(path: []chr) -> !Font
-mk.load_font_ex(path: []chr, size: i32, chars: []i32) -> !Font
+mk.load_font(path: str) -> !Font
+mk.load_font_ex(path: str, size: i32, chars: []i32) -> !Font
 mk.unload_font(font: Font)
 
-mk.draw_text(text: []chr, x: f32, y: f32, size: f32, color: Color)
-mk.draw_text_ex(font: Font, text: []chr, pos: Vec2, size: f32, spacing: f32, color: Color)
-mk.measure_text(text: []chr, size: f32)    -> Vec2
-mk.measure_text_ex(font: Font, text: []chr, size: f32, spacing: f32) -> Vec2
+mk.draw_text(text: str, x: f32, y: f32, size: f32, color: Color)
+mk.draw_text_ex(font: Font, text: str, pos: Vec2, size: f32, spacing: f32, color: Color)
+mk.measure_text(text: str, size: f32)    -> Vec2
+mk.measure_text_ex(font: Font, text: str, size: f32, spacing: f32) -> Vec2
 ```
 
 ---
@@ -331,7 +331,7 @@ mk.measure_text_ex(font: Font, text: []chr, size: f32, spacing: f32) -> Vec2
 > **Planned** — not yet implemented.
 
 ```rust
-mk.load_model(path: []chr) -> !Model       # .obj .gltf .glb etc.
+mk.load_model(path: str) -> !Model       # .obj .gltf .glb etc.
 mk.unload_model(model: Model)
 
 mk.load_mesh_cube(w: f32, h: f32, d: f32)    -> Mesh
@@ -352,20 +352,20 @@ mk.model_set_material(model: *Model, slot: i32, mat: Material)
 > **Planned** — not yet implemented.
 
 ```rust
-mk.load_shader(vs_path: []chr, fs_path: []chr) -> !Shader
-mk.load_shader_src(vs_src: []chr, fs_src: []chr) -> !Shader
+mk.load_shader(vs_path: str, fs_path: str) -> !Shader
+mk.load_shader_src(vs_src: str, fs_src: str) -> !Shader
 mk.unload_shader(shader: Shader)
 
 mk.begin_shader(shader: Shader)
 mk.end_shader()
 
-mk.shader_set_i32(shader: Shader, name: []chr, val: i32)
-mk.shader_set_f32(shader: Shader, name: []chr, val: f32)
-mk.shader_set_vec2(shader: Shader, name: []chr, val: Vec2)
-mk.shader_set_vec3(shader: Shader, name: []chr, val: Vec3)
-mk.shader_set_vec4(shader: Shader, name: []chr, val: Vec4)
-mk.shader_set_mat4(shader: Shader, name: []chr, val: Mat4)
-mk.shader_set_texture(shader: Shader, name: []chr, tex: Texture)
+mk.shader_set_i32(shader: Shader, name: str, val: i32)
+mk.shader_set_f32(shader: Shader, name: str, val: f32)
+mk.shader_set_vec2(shader: Shader, name: str, val: Vec2)
+mk.shader_set_vec3(shader: Shader, name: str, val: Vec3)
+mk.shader_set_vec4(shader: Shader, name: str, val: Vec4)
+mk.shader_set_mat4(shader: Shader, name: str, val: Mat4)
+mk.shader_set_texture(shader: Shader, name: str, tex: Texture)
 ```
 
 ---
@@ -379,7 +379,7 @@ mk.init_audio()       # call once at startup
 mk.close_audio()      # call at shutdown
 
 # Sounds (short, loaded fully into memory)
-mk.load_sound(path: []chr) -> !Sound
+mk.load_sound(path: str) -> !Sound
 mk.unload_sound(sound: Sound)
 mk.play_sound(sound: Sound)
 mk.stop_sound(sound: Sound)
@@ -390,7 +390,7 @@ mk.sound_set_volume(sound: Sound, vol: f32)   # 0.0 - 1.0
 mk.sound_set_pitch(sound: Sound, pitch: f32)
 
 # Music (streamed from disk)
-mk.load_music(path: []chr) -> !Music
+mk.load_music(path: str) -> !Music
 mk.unload_music(music: Music)
 mk.play_music(music: Music)
 mk.stop_music(music: Music)

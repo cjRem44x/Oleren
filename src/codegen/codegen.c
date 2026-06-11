@@ -152,7 +152,7 @@ static int is_cast_builtin(const char *name)
 {
     static const char *tnames[] = {
         "i8","u8","i16","u16","i32","u32","i64","u64",
-        "f32","f64","chr","str","istr","bool",
+        "f32","f64","str","istr","bool",
         "byte","ubyte","short","ushort","int","uint","long","ulong",
         "float","double", NULL
     };
@@ -184,8 +184,8 @@ static const char *map_type(const char *name)
     if (strcmp(name, "u64")  == 0 || strcmp(name, "ulong")  == 0) return "uint64_t";
     if (strcmp(name, "f32")  == 0 || strcmp(name, "float")  == 0) return "float";
     if (strcmp(name, "f64")  == 0 || strcmp(name, "double") == 0) return "double";
-    if (strcmp(name, "chr")  == 0) return "char";
     if (strcmp(name, "str")  == 0) return "std::string";
+    if (strcmp(name, "istr") == 0) return "std::string"; /* const added in emit_type */
     if (strcmp(name, "bool") == 0) return "bool";
     if (strcmp(name, "void") == 0) return "void";
     return name; /* pass through unknown types */
@@ -202,6 +202,12 @@ static void emit_type(Codegen *cg, AstNode *type_ref)
     int is_imu    = type_ref->type_ref.is_imu;
     int is_ptr    = type_ref->type_ref.is_ptr;
     int is_smart  = type_ref->type_ref.is_smart;
+
+    /* istr — str with immutable contents (const std::string).
+       Inside !T results const is dropped: _OlrnResult needs assignable T. */
+    if (type_ref->type_ref.name && !is_result &&
+        strcmp(type_ref->type_ref.name, "istr") == 0)
+        is_imu = 1;
 
     /* !T — emit as _OlrnResult<T> */
     if (is_result) {
@@ -353,7 +359,15 @@ static void emit_expr(Codegen *cg, AstNode *node)
             break;
         }
         case NODE_CHAR_LIT:
-            fprintf(cg->out, "'%c'", node->char_lit.value);
+            switch (node->char_lit.value) {
+                case '\n': fputs("'\\n'",  cg->out); break;
+                case '\t': fputs("'\\t'",  cg->out); break;
+                case '\r': fputs("'\\r'",  cg->out); break;
+                case '\0': fputs("'\\0'",  cg->out); break;
+                case '\\': fputs("'\\\\'", cg->out); break;
+                case '\'': fputs("'\\''",  cg->out); break;
+                default:   fprintf(cg->out, "'%c'", node->char_lit.value);
+            }
             break;
         case NODE_BOOL_LIT:
             fputs(node->bool_lit.value ? "true" : "false", cg->out);
@@ -863,7 +877,10 @@ static void emit_stmt(Codegen *cg, AstNode *node)
             emit_indent(cg);
             if (node->var_decl.is_imu) fputs("const ", cg->out);
             if (node->var_decl.type_ref) emit_type(cg, node->var_decl.type_ref);
-            else                         fputs("auto", cg->out);
+            else if (init && init->kind == NODE_STR_LIT)
+                /* := "lit" infers str — auto would give const char* */
+                fputs("std::string", cg->out);
+            else fputs("auto", cg->out);
             fprintf(cg->out, " %s", node->var_decl.name);
             if (node->var_decl.init) {
                 fputs(" = ", cg->out);

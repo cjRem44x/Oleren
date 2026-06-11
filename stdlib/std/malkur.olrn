@@ -126,7 +126,7 @@ fn malkur_key_released(k: i32) -> bool
     ret _olrn_mk_key_released(k)
 }
 
-fn malkur_key_char() -> chr
+fn malkur_key_char() -> str
 {
     ret _olrn_mk_key_char()
 }

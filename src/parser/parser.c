@@ -108,6 +108,8 @@ static AstNode *parse_type(Parser *p)
         n->type_ref.name = nm;
     } else if (check(p, TOK_IDENT)) {
         n->type_ref.name = tok_dup(next_tok(p));
+        if (strcmp(n->type_ref.name, "chr") == 0)
+            parse_err(p, "the 'chr' type was removed — use str");
     } else {
         parse_err(p, "expected type name");
         n->type_ref.name = strdup("?");
@@ -183,6 +185,24 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
     else if (check(p, TOK_STR_LIT)) {
         left = ast_node_new(NODE_STR_LIT, line);
         left->str_lit.value = tok_dup(p->cur);
+        next_tok(p);
+    }
+    else if (check(p, TOK_CHAR_LIT)) {
+        /* token excludes quotes but keeps the escape backslash */
+        char v = p->cur.len > 0 ? p->cur.start[0] : '\0';
+        if (v == '\\' && p->cur.len > 1) {
+            switch (p->cur.start[1]) {
+                case 'n':  v = '\n'; break;
+                case 't':  v = '\t'; break;
+                case 'r':  v = '\r'; break;
+                case '0':  v = '\0'; break;
+                case '\\': v = '\\'; break;
+                case '\'': v = '\''; break;
+                default:   v = p->cur.start[1]; break;
+            }
+        }
+        left = ast_node_new(NODE_CHAR_LIT, line);
+        left->char_lit.value = v;
         next_tok(p);
     }
     else if (check(p, TOK_INT_LIT)) {

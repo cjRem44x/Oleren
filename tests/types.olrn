@@ -72,4 +72,16 @@ fn main() -> void
     # union
     n :Number = Number{.as_int=42}
     @pl(n.as_int)
+
+    # strings: str is managed, istr has immutable contents
+    s :str = "john"
+    s = s + " doe"
+    @pl(s)                  # john doe
+    @pl(s[0] == 'j')        # true — indexing yields a char, literals compare
+    s[0] = 'J'
+    @pl(s)                  # John doe
+    name :istr = "jane"     # const contents; mutation is a compile error
+    @pl(name)
+    copy :str = name        # istr -> str copies fine
+    @pl(copy + "!")
 }

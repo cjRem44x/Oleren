@@ -215,16 +215,15 @@ myColor :mk.Color = ...       # single, different type — back to :T= form
 ```rust
 
 nums :[]u32 = {1,2,3,4,5}
-len :: nums.len
 nums[i] = ...
+# (a .len property is planned — iterate with for e => nums for now)
 
 final_arr :[]imu u8 = {1,0,0,1,1} # create an array where the contents are immutable
-len :: final_arr.len
 final_arr[i] = ... # not allowed
 
 empnums :[N]i32 = undef # `undef` or undefined reps a empty (not null) value, for arrays this create a empty array of N elems
 empnums[i] = ...
-# empty valuues: 0, 0.0, '0', "0", false
+# empty values: 0, 0.0, "", false
 ```
 
 This language offers these primitive types:
@@ -245,41 +244,35 @@ Floats
 ---------------
 float  | f32
 double | f64
-
-chr is our Primitve C Char reps.
-name : []chr = "john"
 ```
 
-We also have the `str` and `istr` types which are more advanced strings handling done with automatic heap alloc, whereas are `chr and []chr` are all manual and primitive.
+Text is handled by exactly two types — there is no primitive char type
+(`chr` and `[]chr` were removed):
+
+- `str`  — managed string, mutable
+- `istr` — managed string, immutable contents
+
+## Strings
 
 ```rust
-name : str = "john" # by init the str value the mem gets alloc
-defer @free(free) # str|istr have to be freed
-
-word : str # this is a null pointer that has not reserved any mem
-if word.ptr == NULL {...} # .ptr is the internal field that holds the heap pointer.
-```
-
-## String VS Chars Arrays
-
-```rust
-grade : chr = 'A'
-
-name : []chr = "John" # very primitive char array
-name[0] = 'B'
-# thats about it, no more. Very primitive, no builtin funcs like str
-# (a .len property is planned; today use std.str.len on strs)
-
-# Chars are stack values, and arrays, that can be alloc if need be.
-
 # str is a managed string (std::string in the C++ output) — value
-# semantics, automatic cleanup, no manual @free
+# semantics, automatic cleanup, no manual @free, no null states
 word :str = "hello"
 
-word = word + " world"      # concatenation with +
+word = word + " world"         # concatenation with +
 same := word == "hello world"  # comparison with ==
-c    := word[0]             # indexing reads/writes single chars
+
+# indexing reads/writes single characters; character literals exist
+# only for this — there is no standalone char type
+c := word[0]        # 'h'
 word[0] = 'H'
+if word[0] == 'H' { @pl("capitalized") }
+
+# istr — contents are immutable; mutation is a compile error
+name :istr = "john"
+copy :str = name    # istr -> str copies fine
+# name = "jane"     # error
+# name[0] = 'J'     # error
 
 # string functions live in std.str (and the @str/@i32 cast builtins):
 n    := std.str.len(word)            # -> i64
@@ -293,7 +286,7 @@ num  := try @i32("42")               # str -> number, fallible (!i32)
 
 # planned (not implemented yet):
 #   word.len property, method-style calls (word.has(...)),
-#   sub/ins/rep/del/spl, and the istr immutable-string type
+#   sub/ins/rep/del/spl
 ```
 
 ## Loops
@@ -463,8 +456,8 @@ x := undef OR x :: undef # this, in all cases, is illegal and should fail
 x := 0 # always => i64
 x := 3.45 # always => f64
 
-x := 'F' # always => chr
-x := "Jack" # always => []chr, never imply heap alloc with str|istr
+x := "Jack" # always => str
+x := word[0] # a single character (no nameable type — used with string indexing)
 
 x := false # always => bool
 
@@ -842,8 +835,8 @@ A function that calls another `!T` function must itself return an error
 union, unless it handles the error with `catch`.
 
 ```rust
-fn read_file(path: []chr) -> ![]u8         # any error
-fn open(path: []chr) -> FileError!File     # named set
+fn read_file(path: str) -> ![]u8         # any error
+fn open(path: str) -> FileError!File     # named set
 fn init() -> !void                         # can fail, no success value
 ```
 
@@ -859,7 +852,7 @@ fn validate(x: i32) -> !void
     if x > 1000 { ret err.OutOfRange   }
 }
 
-fn open_file(path: []chr) -> FileError!File
+fn open_file(path: str) -> FileError!File
 {
     if !fs.exists(path) { ret FileError.NotFound }
     ret fs.open(path)
@@ -872,7 +865,7 @@ fn open_file(path: []chr) -> FileError!File
 from the current function (which must itself return an error union).
 
 ```rust
-fn load_config(path: []chr) -> !Config
+fn load_config(path: str) -> !Config
 {
     data := try read_file(path)     # propagate on failure
     cfg  := try parse_config(data)  # propagate on failure

@@ -1,0 +1,5 @@
+# the chr type was removed — compilation must FAIL
+fn main() -> void
+{
+    c :chr = 65
+}
