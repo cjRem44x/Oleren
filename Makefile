@@ -22,11 +22,14 @@ $(TARGET): $(OBJS)
 %.o: %.c
 	$(CC) $(CFLAGS) -DOLRN_VERSION=\"$(VERSION)\" -c -o $@ $<
 
-# compile hello_world.olrn -> C++ -> binary -> run
+# compile every test -> C++ -> binary -> run; fail on first error
 test: $(TARGET)
-	./$(TARGET) tests/hello_world.olrn > /tmp/olrn_hw.cpp
-	g++ -std=c++17 -o /tmp/olrn_hw /tmp/olrn_hw.cpp
-	/tmp/olrn_hw
+	@for t in tests/*.olrn; do \
+		printf '== %s ==\n' $$t; \
+		./$(TARGET) sac $$t -o=/tmp/olrn_test_bin || exit 1; \
+		/tmp/olrn_test_bin || exit 1; \
+	done
+	@echo "all tests passed"
 
 clean:
 	rm -f $(OBJS) $(TARGET)
