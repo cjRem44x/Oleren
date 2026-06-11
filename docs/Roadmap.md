@@ -178,78 +178,74 @@ Header inclusion handled via a `cc_include` directive in `olrn_pkg.toml`.
 These are the modules the stdlib needs to cover for v1.
 Implementation comes later; design the surface now.
 
+All stdlib access goes through the import alias: `std.module.fn(...)`
+compiles to the flat `module_fn(...)` name, which may also be called
+directly. Constants and types are unprefixed (`PI`, `File`, `IOMode`).
+
 **`std.io`** — file and stream I/O
 ```rust
-use std.io
+import ( std = @libs.std )
 
-f := io.open("data.bin", .Read)
-defer io.close(f)
+f := std.io.open("data.bin", IOMode.Read)
+defer std.io.close(f)
 
-buf :[]u8 = io.read(f, 1024)
-io.write(f, buf)
+buf :[]u8 = std.io.read(f, 1024)
+std.io.write(f, buf)
 
-io.seek(f, 0, .Start)
-pos :: io.tell(f)
+std.io.seek(f, 0, SeekFrom.Start)
+pos :: std.io.tell(f)
 ```
 
 **`std.math`** — scalar and vector math
 ```rust
-use std.math
+import ( std = @libs.std )
 
-x := math.sqrt(2.0)
-x := math.sin(math.PI)
-x := math.clamp(v, 0.0, 1.0)
+x := std.math.sqrt(2.0)
+x := std.math.sin(std.math.PI)
+x := std.math.clamp(v, 0.0, 1.0)
 
-# vectors
-v2 := math.Vec2{.x=1.0, .y=0.0}
-v3 := math.Vec3{.x=0, .y=1, .z=0}
-v4 := math.Vec4{...}
+# vectors (types are unprefixed, like all stdlib types)
+v2 := Vec2{.x=1.0, .y=0.0}
+v3 := Vec3{.x=0, .y=1, .z=0}
+v4 := Vec4{...}
 
 # matrix (column-major, matches GPU conventions)
-m := math.Mat4.identity()
-m  = math.Mat4.translate(m, v3)
-m  = math.Mat4.rotate(m, angle, axis)
+m := Mat4.identity()
+m  = Mat4.translate(m, v3)
+m  = Mat4.rotate(m, angle, axis)
 ```
 
 **`std.mem`** — memory utilities
 ```rust
-use std.mem
-
-arena := mem.Arena.init(mem.MB(64))
+arena := Arena.init(std.mem.MB(64))
 defer arena.deinit()
 
 ptr := arena.alloc(MyStruct)   # bump-alloc from arena
-mem.copy(dst, src, n)
-mem.set(ptr, 0, n)
+std.mem.copy(dst, src, n)
+std.mem.set(ptr, 0, n)
 ```
 
 **`std.str`** — string utilities (beyond built-in str methods)
 ```rust
-use std.str
-
-n   := str.parse_int("42")
-s   := str.fmt("x = {}", x)      # heap-alloc formatted string
-arr := str.split(s, ",")
+n   := std.str.parse_int("42")
+s   := std.str.fmt("x = {}", x)      # heap-alloc formatted string
+arr := std.str.split(s, ",")
 ```
 
 **`std.fs`** — filesystem (paths, dir listing)
 ```rust
-use std.fs
-
-exists := fs.exists("assets/tex.png")
-fs.mkdir("out/")
-entries := fs.ls("assets/")
+exists := std.fs.exists("assets/tex.png")
+std.fs.mkdir("out/")
+entries := std.fs.ls("assets/")
 ```
 
 **`std.time`** — timing (critical for game loops)
 
 **`@malkur` (Malkur)** — built-in gamedev library. See `docs/Malkur.md` for the full API surface. Covers window, input, 2D/3D drawing, textures, fonts, models, shaders, audio, math types, and collision. Raylib-inspired API; raw OpenGL/SDL2/Vulkan backend.
 ```rust
-use std.time
-
-t0 := time.now()          # nanosecond timestamp
-dt := time.since(t0)      # elapsed as f64 seconds
-time.sleep(0.016)         # sleep for ~1 frame at 60fps
+t0 := std.time.now()          # nanosecond timestamp
+dt := std.time.since(t0)      # elapsed as f64 seconds
+std.time.sleep(0.016)         # sleep for ~1 frame at 60fps
 ```
 
 **`std.thread`** (v2, not v1) — basic threading
@@ -281,11 +277,11 @@ libs    = ["-lSDL2", "-lvulkan"]
 
 ---
 
-### 9. `mod` — Deferred
+### 9. `mod` — Dropped
 
-`mod` will be Oleren's flavor of a class-like module. Not OOP — no inheritance.
-Closer to a namespace with encapsulated state and associated functions.
-Design deferred; spec when needed.
+No `mod` construct. Structs (data fields, static vars, `pub fn`, instance
+`@self` fns) cover the encapsulated-state use case; no separate class-like
+module will be added.
 
 ---
 
@@ -338,7 +334,6 @@ All planned v0.1.0 features are implemented and passing the test suite.
 
 ## Next (v0.2.0 candidates)
 
-- `mod` — namespaced module with encapsulated state (see § 9)
 - Multi-return / tuple values
 - `std.fs` — filesystem (path, dir listing)
 - `std.thread` — basic threading

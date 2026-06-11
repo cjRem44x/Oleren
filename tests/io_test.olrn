@@ -4,21 +4,21 @@ import (
 
 fn main() -> void
 {
-    # write a temp file
-    wf :File = io_open("/tmp/olrn_io_test.txt", IOMode.Write)
+    # write a temp file — qualified form: std.io.fn → io_fn
+    wf :File = std.io.open("/tmp/olrn_io_test.txt", IOMode.Write)
     data :[]u8 = {72, 101, 108, 108, 111, 10}  # "Hello\n"
-    io_write(wf, data)
-    io_close(wf)
+    std.io.write(wf, data)
+    std.io.close(wf)
 
-    # read it back line by line
+    # read it back line by line — flat form works too
     rf :File = io_open("/tmp/olrn_io_test.txt", IOMode.Read)
     line :str = io_readline(rf)
     @pl(line)
 
     # seek back and check tell
-    io_seek(rf, 0, SeekFrom.Start)
-    pos :i64 = io_tell(rf)
+    std.io.seek(rf, 0, SeekFrom.Start)
+    pos :i64 = std.io.tell(rf)
     @pl(pos)
 
-    io_close(rf)
+    std.io.close(rf)
 }

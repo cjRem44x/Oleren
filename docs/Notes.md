@@ -949,10 +949,10 @@ fn run() -> !void
 {
     _ := try parse_args(1)
 
-    f := io.open("data.bin", .Read) catch |e| {
+    f := std.io.open("data.bin", .Read) catch |e| {
         ret AppError.ConfigMissing
     }
-    defer io.close(f)
+    defer std.io.close(f)
 
     @pl("ok")
 }

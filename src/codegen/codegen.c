@@ -49,6 +49,21 @@ static const char *last_field_name(AstNode *node)
     return NULL;
 }
 
+/* emit an import-qualified callee as a flat name: the alias root is
+   dropped and the remaining fields join with '_', matching stdlib
+   fn naming — std.io.open → io_open, std.io_open → io_open.
+   (constants/types are unprefixed, so plain field access keeps the
+   last-field rule: std.math.PI → PI) */
+static void emit_qualified_fn(Codegen *cg, AstNode *node)
+{
+    AstNode *target = node->field.target;
+    if (target->kind == NODE_FIELD || target->kind == NODE_FIELD_PTR) {
+        emit_qualified_fn(cg, target);
+        fputc('_', cg->out);
+    }
+    fputs(node->field.name, cg->out);
+}
+
 /* true if the root of a field chain is a known import alias */
 static int callee_is_import_qualified(Codegen *cg, AstNode *callee)
 {
@@ -340,10 +355,12 @@ static void emit_expr(Codegen *cg, AstNode *node)
             fputc(')', cg->out);
             break;
         case NODE_CALL_EXPR:
-            /* strip import alias prefix: utils.square(x) → square(x) */
-            if (callee_is_import_qualified(cg, node->call_expr.callee)) {
-                const char *fn = last_field_name(node->call_expr.callee);
-                if (fn) fputs(fn, cg->out);
+            /* strip import alias prefix: utils.square(x) → square(x),
+               std.io.open(f) → io_open(f) */
+            if (callee_is_import_qualified(cg, node->call_expr.callee) &&
+                (node->call_expr.callee->kind == NODE_FIELD ||
+                 node->call_expr.callee->kind == NODE_FIELD_PTR)) {
+                emit_qualified_fn(cg, node->call_expr.callee);
             } else {
                 emit_expr(cg, node->call_expr.callee);
             }
