@@ -9,7 +9,9 @@ to raw backend code (OpenGL, SDL2, Vulkan, etc.) with no managed runtime.
 Include via the import block at the top of your file (or a top-level bind:
 `mk :: @std.malkur`). The alias is how all Malkur calls are made — `mk` is
 the conventional short alias. Importing malkur pulls in the SDL2 backend;
-the compiler adds `-lSDL2` to the link line automatically.
+the compiler resolves the SDL2 flags per platform (pkg-config, with
+Linux/macOS/Windows-MinGW fallbacks). If SDL2 isn't installed, the build
+stops with install instructions for your OS — `olrn deps` checks up front.
 
 ```rust
 @import (

@@ -1,4 +1,5 @@
-# locals shadowing the alias must not count as using the import — FAIL
+# shadowing an import alias is banned (codegen would emit wrong code
+# for local.field) — every binding below must FAIL
 @import (
     std = @std,
 )
@@ -16,4 +17,6 @@ fn main() -> void
         @pl(std)
     }
     @pl(param_shadow(3))
+    @pl(std.math.PI)     # refers to the LOCAL std here, so the import is
+                         # also reported unused — 4 errors total
 }

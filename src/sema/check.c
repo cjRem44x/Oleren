@@ -41,9 +41,22 @@ static void pop_scope(Check *c)
         c->sym_count = c->scope_start[c->scope_depth];
 }
 
-static void declare(Check *c, const char *name)
+static void declare(Check *c, const char *name, int line)
 {
     if (!name || strcmp(name, "_") == 0) return;
+    /* shadowing an import alias is banned: codegen treats alias-rooted
+       field chains as module access, so a shadow would silently emit
+       wrong code (local.field would become a stripped module name) */
+    for (int i = 0; i < c->import_count; i++) {
+        if (strcmp(c->imports[i]->import_decl.alias, name) == 0) {
+            fprintf(stderr,
+                    "error: line %d: '%s' shadows the import alias "
+                    "declared on line %d\n",
+                    line, name, c->imports[i]->line);
+            c->errors++;
+            break;
+        }
+    }
     if (c->sym_count < MAX_SYMS)
         c->syms[c->sym_count++] = name;
 }
@@ -174,7 +187,7 @@ static void walk(Check *c, AstNode *n)
             walk(c, n->catch_expr.fallback);
             if (n->catch_expr.body) {
                 push_scope(c);
-                declare(c, n->catch_expr.err_var);
+                declare(c, n->catch_expr.err_var, n->line);
                 walk(c, n->catch_expr.body);
                 pop_scope(c);
             }
@@ -191,14 +204,14 @@ static void walk(Check *c, AstNode *n)
         case NODE_FOR_EACH:
             walk(c, n->for_each.iter);
             push_scope(c);
-            declare(c, n->for_each.elem);
-            declare(c, n->for_each.idx);
+            declare(c, n->for_each.elem, n->line);
+            declare(c, n->for_each.idx, n->line);
             walk(c, n->for_each.body);
             pop_scope(c);
             break;
         case NODE_VAR_DECL:
             walk(c, n->var_decl.init);   /* init may reference outer names */
-            declare(c, n->var_decl.name);
+            declare(c, n->var_decl.name, n->line);
             break;
         case NODE_VAR_DECL_GROUP: walk_list(c, &n->var_decl_group.entries); break;
         case NODE_IF:
@@ -271,7 +284,8 @@ int check_program(AstNode *program)
         c.fn_set  = fn_err_set(fn);
         push_scope(&c);
         for (int j = 0; j < fn->fn_decl.params.count; j++)
-            declare(&c, fn->fn_decl.params.items[j]->param.name);
+            declare(&c, fn->fn_decl.params.items[j]->param.name,
+                    fn->fn_decl.params.items[j]->line);
         walk(&c, fn->fn_decl.body);
         pop_scope(&c);
     }

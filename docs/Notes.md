@@ -38,9 +38,10 @@ The project structure looks like:
 | `olrn build-src <file.olrn>` | Compile Oleren → C++ file (no binary) |
 | `olrn build-out <file.cpp>` | Compile existing C++ → binary (skip frontend) |
 | `olrn check <file.olrn>` | Parse + semantic checks, no output |
+| `olrn deps [file.olrn]` | Check system libs (SDL2, …) with per-OS install hints |
 | `olrn sac <files> [-o=name]` | Stand-alone: compile one or more files to binary |
-| `olrn --version` / `-V` | Print version |
-| `olrn --help` / `-h` | Print usage |
+| `olrn version` | Print version |
+| `olrn help` | Print usage |
 
 `build-src` + `build-out` are useful together: generate the C++, hand-edit it, then recompile without touching the Oleren source.
 

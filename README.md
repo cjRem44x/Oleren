@@ -83,9 +83,10 @@ fn main() -> !void
 | `olrn build-src <file.olrn>` | Compile Oleren → C++ file |
 | `olrn build-out <file.cpp>` | Compile existing C++ output → binary |
 | `olrn check <file.olrn>` | Parse + semantic checks, no output |
+| `olrn deps [file.olrn]` | Check system libs (SDL2, …) with per-OS install hints |
 | `olrn sac <files> -o=<name>` | Stand-alone compiler — no project required |
-| `olrn --version` / `-V` | Print compiler version |
-| `olrn --help` / `-h` | Print usage |
+| `olrn version` | Print compiler version |
+| `olrn help` | Print usage |
 
 ---
 
@@ -142,6 +143,22 @@ fn main() -> !void
 
 A bare `main.olrn` in the current directory also works (flat mode) and
 builds to `./<name>`.
+
+---
+
+## System Dependencies
+
+Some stdlib modules need system libraries — `@std.malkur` needs SDL2.
+The compiler resolves them per platform at build time (pkg-config first,
+then Linux/macOS/Windows-MinGW fallbacks) and fails with install
+instructions for your OS when one is missing. `olrn deps` reports the
+status up front:
+
+```
+$ olrn deps
+system deps for src/main/olrn/main.olrn
+└─ SDL2 (@std.malkur)  found 2.32.70
+```
 
 ---
 

@@ -343,12 +343,15 @@ All planned v0.1.0 features are implemented and passing the test suite.
 - [x] Standard library — `std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`
 - [x] CLI — `build`, `run`, `build-src`, `build-out`, `check`, `emit`, `sac`, `init`
 - [x] Malkur gamedev library v0.1 — 2D core via `@std.malkur` (SDL2 backend)
-- [x] Sema pass — `ErrSet!T` enforcement (set membership, variant existence, try propagation)
+- [x] Sema pass — `ErrSet!T` enforcement (set membership, variant existence, try propagation), unused-import + alias-shadowing errors
+- [x] System deps — `olrn deps` + build-time resolution via pkg-config with Linux/macOS/Windows-MinGW fallbacks and per-OS install hints (SDL2 for malkur)
 
 ## Next (v0.2.0 candidates)
 
 - Multi-return / tuple values
 - `std.thread` — basic threading
 - Malkur v0.2 — fonts/text, audio, gamepad, camera 2D, PNG/JPG via SDL_image
+- Windows/macOS validation — the dep layer and compiler are written portably
+  (MinGW shims in place) but only Linux is exercised today; needs CI + testing
 - `olrn_pkg.toml` — deferred; only needed for *outside* resources
   (vendored C/C++ deps, link flags). Builtin libs don't need it.

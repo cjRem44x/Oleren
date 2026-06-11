@@ -8,7 +8,15 @@
 #include "parser/parser.h"
 #include "ast/ast.h"
 #include "sema/check.h"
+#include "deps/deps.h"
 #include "codegen/codegen.h"
+
+#ifdef _WIN32
+#include <direct.h>
+#define olrn_mkdir(p) _mkdir(p)
+#else
+#define olrn_mkdir(p) mkdir((p), 0755)
+#endif
 
 /* ── file helpers ─────────────────────────────────────────────── */
 
@@ -162,26 +170,36 @@ static int merge_imports(AstNode *program, const char *host_path,
     return 1;
 }
 
+/* ── build progress tree ──────────────────────────────────────── */
+
+/* Zig-style step tree, printed by 'olrn build' / 'olrn run' as each
+   pipeline stage completes (sac/emit stay quiet). */
+static int g_tree = 0;
+
+static void tree_step(int last, const char *label, const char *detail)
+{
+    if (!g_tree) return;
+    printf("%s %-8s %s\n", last ? "└─" : "├─", label, detail);
+    fflush(stdout);
+}
+
 /* ── core compilation pipeline ────────────────────────────────── */
 
-/* compile a generated .cpp to a binary; probes the file for the SDL
-   include (malkur) to decide the link line. Returns 0 on success. */
+/* compile a generated .cpp to a binary; system-library deps (e.g.
+   SDL2 for malkur) are detected from the file and resolved via
+   pkg-config or platform fallbacks. Returns 0 on success. */
 static int gxx_compile(const char *cpp_path, const char *output)
 {
-    int link_sdl = 0;
-    FILE *probe = fopen(cpp_path, "r");
-    if (probe) {
-        char line[512];
-        while (fgets(line, sizeof(line), probe)) {
-            if (strstr(line, "SDL2/SDL.h")) { link_sdl = 1; break; }
-        }
-        fclose(probe);
+    char dep_flags[768];
+    if (deps_flags_for_cpp(cpp_path, dep_flags, sizeof(dep_flags))) {
+        fprintf(stderr, "build aborted — run 'olrn deps' for a full report\n");
+        return 1;
     }
 
-    char cmd[1024];
+    char cmd[2048];
     snprintf(cmd, sizeof(cmd),
              "g++ -std=c++17 -O2 \"%s\" -o \"%s\"%s 2>&1", cpp_path, output,
-             link_sdl ? " -lSDL2" : "");
+             dep_flags);
     return (system(cmd) == 0) ? 0 : 1;
 }
 
@@ -191,10 +209,17 @@ static int compile_to_out(const char *olrn_path, FILE *out)
     char *src = NULL;
     AstNode *program = parse_file(olrn_path, &src);
     if (!program) return 1;
+    tree_step(0, "parse", olrn_path);
 
     char *extra_srcs[64]; int extra_count = 0;
     if (!merge_imports(program, olrn_path, extra_srcs, &extra_count)) {
         ast_free(program); free(src); return 1;
+    }
+    if (g_tree) {
+        char d[32];
+        snprintf(d, sizeof(d), "%d module%s", extra_count,
+                 extra_count == 1 ? "" : "s");
+        tree_step(0, "imports", extra_count ? d : "none");
     }
 
     if (check_program(program)) {
@@ -202,6 +227,7 @@ static int compile_to_out(const char *olrn_path, FILE *out)
         for (int i = 0; i < extra_count; i++) free(extra_srcs[i]);
         return 1;
     }
+    tree_step(0, "sema", "ok");
 
     Codegen cg;
     codegen_init(&cg, out);
@@ -228,11 +254,18 @@ static int compile_to_binary(const char **inputs, int input_count,
     char *main_src = NULL;
     AstNode *program = parse_file(inputs[0], &main_src);
     if (!program) { fclose(cpp_file); remove(tmp_cpp); return 1; }
+    tree_step(0, "parse", inputs[0]);
 
     char *extra_srcs[128]; int extra_count = 0;
     if (!merge_imports(program, inputs[0], extra_srcs, &extra_count)) {
         ast_free(program); free(main_src);
         fclose(cpp_file); remove(tmp_cpp); return 1;
+    }
+    if (g_tree) {
+        char d[32];
+        snprintf(d, sizeof(d), "%d module%s", extra_count,
+                 extra_count == 1 ? "" : "s");
+        tree_step(0, "imports", extra_count ? d : "none");
     }
 
     /* prepend any additional .olrn files as implicit imports */
@@ -261,25 +294,22 @@ static int compile_to_binary(const char **inputs, int input_count,
         for (int i = 0; i < extra_count; i++) free(extra_srcs[i]);
         fclose(cpp_file); remove(tmp_cpp); return 1;
     }
+    tree_step(0, "sema", "ok");
 
     Codegen cg;
     codegen_init(&cg, cpp_file);
     codegen_emit(&cg, program);
     fflush(cpp_file);
     fclose(cpp_file);
+    tree_step(0, "codegen", tmp_cpp);
 
-    int link_sdl = imports_use_malkur(program);
     ast_free(program); free(main_src);
     for (int i = 0; i < extra_count; i++) free(extra_srcs[i]);
 
-    /* invoke g++ — malkur needs SDL2 */
-    char cmd[1024];
-    snprintf(cmd, sizeof(cmd),
-             "g++ -std=c++17 -O2 \"%s\" -o \"%s\"%s 2>&1", tmp_cpp, output,
-             link_sdl ? " -lSDL2" : "");
-    int rc = system(cmd);
+    tree_step(1, "g++", output);
+    int rc = gxx_compile(tmp_cpp, output);
     remove(tmp_cpp);
-    return (rc == 0) ? 0 : 1;
+    return rc;
 }
 
 /* ── commands ─────────────────────────────────────────────────── */
@@ -297,8 +327,9 @@ static void print_help(void)
     printf("  olrn build                     build project (main.olrn → binary)\n");
     printf("  olrn run                       build and run project\n");
     printf("  olrn init                      scaffold a new project in cwd\n");
-    printf("  olrn --version / -V            print version\n");
-    printf("  olrn --help    / -h            print this help\n");
+    printf("  olrn deps [file.olrn]          check system libs (SDL2, ...) + install hints\n");
+    printf("  olrn version                   print version\n");
+    printf("  olrn help                      print this help\n");
 }
 
 /* olrn init — scaffold in the current directory */
@@ -333,11 +364,11 @@ static int cmd_init(int argc, char **argv)
     const char *name = project_name();
     if (!name) return 1;
 
-    mkdir("bin", 0755);
-    mkdir("src", 0755);
-    mkdir("src/main", 0755);
-    mkdir("src/main/olrn", 0755);
-    mkdir("olrn_out", 0755);
+    olrn_mkdir("bin");
+    olrn_mkdir("src");
+    olrn_mkdir("src/main");
+    olrn_mkdir("src/main/olrn");
+    olrn_mkdir("olrn_out");
 
     printf("initialized project: %s\n", name);
     if (write_if_missing(PROJECT_MAIN,
@@ -362,6 +393,56 @@ static int cmd_init(int argc, char **argv)
         "olrn run     # build then execute\n"
         "```\n", name)) return 1;
     return 0;
+}
+
+/* olrn deps [file.olrn] — report system-library deps + install hints.
+   With no file, uses the project entry point; with no project, checks
+   every dep the stdlib knows about (preflight mode). */
+static int cmd_deps(int argc, char **argv)
+{
+    const char *entry = NULL;
+    if (argc >= 3)                              entry = argv[2];
+    else if (access(PROJECT_MAIN, F_OK) == 0)   entry = PROJECT_MAIN;
+    else if (access("main.olrn", F_OK) == 0)    entry = "main.olrn";
+
+    const SysDep *needed[16];
+    int n = 0;
+    if (entry) {
+        char *src = NULL;
+        AstNode *program = parse_file(entry, &src);
+        if (!program) return 1;
+        for (int i = 0; i < program->program.imports.count; i++) {
+            AstNode *imp = program->program.imports.items[i];
+            if (!imp->import_decl.is_lib || !imp->import_decl.module)
+                continue;
+            const SysDep *d = dep_for_module(imp->import_decl.module);
+            if (d && n < 16) needed[n++] = d;
+        }
+        ast_free(program); free(src);
+        printf("system deps for %s\n", entry);
+        if (n == 0) { printf("└─ none required\n"); return 0; }
+    } else {
+        printf("system deps (no project here — checking all known)\n");
+        for (int i = 0; SYS_DEPS[i].module && n < 16; i++)
+            needed[n++] = &SYS_DEPS[i];
+    }
+
+    int missing = 0;
+    for (int i = 0; i < n; i++) {
+        const SysDep *d = needed[i];
+        const char *branch = (i == n - 1) ? "└─" : "├─";
+        if (dep_available(d)) {
+            char ver[64];
+            dep_version(d, ver, sizeof(ver));
+            printf("%s %s (@std.%s)  found%s%s\n",
+                   branch, d->lib, d->module, ver[0] ? " " : "", ver);
+        } else {
+            printf("%s %s (@std.%s)  MISSING\n", branch, d->lib, d->module);
+            dep_print_hint(d);
+            missing = 1;
+        }
+    }
+    return missing;
 }
 
 /* olrn check <file.olrn> */
@@ -510,9 +591,12 @@ static int cmd_build(void)
     const char *name = project_name();
     if (!name) return 1;
 
+    g_tree = 1;
+    printf("%s\n", name);
+
     if (access(PROJECT_MAIN, F_OK) == 0) {
-        mkdir("olrn_out", 0755);
-        mkdir("bin", 0755);
+        olrn_mkdir("olrn_out");
+        olrn_mkdir("bin");
 
         char cpp_path[600], bin_path[600];
         snprintf(cpp_path, sizeof(cpp_path), "olrn_out/%s.cpp", name);
@@ -523,7 +607,9 @@ static int cmd_build(void)
         int rc = compile_to_out(PROJECT_MAIN, out);
         fclose(out);
         if (rc != 0) { remove(cpp_path); return 1; }
+        tree_step(0, "codegen", cpp_path);
 
+        tree_step(1, "g++", bin_path);
         rc = gxx_compile(cpp_path, bin_path);
         if (rc == 0) { printf("built: %s\n", bin_path); fflush(stdout); }
         return rc;
@@ -569,15 +655,16 @@ int main(int argc, char **argv)
 
     const char *sub = argv[1];
 
-    if (strcmp(sub, "--version") == 0 || strcmp(sub, "-V") == 0) {
+    if (strcmp(sub, "version") == 0 || strcmp(sub, "-V") == 0) {
         printf("olrn %s\n", OLRN_VERSION);
         return 0;
     }
-    if (strcmp(sub, "--help") == 0 || strcmp(sub, "-h") == 0) {
+    if (strcmp(sub, "help") == 0 || strcmp(sub, "-h") == 0) {
         print_help();
         return 0;
     }
     if (strcmp(sub, "init")      == 0) return cmd_init(argc, argv);
+    if (strcmp(sub, "deps")      == 0) return cmd_deps(argc, argv);
     if (strcmp(sub, "check")     == 0) return cmd_check(argc, argv);
     if (strcmp(sub, "emit")      == 0) return cmd_emit(argc, argv);
     if (strcmp(sub, "build-src") == 0) return cmd_build_src(argc, argv);
@@ -585,6 +672,12 @@ int main(int argc, char **argv)
     if (strcmp(sub, "sac")       == 0) return cmd_sac(argc, argv);
     if (strcmp(sub, "build")     == 0) return cmd_build();
     if (strcmp(sub, "run")       == 0) return cmd_run();
+
+    if (sub[0] == '-') {
+        fprintf(stderr, "unknown option '%s' — commands take no dashes "
+                        "(try 'olrn help')\n", sub);
+        return 1;
+    }
 
     /* bare file path — emit C++ to stdout (backward-compatible) */
     return compile_to_out(sub, stdout);

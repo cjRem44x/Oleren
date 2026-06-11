@@ -9,6 +9,7 @@ SRCS = \
     src/ast/ast.c       \
     src/parser/parser.c \
     src/sema/check.c    \
+    src/deps/deps.c     \
     src/codegen/codegen.c
 
 OBJS = $(SRCS:.c=.o)
