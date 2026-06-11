@@ -4,16 +4,28 @@
 
 #define MAX_ERR_SETS 64
 #define MAX_FNS      1024
+#define MAX_IMPORTS  64
 
 typedef struct {
     AstNode    *err_decls[MAX_ERR_SETS];
     int         err_decl_count;
     AstNode    *fns[MAX_FNS];
     int         fn_count;
+    AstNode    *imports[MAX_IMPORTS];
+    int         import_used[MAX_IMPORTS];
+    int         import_count;
     const char *fn_name; /* fn being walked */
     const char *fn_set;  /* its declared err set; NULL = generic !T or no result */
     int         errors;
 } Check;
+
+/* an alias ident appeared in an expression — the import is used */
+static void mark_import_used(Check *c, const char *name)
+{
+    for (int i = 0; i < c->import_count; i++)
+        if (strcmp(c->imports[i]->import_decl.alias, name) == 0)
+            c->import_used[i] = 1;
+}
 
 static AstNode *find_err_set(Check *c, const char *name)
 {
@@ -150,13 +162,19 @@ static void walk(Check *c, AstNode *n)
         case NODE_ARRAY_LIT: walk_list(c, &n->array_lit.elems); break;
         case NODE_STRUCT_LIT: walk_list(c, &n->struct_lit.fields); break;
         case NODE_FIELD_INIT: walk(c, n->field_init.value); break;
-        default: break; /* literals, idents, decls — no statements inside */
+        case NODE_IDENT:     mark_import_used(c, n->ident.name); break;
+        default: break; /* literals, decls — no statements inside */
     }
 }
 
 int check_program(AstNode *program)
 {
     Check c = {0};
+
+    for (int i = 0; i < program->program.imports.count; i++) {
+        if (c.import_count < MAX_IMPORTS)
+            c.imports[c.import_count++] = program->program.imports.items[i];
+    }
 
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *d = program->program.decls.items[i];
@@ -179,11 +197,29 @@ int check_program(AstNode *program)
         }
     }
 
+    /* top-level constants/vars can reference import aliases too */
+    c.fn_name = "<top-level>";
+    c.fn_set  = NULL;
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *d = program->program.decls.items[i];
+        if (d->kind == NODE_VAR_DECL || d->kind == NODE_VAR_DECL_GROUP)
+            walk(&c, d);
+    }
+
     for (int i = 0; i < c.fn_count; i++) {
         AstNode *fn = c.fns[i];
         c.fn_name = fn->fn_decl.name;
         c.fn_set  = fn_err_set(fn);
         walk(&c, fn->fn_decl.body);
+    }
+
+    for (int i = 0; i < c.import_count; i++) {
+        if (!c.import_used[i]) {
+            AstNode *imp = c.imports[i];
+            fprintf(stderr, "error: line %d: unused import '%s'\n",
+                    imp->line, imp->import_decl.alias);
+            c.errors++;
+        }
     }
     return c.errors;
 }

@@ -1,0 +1,10 @@
+# both imports are unused — compilation must FAIL with 2 errors
+@import (
+    std = @std,
+    mk  = @std.malkur,
+)
+
+fn main() -> void
+{
+    @pl("never uses std or mk")
+}

@@ -88,7 +88,7 @@ Rules:
   libs use `@pkg.libname` (planned). The alias is required.
 - The alias is how you call into that module: `mk.init_window(...)`, `std.io.open(...)`
 - Only one `@import` block per file; it must appear before any declarations.
-- Unused imports are a compile error (planned — not enforced yet).
+- Unused imports are a compile error.
 
 ```rust
 @import (
