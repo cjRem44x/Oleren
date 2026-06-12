@@ -96,14 +96,13 @@ fn login(password: str, stored_hash: str) -> !bool
 ### File Encryption / Decryption
 
 ```rust
-# Encrypt a file in-place. The original file is replaced with ciphertext.
-# A random nonce is prepended; `pk` is a passphrase that is key-derived
-# at the cost specified by `stren` (Argon2id). The encrypted file gets
-# a `.plntr` extension (e.g. "data.bin" → "data.bin.plntr").
+# Encrypt a file's contents in-place. The file at `path` is overwritten
+# with ciphertext — the filename does not change. `pk` is a passphrase
+# that is key-derived at the cost specified by `stren` (Argon2id).
 fn crypt.enc_file(stren: stren, path: str, pk: str) -> !void
 
-# Decrypt a `.plntr` file back to plaintext. The decrypted file replaces
-# the encrypted one (strips the `.plntr` extension).
+# Decrypt a file's contents in-place. The file at `path` must have been
+# produced by enc_file. The file is overwritten with the original plaintext.
 fn crypt.dec_file(stren: stren, path: str, pk: str) -> !void
 ```
 
@@ -115,17 +114,17 @@ fn crypt.dec_file(stren: stren, path: str, pk: str) -> !void
 fn backup(path: str, passphrase: str) -> !void
 {
     try crypt.enc_file(crypt.stren.STRONG, path, passphrase)
-    # path is now "path.plntr", original overwritten
+    # path still has the same name; contents are now ciphertext
 }
 
 fn restore(path: str, passphrase: str) -> !void
 {
-    # path should be "something.plntr"
     try crypt.dec_file(crypt.stren.STRONG, path, passphrase)
+    # path still has the same name; contents are plaintext again
 }
 ```
 
-**File format** (binary layout of `.plntr` files):
+**File format** (binary layout written into the file):
 
 ```
 [4 bytes magic: "PLNT"]
@@ -137,7 +136,8 @@ fn restore(path: str, passphrase: str) -> !void
 ```
 
 The header contains everything needed to decrypt; the passphrase is the
-only external input required.
+only external input required. To detect whether a file is encrypted, check
+for the `PLNT` magic bytes at offset 0.
 
 ---
 
@@ -375,10 +375,10 @@ fn main() -> !void
 
     # --- file encrypt ---
     try crypt.enc_file(crypt.stren.STRONG, "report.pdf", "my passphrase")
-    # report.pdf is now report.pdf.plntr
+    # report.pdf contents are now ciphertext; filename unchanged
 
-    try crypt.dec_file(crypt.stren.STRONG, "report.pdf.plntr", "my passphrase")
-    # report.pdf.plntr is now report.pdf again
+    try crypt.dec_file(crypt.stren.STRONG, "report.pdf", "my passphrase")
+    # report.pdf contents are plaintext again
 
     # --- signing ---
     kp  :: crypt.sign_keygen()
