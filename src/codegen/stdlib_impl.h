@@ -4,6 +4,8 @@
 /* Always-emitted helpers for language builtins (@cin, @rng). */
 static const char *BUILTINS_IMPL =
     "/* ── olrn builtins ─────────────────────────────────────────────── */\n"
+    "template<typename T> static inline T _olrn_pf_cvt(T v) { return v; }\n"
+    "static inline const char* _olrn_pf_cvt(const std::string& s) { return s.c_str(); }\n"
     "static inline std::string _olrn_cin(const std::string& prompt) {\n"
     "    std::cout << prompt;\n"
     "    std::string _line;\n"

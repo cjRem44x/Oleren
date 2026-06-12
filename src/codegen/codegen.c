@@ -262,31 +262,74 @@ static void emit_type(Codegen *cg, AstNode *type_ref)
     }
 }
 
+/* recursively flatten "a + b + c" into << a << b << c for @pl/@cout.
+   Non-+ nodes emit as a single << operand. */
+static void emit_pl_chain(Codegen *cg, AstNode *node)
+{
+    if (node->kind == NODE_BINARY && node->binary.op == TOK_PLUS) {
+        emit_pl_chain(cg, node->binary.left);
+        emit_pl_chain(cg, node->binary.right);
+    } else {
+        fputs(" << ", cg->out);
+        emit_expr(cg, node);
+    }
+}
+
 /* emit a single builtin call as a statement */
 static void emit_builtin_stmt(Codegen *cg, AstNode *node)
 {
     const char *name = node->call.name;
     emit_indent(cg);
 
-    /* @pl(val) => std::cout << val << std::endl; */
+    /* @pl(val) => std::cout << val << std::endl;
+       + expressions are flattened into << chains so mixed-type concat works */
     if (strcmp(name, "pl") == 0) {
         fputs("std::cout", cg->out);
-        for (int i = 0; i < node->call.args.count; i++) {
-            fputs(" << ", cg->out);
-            emit_expr(cg, node->call.args.items[i]);
-        }
+        for (int i = 0; i < node->call.args.count; i++)
+            emit_pl_chain(cg, node->call.args.items[i]);
         fputs(" << std::endl;\n", cg->out);
         return;
     }
 
-    /* @pf(fmt, ...) => printf(fmt, ...); */
-    if (strcmp(name, "pf") == 0) {
-        fputs("printf(", cg->out);
-        for (int i = 0; i < node->call.args.count; i++) {
-            if (i > 0) fputs(", ", cg->out);
-            emit_expr(cg, node->call.args.items[i]);
+    /* @pf("Hello {name}, age {age}\n")
+       Format string is parsed at compile time: {identifier} is replaced by
+       the named variable via << chaining. Non-{ segments are emitted as
+       string literals. A trailing newline is NOT added automatically. */
+    if (strcmp(name, "pf") == 0 && node->call.args.count >= 1
+            && node->call.args.items[0]->kind == NODE_STR_LIT) {
+        const char *fmt = node->call.args.items[0]->str_lit.value;
+        fputs("std::cout", cg->out);
+        const char *seg = fmt, *p = fmt;
+        while (*p) {
+            if (*p == '{') {
+                /* scan identifier */
+                const char *id = p + 1;
+                const char *e  = id;
+                while (*e && *e != '}') e++;
+                if (*e == '}' && e > id) {
+                    /* emit literal segment before { */
+                    if (p > seg) {
+                        fputs(" << \"", cg->out);
+                        fwrite(seg, 1, (size_t)(p - seg), cg->out);
+                        fputc('"', cg->out);
+                    }
+                    /* emit the variable */
+                    fputs(" << ", cg->out);
+                    fwrite(id, 1, (size_t)(e - id), cg->out);
+                    p   = e + 1;
+                    seg = p;
+                    continue;
+                }
+            }
+            p++;
         }
-        fputs(");\n", cg->out);
+        /* emit any trailing literal */
+        if (p > seg) {
+            fputs(" << \"", cg->out);
+            fwrite(seg, 1, (size_t)(p - seg), cg->out);
+            fputc('"', cg->out);
+        }
+        fputs(";\n", cg->out);
         return;
     }
 
