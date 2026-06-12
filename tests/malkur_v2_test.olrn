@@ -1,0 +1,61 @@
+@import (
+    mk = @std.malkur,
+)
+
+fn main() -> !void
+{
+    try mk.init_window(640, 360, "Malkur v0.2 test")
+    defer mk.close_window()
+    mk.set_fps(60)
+
+    frame :i32 = 0
+
+    while !mk.should_close() {
+        mk.begin_draw()
+        mk.clear_bg(mk.DARKGRAY)
+
+        # draw_rect_rot — rotated rectangle
+        origin := Vec2{.x=50.0, .y=25.0}
+        mk.draw_rect_rot(320.0, 180.0, 100.0, 50.0, origin, @f32(frame), mk.ORANGE)
+
+        # camera2d — pan scene
+        cam := mk.camera2d(
+            Vec2{.x=0.0, .y=0.0},
+            Vec2{.x=100.0, .y=80.0},
+            1.5,
+        )
+        mk.begin_camera2d(cam)
+        mk.draw_rect(0.0, 0.0, 60.0, 60.0, mk.GREEN)
+        mk.draw_circle(100.0, 50.0, 30.0, mk.BLUE)
+        mk.end_camera2d()
+
+        # draw_text — embedded 8x8 font
+        mk.draw_text("Malkur v0.2", 10.0, 10.0, 16.0, mk.WHITE)
+        mk.draw_text("gamepad + camera + text", 10.0, 30.0, 8.0, mk.YELLOW)
+
+        # measure_text — check it returns a non-zero Vec2
+        sz := mk.measure_text("hello", 16.0)
+        if sz.x <= 0.0 { @panic("measure_text returned zero width") }
+
+        # hex color construction
+        coral := mk.hex(4286512895)
+        mk.draw_circle(580.0, 300.0, 20.0, coral)
+
+        # pad_connected sanity (no gamepad required — just must not crash)
+        _ :: mk.pad_connected(0)
+
+        # screen_to_world2d round-trip sanity
+        screen_pt := Vec2{.x=200.0, .y=150.0}
+        world_pt  := mk.screen_to_world2d(screen_pt, cam)
+        back      := mk.world_to_screen2d(world_pt, cam)
+        if @f32(math_abs(@f64(back.x - screen_pt.x))) > 0.01 {
+            @panic("screen_to_world2d round-trip failed")
+        }
+
+        mk.end_draw()
+        frame = frame + 1
+        if frame >= 3 { break }
+    }
+
+    @pl("malkur v0.2 test ok")
+}

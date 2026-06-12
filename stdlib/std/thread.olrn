@@ -1,0 +1,101 @@
+# std.thread — threads, mutexes, atomics
+
+# ── thread lifecycle ─────────────────────────────────────────────
+
+# spawn a thread running f() with no arguments; returns an opaque i64 handle
+fn thread_spawn(f: any) -> i64
+{
+    ret _olrn_thread_spawn(f)
+}
+
+# spawn a thread running f(arg); arg is passed as an i64 (raw pointer or value)
+fn thread_spawn_arg(f: any, arg: i64) -> i64
+{
+    ret _olrn_thread_spawn_arg(f, arg)
+}
+
+# join a thread and free its handle; blocks until the thread exits
+fn thread_join(t: i64)
+{
+    _olrn_thread_join(t)
+}
+
+# detach a thread and free its handle; thread runs independently
+fn thread_detach(t: i64)
+{
+    _olrn_thread_detach(t)
+}
+
+# yield the current thread's time slice
+fn thread_yield()
+{
+    _olrn_thread_yield()
+}
+
+# id of the calling thread (hashed — unique, not sequential)
+fn thread_id() -> i64
+{
+    ret _olrn_thread_id()
+}
+
+# number of hardware threads available
+fn thread_cores() -> i32
+{
+    ret _olrn_thread_cores()
+}
+
+# ── mutex ────────────────────────────────────────────────────────
+
+fn thread_mutex_new() -> i64
+{
+    ret _olrn_mutex_new()
+}
+
+fn thread_mutex_lock(m: i64)
+{
+    _olrn_mutex_lock(m)
+}
+
+fn thread_mutex_unlock(m: i64)
+{
+    _olrn_mutex_unlock(m)
+}
+
+fn thread_mutex_free(m: i64)
+{
+    _olrn_mutex_free(m)
+}
+
+# ── atomic i32 ───────────────────────────────────────────────────
+
+fn thread_atomic_new(val: i32) -> i64
+{
+    ret _olrn_atomic_new(val)
+}
+
+fn thread_atomic_load(a: i64) -> i32
+{
+    ret _olrn_atomic_load(a)
+}
+
+fn thread_atomic_store(a: i64, val: i32)
+{
+    _olrn_atomic_store(a, val)
+}
+
+# adds val; returns the value before the add
+fn thread_atomic_add(a: i64, val: i32) -> i32
+{
+    ret _olrn_atomic_add(a, val)
+}
+
+# compare-and-swap; returns true if the swap happened
+fn thread_atomic_cas(a: i64, expected: i32, desired: i32) -> bool
+{
+    ret _olrn_atomic_cas(a, expected, desired)
+}
+
+fn thread_atomic_free(a: i64)
+{
+    _olrn_atomic_free(a)
+}

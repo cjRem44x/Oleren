@@ -252,7 +252,7 @@ cwd := std.fs.cwd()
 
 **`std.time`** — timing (critical for game loops)
 
-**`@std.malkur` (Malkur)** — built-in gamedev library. See `docs/Malkur.md` for the full API surface. Covers window, input, 2D/3D drawing, textures, fonts, models, shaders, audio, math types, and collision. Raylib-inspired flat API. v0.1 shipped: 2D core (window/loop, keyboard, mouse, shapes, BMP textures, colors, Vec2 math, 2D collision) on an SDL2 backend; importing it auto-links `-lSDL2`.
+**`@std.malkur` (Malkur)** — built-in gamedev library. See `docs/Malkur.md` for the full API surface. Raylib-inspired flat API on an SDL2 backend; importing auto-links `-lSDL2`. v0.2 shipped: window/loop, keyboard, mouse, gamepad (4 slots, hotplug), 2D shapes, `draw_rect_rot`, textures (BMP + subrect), camera 2D (pan/zoom, world↔screen), embedded 8×8 bitmap font (`draw_text`/`measure_text`), colors + `hex()`, Vec2 math, 2D collision.
 ```rust
 t0 := std.time.now()          # nanosecond timestamp
 dt := std.time.since(t0)      # elapsed as f64 seconds
@@ -340,18 +340,18 @@ All planned v0.1.0 features are implemented and passing the test suite.
 - [x] Error handling — `err`, `!T`, `ErrSet!T`, `try`, `catch`, `errdefer`
 - [x] Structs, enums, unions
 - [x] Heap allocation (`@alo`, `@free`), raw and smart pointers
-- [x] Standard library — `std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`
+- [x] Standard library — `std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`, `std.thread`
 - [x] CLI — `build`, `run`, `build-src`, `build-out`, `check`, `emit`, `sac`, `init`
-- [x] Malkur gamedev library v0.1 — 2D core via `@std.malkur` (SDL2 backend)
+- [x] Malkur gamedev library v0.2 — gamepad, camera 2D, rotated/subrect draws, embedded font, hex() via `@std.malkur` (SDL2 backend)
 - [x] Sema pass — `ErrSet!T` enforcement (set membership, variant existence, try propagation), unused-import + alias-shadowing errors
 - [x] System deps — `olrn deps` + build-time resolution via pkg-config with Linux/macOS/Windows-MinGW fallbacks and per-OS install hints (SDL2 for malkur)
 
 ## Next (v0.2.0 candidates)
 
-- Multi-return / tuple values
-- `std.thread` — basic threading
-- Malkur v0.2 — fonts/text, audio, gamepad, camera 2D, PNG/JPG via SDL_image
-- Windows/macOS validation — the dep layer and compiler are written portably
+- [x] `std.thread` — spawn/join/detach, mutex, atomic i32, CAS
+- [ ] Multi-return / tuple values — parser + codegen done; sema + tests pending
+- [x] Malkur v0.2 — gamepad (SDL_GameController, 4 slots), camera 2D (world↔screen, pan/zoom), draw_rect_rot, draw_texture_rect, embedded 8×8 font (draw_text/measure_text), mk.hex(); audio + PNG/JPG deferred (no SDL_mixer/SDL_image installed)
+- [ ] Windows/macOS validation — dep layer and compiler are written portably
   (MinGW shims in place) but only Linux is exercised today; needs CI + testing
-- `olrn_pkg.toml` — deferred; only needed for *outside* resources
+- [ ] `olrn_pkg.toml` — deferred; only needed for *outside* resources
   (vendored C/C++ deps, link flags). Builtin libs don't need it.

@@ -95,7 +95,18 @@ static AstNode *parse_type(Parser *p)
     if (match(p, TOK_STAR))       n->type_ref.is_ptr   = 1;
     else if (match(p, TOK_CARET)) n->type_ref.is_smart = 1;
 
-    if (check(p, TOK_VOID)) {
+    if (check(p, TOK_LPAREN)) {
+        /* tuple type: (T1, T2, ...) */
+        next_tok(p);
+        while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
+            node_list_push(&n->type_ref.tuple, parse_type(p));
+            if (!match(p, TOK_COMMA)) break;
+        }
+        expect(p, TOK_RPAREN);
+        if (n->type_ref.tuple.count < 2)
+            parse_err(p, "tuple type needs at least two elements");
+        n->type_ref.name = strdup("(tuple)");
+    } else if (check(p, TOK_VOID)) {
         n->type_ref.name = strdup("void");
         next_tok(p);
     } else if (check(p, TOK_BUILTIN)) {
@@ -170,8 +181,15 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
     /* ── NUD: prefix / atoms ── */
 
     if (match(p, TOK_LPAREN)) {
-        /* grouped expression */
+        /* grouped expression — or tuple literal: (a, b, ...) */
         left = parse_expr_bp(p, 0);
+        if (check(p, TOK_COMMA)) {
+            AstNode *tup = ast_node_new(NODE_TUPLE_LIT, line);
+            node_list_push(&tup->array_lit.elems, left);
+            while (match(p, TOK_COMMA))
+                node_list_push(&tup->array_lit.elems, parse_expr_bp(p, 0));
+            left = tup;
+        }
         expect(p, TOK_RPAREN);
     }
     else if (check(p, TOK_MINUS) || check(p, TOK_BANG) || check(p, TOK_AMP)) {
@@ -497,6 +515,24 @@ static void parse_import_block(Parser *p, AstNode *prog)
         match(p, TOK_COMMA);
     }
     expect(p, TOK_RPAREN);
+}
+
+/* a, b := expr  or  a, b :: expr — tuple destructuring */
+static AstNode *parse_multi_bind(Parser *p)
+{
+    AstNode *n = ast_node_new(NODE_MULTI_BIND, p->cur.line);
+    for (;;) {
+        Token t = expect(p, TOK_IDENT);
+        AstNode *id = ast_node_new(NODE_IDENT, t.line);
+        id->ident.name = tok_dup(t);
+        node_list_push(&n->multi_bind.names, id);
+        if (!match(p, TOK_COMMA)) break;
+    }
+    if (match(p, TOK_WALRUS))      n->multi_bind.is_imu = 0;
+    else if (match(p, TOK_COLCOL)) n->multi_bind.is_imu = 1;
+    else parse_err(p, "expected ':=' or '::' after destructuring names");
+    n->multi_bind.init = parse_expr_bp(p, 0);
+    return n;
 }
 
 /* x := val  (implicit mutable)  or  x :: val  (implicit immutable) */
@@ -854,6 +890,7 @@ static AstNode *parse_stmt(Parser *p)
         if (p->peek.type == TOK_WALRUS) return parse_var_decl_implicit(p, 0);
         if (p->peek.type == TOK_COLCOL) return parse_var_decl_implicit(p, 1);
         if (p->peek.type == TOK_COLON)  return parse_var_decl_explicit(p);
+        if (p->peek.type == TOK_COMMA)  return parse_multi_bind(p);
     }
 
     AstNode *expr = parse_expr(p);

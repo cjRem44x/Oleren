@@ -19,7 +19,7 @@ io :: @std.io
 ```
 
 Implemented today: `std.io`, `std.fs`, `std.time`, `std.math`, `std.mem`,
-`std.str`, `std.log`, and `std.malkur` (see [`Malkur.md`](Malkur.md)).
+`std.str`, `std.log`, `std.thread`, and `std.malkur` (see [`Malkur.md`](Malkur.md)).
 Everything under **Planned Modules** further down is design spec.
 
 ---
@@ -162,11 +162,73 @@ Level filtering, file output, and color (`set_level`, `set_output`,
 
 ---
 
+## `std.thread` — Threading
+
+Handles are opaque `i64` values (heap-allocated C++ objects). Always `join`
+or `detach` every spawned thread; always `mutex_free` / `atomic_free` when done.
+
+```rust
+# ── thread lifecycle ────────────────────────────────────────────
+t := std.thread.spawn(my_fn)           # fn my_fn() worker
+t := std.thread.spawn_arg(my_fn, ptr)  # fn my_fn(arg: i64) worker
+
+std.thread.join(t)      # block until done; frees handle
+std.thread.detach(t)    # run independently; frees handle
+std.thread.yield()      # hint to scheduler
+std.thread.id()   -> i64   # hashed id of the calling thread
+std.thread.cores() -> i32  # hardware_concurrency
+
+# ── mutex ────────────────────────────────────────────────────────
+mtx := std.thread.mutex_new()
+defer std.thread.mutex_free(mtx)
+
+std.thread.mutex_lock(mtx)
+std.thread.mutex_unlock(mtx)
+
+# ── atomic i32 ───────────────────────────────────────────────────
+cnt := std.thread.atomic_new(0)
+defer std.thread.atomic_free(cnt)
+
+std.thread.atomic_store(cnt, 1)
+val := std.thread.atomic_load(cnt)        # -> i32
+old := std.thread.atomic_add(cnt, 1)      # fetch-add; returns prev value
+won := std.thread.atomic_cas(cnt, 0, 1)   # compare-and-swap; -> bool
+```
+
+Worker functions take no args (`spawn`) or a single `i64` (`spawn_arg`).
+Pass a raw pointer cast to `i64` to share state between threads.
+
+```rust
+fn loader(state: i64)
+{
+    # cast back: *MyState = @cast(*MyState, state)
+    std.thread.mutex_lock(state)
+    # ... load assets
+    std.thread.mutex_unlock(state)
+}
+
+fn main() -> void
+{
+    mtx := std.thread.mutex_new()
+    defer std.thread.mutex_free(mtx)
+    t := std.thread.spawn_arg(loader, mtx)
+    std.thread.join(t)
+}
+```
+
+---
+
 ## `std.malkur` — Gamedev
 
-See [`Malkur.md`](Malkur.md) for the full surface: window/core loop,
-keyboard/mouse input, 2D shapes, BMP textures, colors, Vec2 math, and 2D
-collision on an SDL2 backend.
+See [`Malkur.md`](Malkur.md) for the full surface.
+
+**v0.2 (current):** window/core loop, keyboard, mouse, gamepad (4 SDL
+GameController slots, hotplug), 2D shapes, `draw_rect_rot`, textures (BMP +
+src/dst subrect via `draw_texture_rect`), camera 2D (pan/zoom, all draw calls
+transformed; `begin_camera2d` / `end_camera2d` / `screen_to_world2d` /
+`world_to_screen2d`), embedded 8×8 bitmap font (`draw_text` / `measure_text`),
+colors + `hex(u32)`, Vec2 math, 2D collision. SDL2 backend; `olrn deps` or
+`olrn build` auto-resolves `-lSDL2`.
 
 ---
 ---
@@ -444,76 +506,37 @@ n  := db.rows_affected(conn) -> i64
 id := db.last_insert_id(conn) -> i64
 ```
 
-## `std.thread` — Threading & Parallelism
+## `std.thread` extensions — Thread Pool & Sync Primitives
+
+`std.thread` is implemented (see above). Planned additions:
 
 ```rust
-# ── Basic threads ─────────────────────────────────────
-t := try thread.spawn(my_fn, arg)
-thread.join(t)
-thread.detach(t)
-thread.id()    -> u64    # current thread id
-thread.sleep(secs: f64)
+# ── Thread pool ───────────────────────────────────────
+pool := thread.pool_new(8)     # 8 workers; 0 = hardware_concurrency
+defer thread.pool_free(pool)
 
-# ── Thread pool (parallel work) ───────────────────────
-pool := try thread.pool_init(8)    # 8 workers; 0 = number of CPU cores
-defer thread.pool_deinit(pool)
+thread.pool_run(pool, task_fn, arg)   # queue one task
+thread.pool_wait(pool)                # block until all tasks done
 
-thread.pool_run(pool, task_fn, data)    # queue one task
-thread.pool_run_n(pool, task_fn, data, n)  # queue n identical tasks
-thread.pool_wait(pool)                  # block until all queued work done
+# ── RW mutex ──────────────────────────────────────────
+rw := thread.rwmutex_new()
+thread.read_lock(rw);   defer thread.read_unlock(rw)
+thread.write_lock(rw);  defer thread.write_unlock(rw)
+thread.rwmutex_free(rw)
 
-# ── Parallel for (data parallelism) ───────────────────
-# Split a slice across workers automatically
-thread.par_for(pool, items, fn(item: T, idx: i32)
-{
-    # runs concurrently on each item
-})
-
-thread.par_for_range(pool, 0, N, fn(i: i32)
-{
-    results[i] = heavy_compute(i)
-})
-
-# ── Mutex ─────────────────────────────────────────────
-mu := sync.mutex_init()
-sync.lock(mu)
-defer sync.unlock(mu)
-
-# ── RW Mutex ──────────────────────────────────────────
-rw := sync.rwmutex_init()
-sync.read_lock(rw)    defer sync.read_unlock(rw)
-sync.write_lock(rw)   defer sync.write_unlock(rw)
-
-# ── Atomics ───────────────────────────────────────────
-sync.atom_load_i32(ptr: *i32)              -> i32
-sync.atom_store_i32(ptr: *i32, val: i32)
-sync.atom_add_i32(ptr: *i32, n: i32)       -> i32   # ret prev value
-sync.atom_cas_i32(ptr: *i32, exp: i32, new: i32) -> bool
-
-# same for i64, u32, u64 variants: atom_load_i64, etc.
-
-# ── Channel (message passing) ─────────────────────────
-ch := sync.chan_init(i32, 16)    # typed channel, capacity 16 (0 = unbuffered)
-defer sync.chan_close(ch)
-
-sync.chan_send(ch, 42)
-val  := sync.chan_recv(ch)       -> i32
-val, ok := sync.chan_try_recv(ch)  # non-blocking; ok = false if empty
-
-# ── Semaphore ─────────────────────────────────────────
-sem := sync.sem_init(4)          # max 4 concurrent holders
-sync.sem_wait(sem)
-sync.sem_post(sem)
-
-# ── Once (run exactly one time) ───────────────────────
-once := sync.once_init()
-sync.once_do(once, init_fn)      # guaranteed single execution across threads
+# ── Atomic i64 ────────────────────────────────────────
+a := thread.atomic64_new(val: i64)
+thread.atomic64_load(a)  -> i64
+thread.atomic64_store(a, val: i64)
+thread.atomic64_add(a, val: i64) -> i64
+thread.atomic64_free(a)
 
 # ── Condition variable ────────────────────────────────
-cond := sync.cond_init()
-sync.cond_wait(cond, mu)
-sync.cond_signal(cond)
-sync.cond_broadcast(cond)
+cv := thread.cond_new()
+thread.cond_wait(cv, mtx)
+thread.cond_signal(cv)
+thread.cond_broadcast(cv)
+thread.cond_free(cv)
 ```
 
 ## `std.net` — Networking

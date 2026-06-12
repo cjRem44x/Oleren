@@ -971,4 +971,132 @@ fn main() -> !void
 {
     try run()   # if run() fails, error is printed and process exits
 }
+
+---
+
+## Threading
+
+`std.thread` provides POSIX-style threads, a mutex, and an atomic `i32`.
+All handles are opaque `i64` values (heap-allocated objects under the hood).
+
+### Spawn
+
+Workers take no arguments (`spawn`) or a single `i64` (`spawn_arg`). Pass
+raw pointers encoded as `i64` to share state:
+
+```rust
+@import ( std = @std )
+
+fn worker(cnt: i64)
+{
+    std.thread.atomic_add(cnt, 1)
+}
+
+fn main() -> void
+{
+    cnt := std.thread.atomic_new(0)
+    defer std.thread.atomic_free(cnt)
+
+    t := std.thread.spawn_arg(worker, cnt)
+    std.thread.join(t)
+
+    @pl(std.thread.atomic_load(cnt))   # 1
+}
+```
+
+Always call `join` or `detach` — both free the thread handle. Joining a
+detached thread (or vice versa) is a bug at the C++ level.
+
+### Mutex
+
+```rust
+mtx := std.thread.mutex_new()
+defer std.thread.mutex_free(mtx)
+
+std.thread.mutex_lock(mtx)
+# ... critical section
+std.thread.mutex_unlock(mtx)
+```
+
+### Atomic i32
+
+```rust
+cnt := std.thread.atomic_new(0)
+defer std.thread.atomic_free(cnt)
+
+std.thread.atomic_store(cnt, 5)
+val := std.thread.atomic_load(cnt)        # -> i32
+old := std.thread.atomic_add(cnt, 1)      # fetch-add; returns value before add
+won := std.thread.atomic_cas(cnt, 5, 10)  # compare-and-swap; -> bool
+```
+
+### Utility
+
+```rust
+std.thread.yield()          # hint scheduler to reschedule
+id    := std.thread.id()    # -> i64, hashed id of calling thread
+cores := std.thread.cores() # -> i32, hardware_concurrency
+```
+
+---
+
+## Malkur v0.2 — Gamedev Library
+
+`@std.malkur` is the built-in gamedev library. See [`Malkur.md`](Malkur.md)
+for the complete API. Summary of what's in v0.2:
+
+### Camera 2D
+
+```rust
+cam := mk.camera2d(
+    Vec2{.x=player.x, .y=player.y},  # target (world point to center on)
+    Vec2{.x=400.0, .y=300.0},         # offset (screen anchor, usually center)
+    1.5,                               # zoom
+)
+
+mk.begin_draw()
+    mk.clear_bg(mk.BLACK)
+    mk.begin_camera2d(cam)
+        # all draws here are in world space; camera transform is applied
+        mk.draw_rect(0.0, 0.0, 100.0, 60.0, mk.GREEN)
+    mk.end_camera2d()
+    # UI draws here — no camera, screen space
+    mk.draw_text("score: 42", 10.0, 10.0, 16.0, mk.WHITE)
+mk.end_draw()
+
+# coordinate conversion
+world_pt  := mk.screen_to_world2d(mk.mouse_pos(), cam)
+screen_pt := mk.world_to_screen2d(player_pos, cam)
+```
+
+### Gamepad
+
+```rust
+if mk.pad_connected(0) {
+    if mk.pad_btn_pressed(0, mk.pad_btn.A) { @pl("jump!") }
+    lx :: mk.pad_axis(0, mk.pad_axis.LEFTX)   # -1.0 to 1.0
+    lt :: mk.pad_axis(0, mk.pad_axis.LT)       # trigger, 0.0 to 1.0
+}
+```
+
+Hotplug is handled inside `mk.should_close()`. Up to 4 pads (slots 0–3).
+
+### New draw functions
+
+```rust
+# rotated rectangle — origin is pivot point relative to rect top-left
+origin := Vec2{.x=50.0, .y=25.0}
+mk.draw_rect_rot(x, y, w, h, origin, rot_degrees, color)
+
+# sub-rect texture blit
+src := mk.rect(0.0, 0.0, 32.0, 32.0)   # source rect in texture
+dst := mk.rect(200.0, 100.0, 64.0, 64.0)   # destination on screen
+mk.draw_texture_rect(tex, src, dst, mk.WHITE)
+
+# text — embedded 8x8 bitmap font; size=8 is 1px/bit, size=16 is 2px/bit
+mk.draw_text("hello", x, y, 16.0, mk.WHITE)
+sz := mk.measure_text("hello", 16.0)   # Vec2{w, h}
+
+# color from packed u32 RRGGBBAA
+coral := mk.hex(0xFF7F50FF)
 ```

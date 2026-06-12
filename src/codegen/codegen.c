@@ -191,6 +191,19 @@ static const char *map_type(const char *name)
     return name; /* pass through unknown types */
 }
 
+static void emit_type(Codegen *cg, AstNode *type_ref);
+
+/* (T1, T2, ...) → std::tuple<T1, T2, ...> */
+static void emit_tuple_type(Codegen *cg, AstNode *type_ref)
+{
+    fputs("std::tuple<", cg->out);
+    for (int i = 0; i < type_ref->type_ref.tuple.count; i++) {
+        if (i > 0) fputs(", ", cg->out);
+        emit_type(cg, type_ref->type_ref.tuple.items[i]);
+    }
+    fputc('>', cg->out);
+}
+
 static void emit_type(Codegen *cg, AstNode *type_ref)
 {
     if (!type_ref) { fputs("void", cg->out); return; }
@@ -209,10 +222,14 @@ static void emit_type(Codegen *cg, AstNode *type_ref)
         strcmp(type_ref->type_ref.name, "istr") == 0)
         is_imu = 1;
 
+    int is_tuple = type_ref->type_ref.tuple.count > 0;
+
     /* !T — emit as _OlrnResult<T> */
     if (is_result) {
         fputs("_OlrnResult<", cg->out);
-        if (is_arr && arr_size > 0)
+        if (is_tuple)
+            emit_tuple_type(cg, type_ref);
+        else if (is_arr && arr_size > 0)
             fprintf(cg->out, "std::array<%s, %d>", base, arr_size);
         else if (is_arr)
             fprintf(cg->out, "std::vector<%s>", base);
@@ -228,7 +245,9 @@ static void emit_type(Codegen *cg, AstNode *type_ref)
 
     if (is_imu) fputs("const ", cg->out);
 
-    if (is_arr && arr_size > 0) {
+    if (is_tuple) {
+        emit_tuple_type(cg, type_ref);
+    } else if (is_arr && arr_size > 0) {
         /* [N]T — fixed-size: std::array<T, N> */
         fprintf(cg->out, "std::array<%s, %d>", base, arr_size);
     } else if (is_arr) {
@@ -557,6 +576,14 @@ static void emit_expr(Codegen *cg, AstNode *node)
             /* Oleren p.* == C++ (*p) */
             fputs("(*", cg->out);
             emit_expr(cg, node->deref.target);
+            fputc(')', cg->out);
+            break;
+        case NODE_TUPLE_LIT:
+            fputs("std::make_tuple(", cg->out);
+            for (int i = 0; i < node->array_lit.elems.count; i++) {
+                if (i > 0) fputs(", ", cg->out);
+                emit_expr(cg, node->array_lit.elems.items[i]);
+            }
             fputc(')', cg->out);
             break;
         case NODE_IF:
@@ -909,6 +936,25 @@ static void emit_stmt(Codegen *cg, AstNode *node)
                 else
                     emit_expr(cg, init);
             }
+            fputs(";\n", cg->out);
+            break;
+        }
+        case NODE_MULTI_BIND: {
+            /* a, b := expr → auto [a, b] = expr; ('_' gets a unique name —
+               structured bindings need one, harmless if unused) */
+            emit_indent(cg);
+            if (node->multi_bind.is_imu) fputs("const ", cg->out);
+            fputs("auto [", cg->out);
+            for (int i = 0; i < node->multi_bind.names.count; i++) {
+                if (i > 0) fputs(", ", cg->out);
+                const char *nm = node->multi_bind.names.items[i]->ident.name;
+                if (strcmp(nm, "_") == 0)
+                    fprintf(cg->out, "_olrn_skip_%d_%d", cg->try_counter++, i);
+                else
+                    fputs(nm, cg->out);
+            }
+            fputs("] = ", cg->out);
+            emit_expr(cg, node->multi_bind.init);
             fputs(";\n", cg->out);
             break;
         }
@@ -1267,6 +1313,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     fputs("#include <vector>\n", cg->out);
     fputs("#include <array>\n", cg->out);
     fputs("#include <memory>\n", cg->out);
+    fputs("#include <tuple>\n", cg->out);
     fputs("#include <type_traits>\n", cg->out);
     fputs("#include <algorithm>\n", cg->out);
     fputs("#include <cmath>\n", cg->out);

@@ -50,6 +50,9 @@ typedef enum {
     NODE_TRY_EXPR,      /* try expr                         */
     NODE_CATCH_EXPR,    /* expr catch fallback|expr catch |e| {} */
     NODE_ERRDEFER,      /* errdefer expr                    */
+    /* tuples / multi-return */
+    NODE_TUPLE_LIT,     /* (a, b, ...) — uses .array_lit    */
+    NODE_MULTI_BIND,    /* a, b := expr  (destructuring)    */
 } NodeKind;
 
 typedef struct AstNode AstNode;
@@ -91,6 +94,7 @@ struct AstNode {
             int   is_imu;    /* immutable elems */
             int   is_result; /* !T error union  */
             char *err_set;   /* ErrSet!T set name; NULL = generic !T */
+            NodeList tuple;  /* (T1, T2, ...) — count > 0 = tuple type */
         } type_ref;
 
         /* NODE_BUILTIN_CALL / NODE_CALL */
@@ -242,6 +246,9 @@ struct AstNode {
 
         /* NODE_ERRDEFER — errdefer expr */
         struct { AstNode *expr; } errdefer_stmt;
+
+        /* NODE_MULTI_BIND — a, b := expr (names are NODE_IDENT) */
+        struct { NodeList names; int is_imu; AstNode *init; } multi_bind;
     };
 };
 

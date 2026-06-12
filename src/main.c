@@ -84,7 +84,7 @@ static char *find_stdlib(void)
 }
 
 static const char *STD_MODULES[] = {
-    "io", "fs", "time", "math", "mem", "str", "log", NULL
+    "io", "fs", "time", "math", "mem", "str", "log", "thread", NULL
 };
 
 /* true if any import binds the malkur module (mk = @std.malkur) */
@@ -320,8 +320,8 @@ static void print_help(void)
     printf("usage:\n");
     printf("  olrn <file.olrn>               emit C++ to stdout\n");
     printf("  olrn emit <file.olrn>          emit C++ to stdout\n");
-    printf("  olrn build-src <file.olrn>     emit C++ to <file>.cpp\n");
-    printf("  olrn build-out <file.cpp>      compile existing C++ to binary\n");
+    printf("  olrn build-src <file.olrn>     emit C++ to olrn_out/<file>.cpp (project) or ./<file>.cpp\n");
+    printf("  olrn build-out <file.cpp>      compile C++ to bin/<name> (project) or ./<name>\n");
     printf("  olrn check <file.olrn>         parse and check for errors\n");
     printf("  olrn sac <file(s)> [-o=name]   compile to native binary\n");
     printf("  olrn build                     build project (main.olrn → binary)\n");
@@ -379,7 +379,7 @@ static int cmd_init(int argc, char **argv)
     if (write_if_missing("olrn_pkg.toml",
         "[project]\n"
         "name = \"%s\"\n"
-        "version = \"0.1.0\"\n"
+        "version = \"0.2.0\"\n"
         "\n"
         "# external dependencies land here once the package manager exists:\n"
         "# [deps]\n", name)) return 1;
@@ -477,7 +477,8 @@ static int cmd_emit(int argc, char **argv)
     return compile_to_out(path, stdout);
 }
 
-/* olrn build-src <file.olrn>  — C++ to <basename>.cpp */
+/* olrn build-src <file.olrn>  — C++ to olrn_out/<basename>.cpp (project)
+   or <basename>.cpp (flat) */
 static int cmd_build_src(int argc, char **argv)
 {
     if (argc < 3) {
@@ -486,14 +487,21 @@ static int cmd_build_src(int argc, char **argv)
     }
     const char *in_path = argv[2];
 
-    /* derive output path: strip directory, replace .olrn with .cpp */
     const char *base = strrchr(in_path, '/');
     base = base ? base + 1 : in_path;
-    char out_path[512];
-    snprintf(out_path, sizeof(out_path), "%s", base);
-    char *dot = strrchr(out_path, '.');
+    char stem[256];
+    snprintf(stem, sizeof(stem), "%s", base);
+    char *dot = strrchr(stem, '.');
     if (dot) strcpy(dot, ".cpp");
-    else strcat(out_path, ".cpp");
+    else strcat(stem, ".cpp");
+
+    char out_path[512];
+    if (access(PROJECT_MAIN, F_OK) == 0) {
+        olrn_mkdir("olrn_out");
+        snprintf(out_path, sizeof(out_path), "olrn_out/%s", stem);
+    } else {
+        snprintf(out_path, sizeof(out_path), "%s", stem);
+    }
 
     FILE *f = fopen(out_path, "w");
     if (!f) { perror(out_path); return 1; }
@@ -504,7 +512,8 @@ static int cmd_build_src(int argc, char **argv)
     return 0;
 }
 
-/* olrn build-out <file.cpp> [-o=name]  — compile existing C++ to binary */
+/* olrn build-out <file.cpp> [-o=name]  — compile existing C++ to binary.
+   In a project, defaults to bin/<stem>; flat mode defaults to ./<stem>. */
 static int cmd_build_out(int argc, char **argv)
 {
     if (argc < 3) {
@@ -527,13 +536,20 @@ static int cmd_build_out(int argc, char **argv)
         return 1;
     }
 
-    char derived[256];
+    char derived[512];
     if (!output) {
         const char *base = strrchr(cpp_path, '/');
         base = base ? base + 1 : cpp_path;
-        snprintf(derived, sizeof(derived), "%s", base);
-        char *dot = strrchr(derived, '.');
+        char stem[256];
+        snprintf(stem, sizeof(stem), "%s", base);
+        char *dot = strrchr(stem, '.');
         if (dot) *dot = '\0';
+        if (access(PROJECT_MAIN, F_OK) == 0) {
+            olrn_mkdir("bin");
+            snprintf(derived, sizeof(derived), "bin/%s", stem);
+        } else {
+            snprintf(derived, sizeof(derived), "%s", stem);
+        }
         output = derived;
     }
 

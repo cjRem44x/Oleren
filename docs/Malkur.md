@@ -19,16 +19,19 @@ stops with install instructions for your OS — `olrn deps` checks up front.
 )
 ```
 
-## Status (v0.1)
+## Status (v0.2)
 
 The API is flat — every call goes through the alias (`mk.draw_rect(...)`),
 Raylib-style; window/renderer/input state lives in the backend.
 
-**Implemented (SDL2 backend):** window & core loop, keyboard, mouse,
-2D shapes, textures (BMP only), colors, Vec2 math, 2D collision.
+**Implemented (SDL2 backend):** window & core loop, keyboard, mouse, gamepad
+(up to 4 controllers), 2D shapes, `draw_rect_rot`, textures (BMP + src/dst
+subrect), camera 2D (world↔screen transforms, all draw calls go through it),
+embedded 8×8 bitmap font (`draw_text`/`measure_text`), colors (including
+`hex()`), Vec2 math, 2D collision.
 
-**Planned:** gamepad, fonts/text, cameras, 3D, images/render textures,
-models, shaders, audio, Vec3/Mat4 math, 3D collision, PNG/JPG via SDL_image.
+**Planned:** audio, 3D, images/render textures, models, shaders, Vec3/Mat4
+math, 3D collision, PNG/JPG via SDL_image, TTF fonts via SDL_ttf.
 Sections below marked *Planned* are design spec, not yet implemented.
 
 ---
@@ -87,7 +90,7 @@ struct Color { r: u8, g: u8, b: u8, a: u8 }
 
 # construct
 mk.rgba(r: i32, g: i32, b: i32, a: i32) -> Color
-mk.hex(val: u32) -> Color                       # 0xRRGGBBAA (planned)
+mk.hex(val: u32) -> Color                       # 0xRRGGBBAA packed u32
 
 # modify
 mk.color_fade(c: Color, alpha: f32) -> Color    # alpha 0.0 - 1.0
@@ -155,18 +158,26 @@ mk.mouse_show()
 
 ### Gamepad
 
-> **Planned** — not yet implemented.
+Supports up to 4 SDL GameController-compatible pads (XInput, PS, etc.).
+Hotplug is handled automatically inside `mk.should_close()`.
 
 ```rust
 mk.pad_connected(id: i32)           -> bool
-mk.pad_btn(id: i32, btn: PadBtn)    -> bool
-mk.pad_btn_pressed(id, btn)         -> bool
-mk.pad_axis(id: i32, axis: PadAxis) -> f32   # -1.0 to 1.0
+mk.pad_btn(id: i32, btn: i32)       -> bool   # held
+mk.pad_btn_pressed(id: i32, btn: i32) -> bool  # first frame
+mk.pad_axis(id: i32, axis: i32)     -> f32    # -1.0 to 1.0
 
-# mk.pad_btn.CROSS  .CIRCLE  .SQUARE  .TRIANGLE
-# mk.pad_btn.L1  .R1  .L2  .R2
-# mk.pad_btn.DPAD_UP  .DPAD_DOWN  .DPAD_LEFT  .DPAD_RIGHT
-# mk.pad_axis.LX  .LY  .RX  .RY
+# Button constants (mk.pad_btn.NAME)
+mk.pad_btn.A  .B  .X  .Y
+mk.pad_btn.BACK  .GUIDE  .START
+mk.pad_btn.LS  .RS              # thumbstick click
+mk.pad_btn.LB  .RB              # shoulder buttons
+mk.pad_btn.UP  .DOWN  .LEFT  .RIGHT   # d-pad
+
+# Axis constants (mk.pad_axis.NAME)
+mk.pad_axis.LEFTX  .LEFTY
+mk.pad_axis.RIGHTX  .RIGHTY
+mk.pad_axis.LT  .RT             # triggers, 0.0 - 1.0
 ```
 
 ---
@@ -179,31 +190,29 @@ All 2D draw calls must be inside `mk.begin_draw()` / `mk.end_draw()`.
 # Shapes
 mk.draw_rect(x: f32, y: f32, w: f32, h: f32, color: Color)
 mk.draw_rect_lines(x, y, w, h: f32, thick: f32, color: Color)
+mk.draw_rect_rot(x, y, w, h: f32, origin: Vec2, rot: f32, color: Color)   # rotated rect
 mk.draw_circle(cx: f32, cy: f32, r: f32, color: Color)
 mk.draw_circle_lines(cx, cy, r: f32, color: Color)
 mk.draw_line(x1, y1, x2, y2: f32, thick: f32, color: Color)
 mk.draw_triangle(v1, v2, v3: Vec2, color: Color)
 mk.draw_poly(center: Vec2, sides: i32, r: f32, rot: f32, color: Color)
 
-# planned
-mk.draw_rect_rot(x, y, w, h: f32, origin: Vec2, rot: f32, color: Color)
-
-# Text (planned — needs font support)
+# Text (embedded 8x8 bitmap font; no external dep)
 mk.draw_text(text: str, x: f32, y: f32, size: f32, color: Color)
-mk.draw_text_ex(font: Font, text: str, pos: Vec2, size: f32, spacing: f32, color: Color)
-mk.measure_text(text: str, size: f32) -> Vec2
+mk.measure_text(text: str, size: f32) -> Vec2   # returns Vec2{w, h}
 
 # Textures / Sprites
 mk.draw_texture(tex: Texture, x: f32, y: f32, tint: Color)
 mk.draw_texture_ex(tex: Texture, pos: Vec2, rot: f32, scale: f32, tint: Color)
-mk.draw_texture_rect(...)   # planned
+mk.draw_texture_rect(tex: Texture, src: Rect, dst: Rect, tint: Color)  # sub-rect blit
 ```
 
 ---
 
 ## Camera 2D
 
-> **Planned** — not yet implemented.
+All draw calls between `begin_camera2d` / `end_camera2d` are transformed
+through the camera (pan, zoom). The camera is reset to identity by `end_camera2d`.
 
 ```rust
 struct Camera2D {
@@ -213,6 +222,7 @@ struct Camera2D {
     zoom:     f32,
 }
 
+mk.camera2d(target: Vec2, offset: Vec2, zoom: f32) -> Camera2D   # helper ctor
 mk.begin_camera2d(cam: Camera2D)
 mk.end_camera2d()
 
@@ -313,16 +323,20 @@ mk.end_render_tex()
 
 ## Fonts & Text
 
-> **Planned** — not yet implemented.
+An embedded 8×8 pixel-bitmap font (95 printable ASCII characters, no external
+dep) is available via `draw_text`. TTF/OTF fonts via SDL_ttf are planned.
 
 ```rust
+# Embedded 8x8 font — implemented
+mk.draw_text(text: str, x: f32, y: f32, size: f32, color: Color)
+   # size=8 → 1px per bit; size=16 → 2×2 per bit; etc.
+mk.measure_text(text: str, size: f32) -> Vec2   # Vec2{len*size, size}
+
+# TTF font support — planned (SDL_ttf)
 mk.load_font(path: str) -> !Font
 mk.load_font_ex(path: str, size: i32, chars: []i32) -> !Font
 mk.unload_font(font: Font)
-
-mk.draw_text(text: str, x: f32, y: f32, size: f32, color: Color)
 mk.draw_text_ex(font: Font, text: str, pos: Vec2, size: f32, spacing: f32, color: Color)
-mk.measure_text(text: str, size: f32)    -> Vec2
 mk.measure_text_ex(font: Font, text: str, size: f32, spacing: f32) -> Vec2
 ```
 

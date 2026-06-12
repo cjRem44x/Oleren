@@ -355,3 +355,103 @@ fn malkur_rect_intersect(a: Rect, b: Rect) -> Rect
     if x2 <= x1 or y2 <= y1 { ret Rect{.x=0.0, .y=0.0, .w=0.0, .h=0.0} }
     ret Rect{.x=x1, .y=y1, .w=x2-x1, .h=y2-y1}
 }
+
+# ── gamepad ─────────────────────────────────────────────────────
+
+# SDL GameController button indices
+enum pad_btn => i32 {
+    A=0, B=1, X=2, Y=3,
+    BACK=4, GUIDE=5, START=6,
+    LS=7, RS=8,
+    LB=9, RB=10,
+    UP=11, DOWN=12, LEFT=13, RIGHT=14,
+}
+
+# SDL GameController axis indices
+enum pad_axis => i32 {
+    LEFTX=0, LEFTY=1,
+    RIGHTX=2, RIGHTY=3,
+    LT=4, RT=5,
+}
+
+fn malkur_pad_connected(id: i32) -> bool
+{
+    ret _olrn_mk_pad_connected(id)
+}
+
+fn malkur_pad_btn(id: i32, btn: i32) -> bool
+{
+    ret _olrn_mk_pad_btn(id, btn)
+}
+
+fn malkur_pad_btn_pressed(id: i32, btn: i32) -> bool
+{
+    ret _olrn_mk_pad_btn_pressed(id, btn)
+}
+
+fn malkur_pad_axis(id: i32, axis: i32) -> f32
+{
+    ret _olrn_mk_pad_axis(id, axis)
+}
+
+# ── camera 2D ───────────────────────────────────────────────────
+
+fn malkur_camera2d(target: Vec2, offset: Vec2, zoom: f32) -> Camera2D
+{
+    ret Camera2D{.target=target, .offset=offset, .rotation=0.0, .zoom=zoom}
+}
+
+fn malkur_begin_camera2d(cam: Camera2D)
+{
+    _olrn_mk_begin_camera2d(cam)
+}
+
+fn malkur_end_camera2d()
+{
+    _olrn_mk_end_camera2d()
+}
+
+fn malkur_screen_to_world2d(pos: Vec2, cam: Camera2D) -> Vec2
+{
+    ret _olrn_mk_screen_to_world2d(pos, cam)
+}
+
+fn malkur_world_to_screen2d(pos: Vec2, cam: Camera2D) -> Vec2
+{
+    ret _olrn_mk_world_to_screen2d(pos, cam)
+}
+
+# ── extended draw ────────────────────────────────────────────────
+
+fn malkur_draw_rect_rot(x: f32, y: f32, w: f32, h: f32, origin: Vec2, rot: f32, c: Color)
+{
+    _olrn_mk_draw_rect_rot(x, y, w, h, origin, rot, c)
+}
+
+fn malkur_draw_texture_rect(t: Texture, src: Rect, dst: Rect, tint: Color)
+{
+    _olrn_mk_draw_texture_rect(t, src, dst, tint)
+}
+
+# ── text ─────────────────────────────────────────────────────────
+
+fn malkur_draw_text(text: str, x: f32, y: f32, size: f32, c: Color)
+{
+    _olrn_mk_draw_text(text, x, y, size, c)
+}
+
+fn malkur_measure_text(text: str, size: f32) -> Vec2
+{
+    ret _olrn_mk_measure_text(text, size)
+}
+
+# ── color from packed u32 (RRGGBBAA) ────────────────────────────
+
+fn malkur_hex(val: u32) -> Color
+{
+    r :: @u8((val >> 24) & 255)
+    g :: @u8((val >> 16) & 255)
+    b :: @u8((val >> 8) & 255)
+    a :: @u8(val & 255)
+    ret Color{.r=r, .g=g, .b=b, .a=a}
+}

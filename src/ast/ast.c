@@ -88,6 +88,14 @@ void ast_free(AstNode *node)
         case NODE_TYPE_REF:
             free(node->type_ref.name);
             free(node->type_ref.err_set);
+            node_list_free(&node->type_ref.tuple);
+            break;
+        case NODE_TUPLE_LIT:
+            node_list_free(&node->array_lit.elems);
+            break;
+        case NODE_MULTI_BIND:
+            node_list_free(&node->multi_bind.names);
+            ast_free(node->multi_bind.init);
             break;
         case NODE_BUILTIN_CALL:
         case NODE_CALL:

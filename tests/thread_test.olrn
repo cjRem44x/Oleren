@@ -1,0 +1,61 @@
+@import (
+    std = @std,
+)
+
+fn counter_worker(cnt: i64)
+{
+    std.thread.atomic_add(cnt, 1)
+}
+
+fn mutex_worker(mtx: i64)
+{
+    std.thread.mutex_lock(mtx)
+    std.thread.mutex_unlock(mtx)
+}
+
+fn main() -> void
+{
+    # ── atomic counter across 8 threads ─────────────────────────
+    cnt := std.thread.atomic_new(0)
+    defer std.thread.atomic_free(cnt)
+
+    threads :[8]i64 = undef
+    i :i32 = 0
+    while i < 8 {
+        threads[i] = std.thread.spawn_arg(counter_worker, cnt)
+        i = i + 1
+    }
+
+    i = 0
+    while i < 8 {
+        std.thread.join(threads[i])
+        i = i + 1
+    }
+
+    val := std.thread.atomic_load(cnt)
+    @assert(val == 8, "counter should be 8 after 8 threads")
+
+    # ── mutex: lock before spawning so worker blocks, then unlock ─
+    mtx := std.thread.mutex_new()
+    defer std.thread.mutex_free(mtx)
+
+    std.thread.mutex_lock(mtx)
+    t := std.thread.spawn_arg(mutex_worker, mtx)
+    std.thread.mutex_unlock(mtx)
+    std.thread.join(t)
+
+    # ── cas: only one swap wins ──────────────────────────────────
+    flag := std.thread.atomic_new(0)
+    defer std.thread.atomic_free(flag)
+
+    won  := std.thread.atomic_cas(flag, 0, 1)
+    lost := std.thread.atomic_cas(flag, 0, 1)
+    @assert(won == true, "first cas should succeed")
+    @assert(lost == false, "second cas should fail")
+
+    # ── hardware_concurrency is at least 1 ──────────────────────
+    cores := std.thread.cores()
+    @assert(cores >= 1, "cores must be >= 1")
+
+    @pl("thread test ok")
+}
