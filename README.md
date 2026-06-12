@@ -271,4 +271,5 @@ system deps for src/main/olrn/main.olrn
 - [`docs/Notes.md`](docs/Notes.md) — full language reference
 - [`docs/StdLib.md`](docs/StdLib.md) — standard library (`std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`, `std.thread`)
 - [`docs/Malkur.md`](docs/Malkur.md) — Malkur gamedev library (`@std.malkur`)
+- [`docs/Pelentar.md`](docs/Pelentar.md) — Pelentar cryptography library (`@std.pelentar`) *(spec — not yet implemented)*
 - [`docs/Roadmap.md`](docs/Roadmap.md) — design roadmap and implementation status
