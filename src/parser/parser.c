@@ -100,8 +100,8 @@ static AstNode *parse_type(Parser *p)
         n->type_ref.is_arr = 1;
     }
     if (match(p, TOK_IMU))        n->type_ref.is_imu   = 1;
-    if (match(p, TOK_STAR))       n->type_ref.is_ptr   = 1;
-    else if (match(p, TOK_CARET)) n->type_ref.is_smart = 1;
+    while (match(p, TOK_STAR))    n->type_ref.is_ptr++;
+    if (!n->type_ref.is_ptr && match(p, TOK_CARET)) n->type_ref.is_smart = 1;
 
     if (check(p, TOK_LPAREN)) {
         /* tuple type: (T1, T2, ...) */

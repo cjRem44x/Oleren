@@ -250,7 +250,7 @@ static void emit_type(Codegen *cg, AstNode *type_ref)
             fprintf(cg->out, "std::shared_ptr<%s>", base);
         else {
             fputs(base, cg->out);
-            if (is_ptr) fputs(" *", cg->out);
+            for (int i = 0; i < is_ptr; i++) fputs(" *", cg->out);
         }
         fputc('>', cg->out);
         return;
@@ -270,7 +270,7 @@ static void emit_type(Codegen *cg, AstNode *type_ref)
         fprintf(cg->out, "std::shared_ptr<%s>", base);
     } else {
         fputs(base, cg->out);
-        if (is_ptr) fputs(" *", cg->out);
+        for (int i = 0; i < is_ptr; i++) fputs(" *", cg->out);
     }
 }
 
