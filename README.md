@@ -271,7 +271,8 @@ system deps for src/main/olrn/main.olrn
 - [`docs/Notes.md`](docs/Notes.md) — full language reference
 - [`docs/StdLib.md`](docs/StdLib.md) — standard library (`std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`, `std.thread`)
 - [`docs/Malkur.md`](docs/Malkur.md) — Malkur gamedev library (`@std.malkur`)
-- [`docs/StdLibExt.md`](docs/StdLibExt.md) — Extended stdlib: `std.env`, `std.path`, `std.json`, `std.net`, `std.http`, `std.compress`, `std.regex` *(spec — not yet implemented)*
+- [`docs/StdLibExt.md`](docs/StdLibExt.md) — Extended stdlib Tier 1: `std.env`, `std.path`, `std.json`, `std.net`, `std.http`, `std.compress`, `std.regex` *(spec — not yet implemented)*
+- [`docs/StdLibTier23.md`](docs/StdLibTier23.md) — Extended stdlib Tier 2 & 3: `std.proc`, `std.bytes`, `std.date`, `std.uuid`, `std.toml`, `std.ws`, `std.csv`, `std.xml`, `std.test`, `std.rand` *(spec — not yet implemented)*
 - [`docs/Pelentar.md`](docs/Pelentar.md) — Pelentar cryptography library (`@std.pelentar`) *(spec — not yet implemented)*
 - [`docs/Glourang.md`](docs/Glourang.md) — Glourang native UI library (`@std.glourang`, Qt6 backend) *(spec — not yet implemented)*
 - [`docs/Roadmap.md`](docs/Roadmap.md) — design roadmap and implementation status

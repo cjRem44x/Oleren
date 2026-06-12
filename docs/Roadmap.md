@@ -359,7 +359,7 @@ All planned v0.1.0 features are implemented and passing the test suite.
 - [ ] `olrn_pkg.toml` — deferred; only needed for *outside* resources
   (vendored C/C++ deps, link flags). Builtin libs don't need it.
 - [ ] TTF fonts via SDL_ttf — `draw_text_ex`, `load_font`, `measure_text_ex`
-- [ ] **Extended stdlib** — `std.env`, `std.path`, `std.json`, `std.net`, `std.http`, `std.compress`, `std.regex`; all specced in `docs/StdLibExt.md`
+- [ ] **Extended stdlib** — Tier 1: `std.env`, `std.path`, `std.json`, `std.net`, `std.http`, `std.compress`, `std.regex` specced in `docs/StdLibExt.md`; Tier 2: `std.proc`, `std.bytes`, `std.date`, `std.uuid`, `std.toml`, `std.ws`; Tier 3: `std.csv`, `std.xml`, `std.test`, `std.rand` — all in `docs/StdLibTier23.md`
 - [ ] **Glourang** (`@std.glourang`) — native UI library (Qt6 backend); designed, not yet implemented.
   See `docs/Glourang.md` for full API spec. Flat procedural API: windows, layouts, widgets, media
   (jpg/png/gif/webp/svg images, video, audio), menus, dialogs, canvas, system tray, timers, styling.
