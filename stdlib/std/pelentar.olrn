@@ -22,9 +22,11 @@ fn pelentar_hashpk(s: i32, plain: str) -> PelentrError!str
     ret _olrn_pe_get_result()
 }
 
-fn pelentar_auth_hashpk(plain: str, hashed: str) -> bool
+fn pelentar_auth_hashpk(s: i32, plain: str, hashed: str) -> PelentrError!bool
 {
-    ret _olrn_pe_auth_hashpk(plain, hashed)
+    r :i32: _olrn_pe_auth_hashpk(s, plain, hashed)
+    if r < 0 { ret PelentrError.InitFailed }
+    ret r > 0
 }
 
 # ── Hashing ────────────────────────────────────────────────────

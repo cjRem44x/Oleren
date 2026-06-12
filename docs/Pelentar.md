@@ -27,7 +27,7 @@ is not installed the build stops with OS-specific install instructions.
 
 ## Status
 
-> **Planned** — not yet implemented. This document is the API spec.
+> **Implemented** — libsodium backend, available in v0.3.0+.
 
 ---
 
@@ -60,9 +60,11 @@ Controls both key derivation cost (same Argon2id table) **and** the cipher:
 
 | Level | Cipher | Key | Notes |
 |---|---|---|---|
-| `FAST` | AES-128-GCM | 128-bit | Hardware-accelerated (AES-NI); fastest on modern CPUs |
-| `DEFAULT` | AES-256-GCM | 256-bit | Hardware-accelerated; recommended for most files |
+| `FAST` | AES-256-GCM¹ | 256-bit | Hardware-accelerated (AES-NI); fastest on modern CPUs |
+| `DEFAULT` | AES-256-GCM¹ | 256-bit | Hardware-accelerated; recommended for most files |
 | `STRONG` | XChaCha20-Poly1305 | 256-bit | Pure software; immune to AES timing side-channels; 192-bit nonce |
+
+¹ Falls back to XChaCha20-Poly1305 on hardware without AES-NI (`crypto_aead_aes256gcm_is_available() == 0`). The cipher used is recorded in the file header — decryption always uses the correct cipher regardless of hardware.
 
 `STRONG` is not "more encrypted than DEFAULT" in the classical sense — both are
 unbreakable in practice. The difference is threat model: `STRONG` removes any
@@ -83,7 +85,7 @@ fn crypt.hashpk(stren: stren, plain: str) -> !str
 
 # Verify a plaintext password against a stored hash from hashpk().
 # Returns true if the password matches. Timing-safe comparison.
-fn crypt.auth_hashpk(stren: stren, plain: str, hashed: str) -> !bool
+fn crypt.auth_hashpk(s: i32, plain: str, hashed: str) -> !bool
 ```
 
 **Example:**
@@ -93,12 +95,12 @@ fn crypt.auth_hashpk(stren: stren, plain: str, hashed: str) -> !bool
 
 fn register(password: str) -> !str
 {
-    ret try crypt.hashpk(crypt.stren.DEFAULT, password)
+    ret try crypt.hashpk(crypt.DEFAULT, password)
 }
 
 fn login(password: str, stored_hash: str) -> !bool
 {
-    ret try crypt.auth_hashpk(crypt.stren.DEFAULT, password, stored_hash)
+    ret try crypt.auth_hashpk(crypt.DEFAULT, password, stored_hash)
 }
 ```
 
@@ -128,13 +130,13 @@ fn crypt.dec_file(stren: stren, path: str, pk: str) -> !void
 
 fn backup(path: str, passphrase: str) -> !void
 {
-    try crypt.enc_file(crypt.stren.STRONG, path, passphrase)
+    try crypt.enc_file(crypt.STRONG, path, passphrase)
     # path still has the same name; contents are now ciphertext
 }
 
 fn restore(path: str, passphrase: str) -> !void
 {
-    try crypt.dec_file(crypt.stren.STRONG, path, passphrase)
+    try crypt.dec_file(crypt.STRONG, path, passphrase)
     # path still has the same name; contents are plaintext again
 }
 ```
@@ -145,9 +147,9 @@ fn restore(path: str, passphrase: str) -> !void
 [4 bytes  magic:   "PLNT"]
 [1 byte   version: 0x01]
 [1 byte   stren:   0=FAST 1=DEFAULT 2=STRONG]
-[1 byte   cipher:  0=AES-128-GCM  1=AES-256-GCM  2=XChaCha20-Poly1305]
+[1 byte   cipher:  1=AES-256-GCM  2=XChaCha20-Poly1305]
 [32 bytes Argon2id salt]
-[12 bytes nonce (AES-GCM) OR 24 bytes nonce (XChaCha20)]
+[12 bytes nonce (AES-256-GCM) OR 24 bytes nonce (XChaCha20)]
 [N bytes  ciphertext + 16 bytes authentication tag]
 ```
 
@@ -184,9 +186,9 @@ fn crypt.hmac(algo: hash_algo, key: str, data: str) -> str
 **Example:**
 
 ```rust
-digest  :: crypt.hash(crypt.hash_algo.BLAKE2B, "hello world")
-mac     :: crypt.hmac(crypt.hash_algo.SHA256, secret_key, payload)
-chk_sum := try crypt.hash_file(crypt.hash_algo.SHA256, "archive.tar")
+digest  :: crypt.hash(crypt.BLAKE2B, "hello world")
+mac     :: crypt.hmac(crypt.SHA256, secret_key, payload)
+chk_sum := try crypt.hash_file(crypt.SHA256, "archive.tar")
 ```
 
 ---
@@ -379,8 +381,8 @@ brew install libsodium
 fn main() -> !void
 {
     # --- password hashing ---
-    hash := try crypt.hashpk(crypt.stren.DEFAULT, "hunter2")
-    ok   := try crypt.auth_hashpk(crypt.stren.DEFAULT, "hunter2", hash)
+    hash := try crypt.hashpk(crypt.DEFAULT, "hunter2")
+    ok   := try crypt.auth_hashpk(crypt.DEFAULT, "hunter2", hash)
     @pl("password ok: " + ok)
 
     # --- symmetric encrypt/decrypt ---
@@ -390,10 +392,10 @@ fn main() -> !void
     @pl("roundtrip: " + pt)
 
     # --- file encrypt ---
-    try crypt.enc_file(crypt.stren.STRONG, "report.pdf", "my passphrase")
+    try crypt.enc_file(crypt.STRONG, "report.pdf", "my passphrase")
     # report.pdf contents are now ciphertext; filename unchanged
 
-    try crypt.dec_file(crypt.stren.STRONG, "report.pdf", "my passphrase")
+    try crypt.dec_file(crypt.STRONG, "report.pdf", "my passphrase")
     # report.pdf contents are plaintext again
 
     # --- signing ---
@@ -402,7 +404,7 @@ fn main() -> !void
     @pl("valid: " + crypt.verify(kp.verify_key, "hello", sig))
 
     # --- hash a file ---
-    digest := try crypt.hash_file(crypt.hash_algo.BLAKE2B, "report.pdf")
+    digest := try crypt.hash_file(crypt.BLAKE2B, "report.pdf")
     @pf("blake2b: {digest}\n")
 }
 ```

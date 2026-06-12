@@ -350,10 +350,11 @@ All planned v0.1.0 features are implemented and passing the test suite.
 - [x] Multi-return / tuple values — `fn f() -> (T1, T2)`, `a, b := f()`, `_` discard; `when` as expression bug fixed
 - [x] Malkur audio — `init_audio`, `play_sound`, `play_music`, `stop_music`, volume/pause/resume (SDL_mixer)
 - [x] PNG/JPG textures — `load_texture` now uses `IMG_Load` (SDL_image), supports BMP/PNG/JPG
-- [ ] **Pelentar** (`@std.pelentar`) — cryptography library (libsodium backend); designed, not yet implemented.
-  See `docs/Pelentar.md` for full API spec. Easy API: `hashpk`, `auth_hashpk`, `enc_file`, `dec_file` with
-  `stren` enum (FAST/DEFAULT/STRONG → Argon2id params). Low-level: hashing (SHA256/512/BLAKE2b),
-  symmetric AEAD (XChaCha20-Poly1305), public-key box (X25519), Ed25519 signing, KDF, CSPRNG, base64/hex.
+- [x] **Pelentar** (`@std.pelentar`) — cryptography library (libsodium backend); fully implemented.
+  Easy API: `hashpk`, `auth_hashpk`, `enc_file`, `dec_file` with FAST/DEFAULT/STRONG constants.
+  Low-level: hashing (SHA256/512/BLAKE2b), symmetric AEAD (XChaCha20-Poly1305), public-key box (X25519),
+  Ed25519 signing, KDF (Argon2id), CSPRNG, base64/hex. File encryption uses AES-256-GCM (FAST/DEFAULT,
+  with XChaCha20 fallback on non-AES-NI hardware) and XChaCha20-Poly1305 (STRONG).
 - [ ] Windows/macOS validation — dep layer and compiler are written portably
   (MinGW shims in place) but only Linux is exercised; needs CI + testing
 - [ ] `olrn_pkg.toml` — deferred; only needed for *outside* resources
