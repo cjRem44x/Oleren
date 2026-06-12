@@ -1,4 +1,4 @@
-# Oleren `0.2.0`
+# Oleren `0.3.0`
 
 A thin, sugared frontend that compiles to C++ and then to a native binary.
 Designed for fast media applications — games, audio/video pipelines, asset tools.
@@ -58,6 +58,7 @@ fn main() -> !void
 | Functions | `fn name(arg: T) -> R { ret val }` |
 | Mutable var | `x := 42` / `x :i32 = 42` |
 | Immutable var | `x :: 42` / `x :i32: 42` |
+| Multi-return | `fn f() -> (T1, T2)` / `a, b := f()` / `_` to discard |
 | Defer | `defer @free(ptr)` |
 | Error union | `fn foo() -> !T` / `fn foo() -> ErrSet!T` (set enforced) |
 | Propagate error | `val := try expr` |
@@ -131,7 +132,8 @@ fn main() -> !void
 ## Gamedev — Malkur
 
 `@std.malkur` is the built-in gamedev library (Raylib-inspired flat API, SDL2
-backend). `olrn deps` or `olrn build` auto-resolves `-lSDL2`.
+backend). `olrn deps` or `olrn build` auto-resolves SDL2, SDL_image, and
+SDL_mixer — install hints are printed per-OS when one is missing.
 
 ```rust
 @import ( mk = @std.malkur )
@@ -142,6 +144,16 @@ fn main() -> !void
     defer mk.close_window()
     mk.set_fps(60)
 
+    try mk.init_audio()
+    defer mk.close_audio()
+
+    bgm := try mk.load_music("assets/bgm.ogg")
+    defer mk.unload_music(bgm)
+    mk.play_music(bgm, -1)
+
+    tex := try mk.load_texture("assets/player.png")
+    defer mk.unload_texture(tex)
+
     cam := mk.camera2d(Vec2{.x=0.0, .y=0.0}, Vec2{.x=400.0, .y=300.0}, 1.0)
     pos := mk.vec2(0.0, 0.0)
 
@@ -149,25 +161,47 @@ fn main() -> !void
         dt :: mk.dt()
         if mk.key_down(mk.keys.RIGHT) { pos.x += 200.0 * dt }
         if mk.key_down(mk.keys.LEFT)  { pos.x -= 200.0 * dt }
-        if mk.pad_connected(0) and mk.pad_btn_pressed(0, mk.pad_btn.A) {
-            @pl("jump!")
-        }
 
         mk.begin_draw()
             mk.clear_bg(mk.DARKGRAY)
             mk.begin_camera2d(cam)
-                mk.draw_rect(pos.x, pos.y, 40.0, 60.0, mk.GREEN)
+                mk.draw_texture(tex, pos.x, pos.y, mk.WHITE)
             mk.end_camera2d()
-            mk.draw_text("Oleren v0.2", 10.0, 10.0, 16.0, mk.WHITE)
+            mk.draw_text("Oleren v0.3", 10.0, 10.0, 16.0, mk.WHITE)
         mk.end_draw()
     }
 }
 ```
 
-**v0.2 features:** window/loop, keyboard, mouse, gamepad (4 slots, hotplug),
-2D shapes, `draw_rect_rot`, textures (BMP + subrect), camera 2D
-(`begin_camera2d`/`end_camera2d`, world↔screen conversion), embedded 8×8 bitmap
-font (`draw_text`/`measure_text`), colors + `hex()`, Vec2 math, 2D collision.
+**v0.3 features:** window/loop, keyboard, mouse, gamepad (4 slots, hotplug),
+2D shapes, `draw_rect_rot`, textures (BMP + PNG + JPG via SDL_image, subrect),
+camera 2D (`begin_camera2d`/`end_camera2d`, world↔screen), embedded 8×8 bitmap
+font (`draw_text`/`measure_text`), audio sounds + streaming music (SDL_mixer),
+colors + `hex()`, Vec2 math, 2D collision.
+
+---
+
+## Multi-Return
+
+Functions can return multiple values via tuples. Use `_` to discard a slot.
+
+```rust
+fn min_max(a: i32, b: i32) -> (i32, i32)
+{
+    if a < b { ret (a, b) }
+    ret (b, a)
+}
+
+fn main() -> void
+{
+    lo, hi :: min_max(7, 3)
+    @pl(lo)   # 3
+    @pl(hi)   # 7
+
+    _, only_hi :: min_max(1, 9)
+    @pl(only_hi)   # 9
+}
+```
 
 ---
 
@@ -217,16 +251,17 @@ builds to `./<name>`.
 
 ## System Dependencies
 
-Some stdlib modules need system libraries — `@std.malkur` needs SDL2.
-The compiler resolves them per platform at build time (pkg-config first,
-then Linux/macOS/Windows-MinGW fallbacks) and fails with install
-instructions for your OS when one is missing. `olrn deps` reports the
-status up front:
+Some stdlib modules need system libraries. The compiler resolves them per
+platform at build time (pkg-config first, then Linux/macOS/Windows-MinGW
+fallbacks) and fails with per-OS install instructions when one is missing.
+`olrn deps` reports status up front:
 
 ```
 $ olrn deps
 system deps for src/main/olrn/main.olrn
-└─ SDL2 (@std.malkur)  found 2.32.70
+└─ SDL2       (@std.malkur)  found 2.32.70
+└─ SDL2_image (@std.malkur)  found 2.8.4
+└─ SDL2_mixer (@std.malkur)  found 2.8.1
 ```
 
 ---
