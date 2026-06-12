@@ -553,6 +553,11 @@ static void emit_expr(Codegen *cg, AstNode *node)
                 if (node->call.args.count > 0) emit_expr(cg, node->call.args.items[0]);
                 else fputs("\"\"", cg->out);
                 fputc(')', cg->out);
+            } else if (strcmp(bname, "type") == 0 && node->call.args.count == 1) {
+                /* @type(x) in expression context → demangled type name string */
+                fputs("_olrn_type_name(", cg->out);
+                emit_expr(cg, node->call.args.items[0]);
+                fputc(')', cg->out);
             } else {
                 emit_builtin_stmt(cg, node);
             }
@@ -1476,6 +1481,8 @@ void codegen_emit(Codegen *cg, AstNode *program)
     fputs("#include <cstdint>\n", cg->out);
     fputs("#include <cstdlib>\n", cg->out);
     fputs("#include <cstdio>\n", cg->out);
+    fputs("#include <typeinfo>\n", cg->out);
+    fputs("#include <cxxabi.h>\n", cg->out);
     /* RAII guard used by 'defer' — always emitted so defer is zero-cost when unused */
     fputs("template<typename F>\n", cg->out);
     fputs("struct _OlrnDeferGuard {\n", cg->out);

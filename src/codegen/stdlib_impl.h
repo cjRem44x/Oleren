@@ -65,6 +65,10 @@ static const char *BUILTINS_IMPL =
     "template<typename T>\n"
     "static inline _OlrnResult<T> _olrn_cast(const char* s) {\n"
     "    return _olrn_cast<T>(std::string(s)); }\n"
+    "template<typename T>\n"
+    "static inline std::string _olrn_type_name(const T& v) {\n"
+    "    int st; char *d = abi::__cxa_demangle(typeid(v).name(),nullptr,nullptr,&st);\n"
+    "    std::string n = (st==0 && d) ? d : typeid(v).name(); free(d); return n; }\n"
     "/* ── end olrn builtins ──────────────────────────────────────────── */\n";
 
 /* C++ implementations injected when @libs.std is imported.
