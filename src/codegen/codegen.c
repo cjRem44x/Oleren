@@ -335,8 +335,16 @@ static void emit_builtin_stmt(Codegen *cg, AstNode *node)
                         else
                             fputs("/* missing arg */", cg->out);
                     } else {
-                        /* {name} — emit the identifier verbatim */
-                        fwrite(id, 1, (size_t)(e - id), cg->out);
+                        size_t ilen = (size_t)(e - id);
+                        /* {foo.*} — Oleren deref syntax; emit as (*foo) */
+                        if (ilen > 2 && e[-1] == '*' && e[-2] == '.') {
+                            fputs("(*", cg->out);
+                            fwrite(id, 1, ilen - 2, cg->out);
+                            fputc(')', cg->out);
+                        } else {
+                            /* {name} or {ptr->field} — emit verbatim (valid C++) */
+                            fwrite(id, 1, ilen, cg->out);
+                        }
                     }
                     p   = e + 1;
                     seg = p;
