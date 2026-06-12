@@ -168,6 +168,7 @@ static void emit_block_as_return(Codegen *cg, AstNode *block);
 static void emit_if_chain(Codegen *cg, AstNode *node, int continuation);
 static void emit_if_expr(Codegen *cg, AstNode *node);
 static void emit_when_chain(Codegen *cg, AstNode *node);
+static void emit_when_expr(Codegen *cg, AstNode *node);
 
 /* map an Oleren type name to its C++ equivalent */
 static const char *map_type(const char *name)
@@ -589,6 +590,9 @@ static void emit_expr(Codegen *cg, AstNode *node)
         case NODE_IF:
             emit_if_expr(cg, node);
             break;
+        case NODE_WHEN:
+            emit_when_expr(cg, node);
+            break;
         case NODE_ARRAY_LIT:
             fputc('{', cg->out);
             for (int i = 0; i < node->array_lit.elems.count; i++) {
@@ -785,6 +789,71 @@ static void emit_if_expr(Codegen *cg, AstNode *node)
     } else {
         fputc('\n', cg->out);
     }
+    cg->indent--;
+    emit_indent(cg);
+    fputs("}()", cg->out);
+}
+
+/* emit when as a C++ immediately-invoked lambda (expression context) */
+static void emit_when_expr(Codegen *cg, AstNode *node)
+{
+    fputs("[&]() {\n", cg->out);
+    cg->indent++;
+
+    AstNode *subj = node->when_expr.subject;
+    int type_dispatch = 0;
+    const char *type_cpp = NULL;
+    static char _twbuf[64];
+
+    if (subj->kind == NODE_IDENT && is_type_var(cg, subj->ident.name)) {
+        type_dispatch = 1;
+        type_cpp = subj->ident.name;
+    } else if (subj->kind == NODE_BUILTIN_CALL &&
+               strcmp(subj->call.name, "type") == 0 &&
+               subj->call.args.count == 1 &&
+               subj->call.args.items[0]->kind == NODE_IDENT) {
+        type_dispatch = 1;
+        snprintf(_twbuf, sizeof(_twbuf), "T_%s",
+                 subj->call.args.items[0]->ident.name);
+        type_cpp = _twbuf;
+    }
+
+    int first = 1;
+    for (int i = 0; i < node->when_expr.arms.count; i++) {
+        AstNode *arm = node->when_expr.arms.items[i];
+        if (arm->when_arm.pattern == NULL) {
+            fputs(" else {\n", cg->out);
+        } else {
+            if (first) { emit_indent(cg); first = 0; }
+            else        fputs(" else ", cg->out);
+            if (type_dispatch) {
+                const char *pn = arm->when_arm.pattern->kind == NODE_IDENT
+                    ? arm->when_arm.pattern->ident.name : "?";
+                fprintf(cg->out, "if constexpr (std::is_same_v<%s, %s>) {\n",
+                        type_cpp, map_type(pn));
+            } else {
+                fputs("if (", cg->out);
+                emit_expr(cg, subj);
+                fputs(" == ", cg->out);
+                emit_expr(cg, arm->when_arm.pattern);
+                fputs(") {\n", cg->out);
+            }
+        }
+        cg->indent++;
+        AstNode *body = arm->when_arm.body;
+        if (body->kind == NODE_BLOCK) {
+            emit_block_as_return(cg, body);
+        } else {
+            emit_indent(cg);
+            fputs("return ", cg->out);
+            emit_expr(cg, body);
+            fputs(";\n", cg->out);
+        }
+        cg->indent--;
+        emit_indent(cg);
+        fputc('}', cg->out);
+    }
+    fputc('\n', cg->out);
     cg->indent--;
     emit_indent(cg);
     fputs("}()", cg->out);

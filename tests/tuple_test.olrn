@@ -1,0 +1,48 @@
+fn min_max(a: i32, b: i32, c: i32) -> (i32, i32)
+{
+    lo := a
+    hi := a
+    if b < lo { lo = b }
+    if c < lo { lo = c }
+    if b > hi { hi = b }
+    if c > hi { hi = c }
+    ret (lo, hi)
+}
+
+fn divmod(n: i32, d: i32) -> (i32, i32)
+{
+    ret (n / d, n % d)
+}
+
+fn swap(a: i32, b: i32) -> (i32, i32)
+{
+    ret (b, a)
+}
+
+fn main() -> void
+{
+    lo, hi :: min_max(7, 2, 9)
+    @assert(lo == 2, "min should be 2")
+    @assert(hi == 9, "max should be 9")
+    @pl(lo)   # 2
+    @pl(hi)   # 9
+
+    q, r :: divmod(17, 5)
+    @assert(q == 3, "quotient should be 3")
+    @assert(r == 2, "remainder should be 2")
+    @pl(q)    # 3
+    @pl(r)    # 2
+
+    x, y :: swap(10, 20)
+    @assert(x == 20, "x should be 20 after swap")
+    @assert(y == 10, "y should be 10 after swap")
+    @pl(x)    # 20
+    @pl(y)    # 10
+
+    # discard with _
+    _, only_hi :: min_max(3, 1, 8)
+    @assert(only_hi == 8, "hi should be 8")
+    @pl(only_hi)   # 8
+
+    @pl("tuple test ok")
+}

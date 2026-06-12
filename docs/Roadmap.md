@@ -52,13 +52,11 @@ logical: and or        # keywords; compile to && ||
 assign:  = := ::
 ```
 
-**if / when as expressions.**
-Noted in the spec (`y := if W {5} else {6}`) but not fully defined.
-Rules needed:
-- Both branches must produce the same type.
-- `when` arms must all produce the same type, or `_` arm must exist.
-- Result is the value of the taken branch.
+**if / when as expressions — RESOLVED.**
+Both compile to immediately-invoked C++ lambdas. Type is inferred from the
+branch values; C++ enforces consistency.
 ```rust
+msg   := if x > 0 { "pos" } elif x < 0 { "neg" } else { "zero" }
 label := when code {
     200 => "ok",
     404 => "not found",
@@ -91,15 +89,15 @@ type Vec2  = [2]f32
 type Color = u32
 ```
 
-**Multi-return / out-values.**
-No tuple or multi-return defined. Options:
+**Multi-return / out-values — RESOLVED.**
+`(T1, T2, ...)` return type, `(a, b, ...)` tuple literal, `a, b := f()` /
+`a, b :: f()` destructuring, `_` to discard a slot. Compiles to `std::tuple` +
+C++17 structured bindings.
 ```rust
-fn min_max(arr: []f32) -> (f32, f32) { ... }   # tuple return
-x, y := min_max(data)
-
-# OR just use a struct — simpler, no new syntax
+fn min_max(a: i32, b: i32) -> (i32, i32) { ret (a, b) }
+lo, hi :: min_max(3, 7)
+_, hi2 :: min_max(1, 9)   # discard first
 ```
-Recommendation: struct return for now; revisit tuples later.
 
 ---
 
@@ -345,10 +343,11 @@ All planned v0.1.0 features are implemented and passing the test suite.
 - [x] Malkur gamedev library v0.2 — gamepad, camera 2D, rotated/subrect draws, embedded font, hex() via `@std.malkur` (SDL2 backend)
 - [x] Sema pass — `ErrSet!T` enforcement (set membership, variant existence, try propagation), unused-import + alias-shadowing errors
 - [x] System deps — `olrn deps` + build-time resolution via pkg-config with Linux/macOS/Windows-MinGW fallbacks and per-OS install hints (SDL2 for malkur)
+- [x] Multi-return / tuples — `fn f() -> (T1, T2)`, `a, b := f()`, `_ ` discard; `when` as expression (`ret when x { A => val, _ => other }`)
 
 ## Next (v0.3.0 candidates)
 
-- [ ] Multi-return / tuple values — parser + codegen done; sema + tests pending
+- [x] Multi-return / tuple values — `fn f() -> (T1, T2)`, `a, b := f()`, `_` discard; `when` as expression bug fixed (`ret when x { ... }` now works)
 - [ ] Malkur audio — `SDL_mixer` not installed on dev box; `init_audio`, `play_sound`, `play_music` all designed in Malkur.md
 - [ ] PNG/JPG textures — `SDL_image` not installed; `load_texture` is BMP-only today
 - [ ] Windows/macOS validation — dep layer and compiler are written portably
