@@ -18,6 +18,8 @@ const SysDep SYS_DEPS[] = {
       "SDL2/SDL_mixer.h", "-lSDL2_mixer", "-lSDL2_mixer", "-lSDL2_mixer" },
     { "malkur", "SDL2_image", "SDL2_image", "sdl2_image", "sdl2-image",
       "SDL2/SDL_image.h", "-lSDL2_image", "-lSDL2_image", "-lSDL2_image" },
+    { "pelentar", "libsodium", "libsodium", "libsodium", "libsodium",
+      "sodium.h", "-lsodium", "-lsodium", "-lsodium" },
     { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL }
 };
 

@@ -1,0 +1,168 @@
+err PelentrError { InitFailed, BadKey, BadInput, DecryptFailed, HashFailed, IOFailed }
+
+# strength constants (i32, passed to functions accepting stren)
+FAST    :i32: 0
+DEFAULT :i32: 1
+STRONG  :i32: 2
+
+# hash algorithm constants
+SHA256  :i32: 0
+SHA512  :i32: 1
+BLAKE2B :i32: 2
+
+# PeKeyPair     { pub_key: str, sec_key: str }   — defined in C++ backend
+# PeSignKeyPair { verify_key: str, sign_key: str } — defined in C++ backend
+
+# ── Password hashing (Argon2id) ────────────────────────────────
+
+fn pelentar_hashpk(s: i32, plain: str) -> PelentrError!str
+{
+    ok :: _olrn_pe_hashpk(s, plain)
+    if !ok { ret PelentrError.HashFailed }
+    ret _olrn_pe_get_result()
+}
+
+fn pelentar_auth_hashpk(plain: str, hashed: str) -> bool
+{
+    ret _olrn_pe_auth_hashpk(plain, hashed)
+}
+
+# ── Hashing ────────────────────────────────────────────────────
+
+fn pelentar_hash(algo: i32, data: str) -> str
+{
+    ret _olrn_pe_hash(algo, data)
+}
+
+fn pelentar_hash_file(algo: i32, path: str) -> PelentrError!str
+{
+    ok :: _olrn_pe_hash_file(algo, path)
+    if !ok { ret PelentrError.IOFailed }
+    ret _olrn_pe_get_result()
+}
+
+fn pelentar_hmac(algo: i32, key: str, data: str) -> str
+{
+    ret _olrn_pe_hmac(algo, key, data)
+}
+
+# ── Symmetric AEAD (XChaCha20-Poly1305) ───────────────────────
+
+fn pelentar_keygen() -> str
+{
+    ret _olrn_pe_keygen()
+}
+
+fn pelentar_encrypt(key: str, plain: str) -> PelentrError!str
+{
+    ok :: _olrn_pe_encrypt(key, plain)
+    if !ok { ret PelentrError.BadKey }
+    ret _olrn_pe_get_result()
+}
+
+fn pelentar_decrypt(key: str, ct: str) -> PelentrError!str
+{
+    ok :: _olrn_pe_decrypt(key, ct)
+    if !ok { ret PelentrError.DecryptFailed }
+    ret _olrn_pe_get_result()
+}
+
+# ── Asymmetric box (X25519) ────────────────────────────────────
+
+fn pelentar_box_keygen() -> PeKeyPair
+{
+    ret _olrn_pe_box_keygen()
+}
+
+fn pelentar_box_encrypt(our_sk: str, their_pk: str, plain: str) -> PelentrError!str
+{
+    ok :: _olrn_pe_box_encrypt(our_sk, their_pk, plain)
+    if !ok { ret PelentrError.BadKey }
+    ret _olrn_pe_get_result()
+}
+
+fn pelentar_box_decrypt(our_sk: str, their_pk: str, ct: str) -> PelentrError!str
+{
+    ok :: _olrn_pe_box_decrypt(our_sk, their_pk, ct)
+    if !ok { ret PelentrError.DecryptFailed }
+    ret _olrn_pe_get_result()
+}
+
+# ── Signatures (Ed25519) ───────────────────────────────────────
+
+fn pelentar_sign_keygen() -> PeSignKeyPair
+{
+    ret _olrn_pe_sign_keygen()
+}
+
+fn pelentar_sign(sk: str, msg: str) -> str
+{
+    ret _olrn_pe_sign(sk, msg)
+}
+
+fn pelentar_verify(vk: str, msg: str, sig: str) -> bool
+{
+    ret _olrn_pe_verify(vk, msg, sig)
+}
+
+# ── KDF (Argon2id) ─────────────────────────────────────────────
+
+fn pelentar_kdf(s: i32, passphrase: str, salt: str, keylen: i32) -> PelentrError!str
+{
+    ok :: _olrn_pe_kdf(s, passphrase, salt, keylen)
+    if !ok { ret PelentrError.HashFailed }
+    ret _olrn_pe_get_result()
+}
+
+# ── Random ─────────────────────────────────────────────────────
+
+fn pelentar_rand_bytes(n: i32) -> str
+{
+    ret _olrn_pe_rand_bytes(n)
+}
+
+fn pelentar_rand_hex(n: i32) -> str
+{
+    ret _olrn_pe_rand_hex(n)
+}
+
+# ── Encoding utilities ─────────────────────────────────────────
+
+fn pelentar_base64_encode(data: str) -> str
+{
+    ret _olrn_pe_base64_encode(data)
+}
+
+fn pelentar_base64_decode(b64: str) -> PelentrError!str
+{
+    ok :: _olrn_pe_base64_decode(b64)
+    if !ok { ret PelentrError.BadInput }
+    ret _olrn_pe_get_result()
+}
+
+fn pelentar_hex_encode(data: str) -> str
+{
+    ret _olrn_pe_hex_encode(data)
+}
+
+fn pelentar_hex_decode(hex: str) -> PelentrError!str
+{
+    ok :: _olrn_pe_hex_decode(hex)
+    if !ok { ret PelentrError.BadInput }
+    ret _olrn_pe_get_result()
+}
+
+# ── File encryption ────────────────────────────────────────────
+# Format: PLNT magic | ver | stren | cipher | 16-byte salt | 24-byte nonce | ciphertext
+
+fn pelentar_enc_file(s: i32, path: str, passphrase: str) -> PelentrError!void
+{
+    ok :: _olrn_pe_enc_file(s, path, passphrase)
+    if !ok { ret PelentrError.IOFailed }
+}
+
+fn pelentar_dec_file(s: i32, path: str, passphrase: str) -> PelentrError!void
+{
+    ok :: _olrn_pe_dec_file(s, path, passphrase)
+    if !ok { ret PelentrError.IOFailed }
+}

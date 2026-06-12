@@ -99,6 +99,17 @@ static int imports_use_malkur(AstNode *program)
     return 0;
 }
 
+static int imports_use_pelentar(AstNode *program)
+{
+    for (int i = 0; i < program->program.imports.count; i++) {
+        AstNode *imp = program->program.imports.items[i];
+        if (imp->import_decl.is_lib && imp->import_decl.module &&
+            strcmp(imp->import_decl.module, "pelentar") == 0)
+            return 1;
+    }
+    return 0;
+}
+
 static void load_stdlib_module(AstNode *prog, const char *stdlib_path,
                                const char *lib, const char *mod,
                                char **srcs, int *count)
@@ -142,6 +153,9 @@ static int merge_imports(AstNode *program, const char *host_path,
             if (imports_use_malkur(program))
                 load_stdlib_module(program, stdlib_path, "std",
                                    "malkur", extra_srcs, extra_count);
+            if (imports_use_pelentar(program))
+                load_stdlib_module(program, stdlib_path, "std",
+                                   "pelentar", extra_srcs, extra_count);
             for (int m = 0; STD_MODULES[m]; m++)
                 load_stdlib_module(program, stdlib_path, "std",
                                    STD_MODULES[m], extra_srcs, extra_count);

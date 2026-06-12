@@ -1,6 +1,7 @@
 #include "codegen.h"
 #include "stdlib_impl.h"
 #include "malkur_impl.h"
+#include "pelentar_impl.h"
 #include "../lexer/lexer.h"
 #include <string.h>
 #include <stdio.h>
@@ -14,6 +15,7 @@ void codegen_init(Codegen *cg, FILE *out)
     cg->import_alias_count = 0;
     cg->has_stdlib         = 0;
     cg->has_malkur         = 0;
+    cg->has_pelentar       = 0;
     cg->enum_count         = 0;
     cg->defer_counter      = 0;
     cg->err_count          = 0;
@@ -302,31 +304,40 @@ static void emit_builtin_stmt(Codegen *cg, AstNode *node)
         return;
     }
 
-    /* @pf("Hello {name}, age {age}\n")
-       Format string is parsed at compile time: {identifier} is replaced by
-       the named variable via << chaining. Non-{ segments are emitted as
-       string literals. A trailing newline is NOT added automatically. */
+    /* @pf("Hello {name}, age {}\n", expr)
+       {name}  — emit named variable verbatim (must be a simple in-scope name)
+       {}      — emit next positional argument through emit_expr (supports
+                 any Oleren expression: p.*, p->field, fn(), etc.)
+       Both forms can be mixed in one format string. */
     if (strcmp(name, "pf") == 0 && node->call.args.count >= 1
             && node->call.args.items[0]->kind == NODE_STR_LIT) {
         const char *fmt = node->call.args.items[0]->str_lit.value;
         fputs("std::cout", cg->out);
         const char *seg = fmt, *p = fmt;
+        int next_arg = 1; /* index into call.args for positional {} slots */
         while (*p) {
             if (*p == '{') {
-                /* scan identifier */
                 const char *id = p + 1;
                 const char *e  = id;
                 while (*e && *e != '}') e++;
-                if (*e == '}' && e > id) {
+                if (*e == '}') {
                     /* emit literal segment before { */
                     if (p > seg) {
                         fputs(" << \"", cg->out);
                         fwrite(seg, 1, (size_t)(p - seg), cg->out);
                         fputc('"', cg->out);
                     }
-                    /* emit the variable */
                     fputs(" << ", cg->out);
-                    fwrite(id, 1, (size_t)(e - id), cg->out);
+                    if (e == id) {
+                        /* {} — positional: emit next arg through emit_expr */
+                        if (next_arg < node->call.args.count)
+                            emit_expr(cg, node->call.args.items[next_arg++]);
+                        else
+                            fputs("/* missing arg */", cg->out);
+                    } else {
+                        /* {name} — emit the identifier verbatim */
+                        fwrite(id, 1, (size_t)(e - id), cg->out);
+                    }
                     p   = e + 1;
                     seg = p;
                     continue;
@@ -1481,6 +1492,9 @@ void codegen_emit(Codegen *cg, AstNode *program)
             if (imp->import_decl.module &&
                 strcmp(imp->import_decl.module, "malkur") == 0)
                 cg->has_malkur = 1;
+            if (imp->import_decl.module &&
+                strcmp(imp->import_decl.module, "pelentar") == 0)
+                cg->has_pelentar = 1;
         }
     }
 
@@ -1490,6 +1504,8 @@ void codegen_emit(Codegen *cg, AstNode *program)
         fputs(STDLIB_IMPL, cg->out);
     if (cg->has_malkur)
         fputs(MALKUR_IMPL, cg->out);
+    if (cg->has_pelentar)
+        fputs(PELENTAR_IMPL, cg->out);
     if (!cg->has_stdlib && program->program.imports.count)
         fputc('\n', cg->out);
 

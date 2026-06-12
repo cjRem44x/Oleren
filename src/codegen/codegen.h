@@ -20,6 +20,7 @@ typedef struct {
     int   import_alias_count;
     int   has_stdlib;    /* @std was imported */
     int   has_malkur;    /* @std.malkur was bound */
+    int   has_pelentar;  /* @std.pelentar was bound */
     int   defer_counter; /* unique ID for each deferred guard in a function */
     const char *enum_names[MAX_ENUM_NAMES]; /* known enum type names for :: access */
     int   enum_count;

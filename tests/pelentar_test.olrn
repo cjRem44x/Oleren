@@ -1,0 +1,45 @@
+@import (
+    crypt = @std.pelentar,
+)
+
+fn main() -> !void
+{
+    # symmetric round-trip
+    key :: crypt.keygen()
+    ct  :: try crypt.encrypt(key, "hello pelentar")
+    pt  :: try crypt.decrypt(key, ct)
+    @pl("decrypt: " + pt)
+
+    # hash
+    h :: crypt.hash(crypt.SHA256, "abc")
+    @pl("sha256: " + h)
+
+    # hex encode/decode round-trip
+    raw  :: crypt.hex_encode("test")
+    back :: try crypt.hex_decode(raw)
+    @pl("hex rt: " + back)
+
+    # password hash + verify
+    hashed :: try crypt.hashpk(crypt.FAST, "mypassword")
+    ok     :: crypt.auth_hashpk("mypassword", hashed)
+    if ok  { @pl("pw verify: ok") }
+    if !ok { @pl("pw verify: FAIL") }
+
+    # box key exchange round-trip
+    alice :: crypt.box_keygen()
+    bob   :: crypt.box_keygen()
+    enc   :: try crypt.box_encrypt(alice.sec_key, bob.pub_key, "secret msg")
+    dec   :: try crypt.box_decrypt(bob.sec_key, alice.pub_key, enc)
+    @pl("box: " + dec)
+
+    # sign + verify
+    kp  :: crypt.sign_keygen()
+    sig :: crypt.sign(kp.sign_key, "message")
+    v   :: crypt.verify(kp.verify_key, "message", sig)
+    if v  { @pl("sig: ok") }
+    if !v { @pl("sig: FAIL") }
+
+    # random hex
+    rnd :: crypt.rand_hex(16)
+    @pl("rand(16): " + rnd)
+}
