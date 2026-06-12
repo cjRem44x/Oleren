@@ -54,7 +54,7 @@ fn main() -> void
     @pf("sp->value via alias: {}\n", sp->value)
 
     # deref copy from smart pointer
-    snap :Node: sp.*
+    snap :Node: sp.^
     @pf("snap.value: {}\n", snap.value)
 
     # ── multiple defer — LIFO order ──────────────────────────────

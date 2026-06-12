@@ -374,10 +374,10 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
             continue;
         }
 
-        /* field access or deref: expr.field  or  expr.* */
+        /* field access or deref: expr.field  or  expr.*  or  expr.^ */
         if (tt == TOK_DOT) {
             next_tok(p);
-            if (match(p, TOK_STAR)) {
+            if (match(p, TOK_STAR) || match(p, TOK_CARET)) {
                 AstNode *n = ast_node_new(NODE_DEREF, line);
                 n->deref.target = left;
                 left = n;
