@@ -8,7 +8,7 @@ No runtime, no GC, no OOP. Close to the metal; readable by default.
 
 ---
 
-## Already Specced (in Notes.md)
+## Already Specced (in Language.md)
 
 - [x] Project manager (`olrn init / build / run / sac`)
 - [x] Project directory layout
@@ -80,7 +80,7 @@ n := try @i32("42")        # str -> i32, can fail
 ```
 
 **`bool` and `void` in the type table.**
-Both are used throughout but not listed in the primitive type table in Notes.md.
+Both are used throughout but not listed in the primitive type table in Language.md.
 Add them for completeness.
 
 **Type aliases — RESOLVED.** `type T = B` syntax.
@@ -104,7 +104,7 @@ _, hi2 :: min_max(1, 9)   # discard first
 ### 3. Module & Import System — RESOLVED
 
 Single `@import` block at the top of each file. All imports aliased.
-Submodules can also be bound top-level: `io :: @std.io`. See Notes.md § Imports.
+Submodules can also be bound top-level: `io :: @std.io`. See Language.md § Imports.
 
 ```rust
 @import (
@@ -119,7 +119,7 @@ Submodules can also be bound top-level: `io :: @std.io`. See Notes.md § Imports
 
 ### 4. Error Handling — RESOLVED
 
-Zig-style error unions. See Notes.md § Error Handling for the full spec.
+Zig-style error unions. See Language.md § Error Handling for the full spec.
 
 Summary:
 - `err Name { FOO, BAR }` defines a named error set (`err` is the keyword)
@@ -138,7 +138,7 @@ Summary:
 
 ### 5. Builtins — RESOLVED
 
-All builtins documented in Notes.md § Builtins.
+All builtins documented in Language.md § Builtins.
 
 | Builtin | Purpose |
 |---|---|
@@ -318,7 +318,7 @@ block scope, LIFO, expression evaluated at execution time, block form supported.
 
 No angle-bracket generics. Uses `any` parameter type + `@type(val)` + `when T { }` dispatch.
 Compiler monomorphizes per unique concrete type — no runtime overhead.
-See Notes.md § Generics.
+See Language.md § Generics.
 
 ---
 
@@ -359,7 +359,7 @@ All planned v0.1.0 features are implemented and passing the test suite.
 - [ ] `olrn_pkg.toml` — deferred; only needed for *outside* resources
   (vendored C/C++ deps, link flags). Builtin libs don't need it.
 - [ ] TTF fonts via SDL_ttf — `draw_text_ex`, `load_font`, `measure_text_ex`
-- [ ] **Extended stdlib** — Tier 1: `std.env`, `std.path`, `std.json`, `std.net`, `std.http`, `std.compress`, `std.regex` specced in `docs/StdLibExt.md`; Tier 2: `std.proc`, `std.bytes`, `std.date`, `std.uuid`, `std.toml`, `std.ws`; Tier 3: `std.csv`, `std.xml`, `std.test`, `std.rand` — all in `docs/StdLibTier23.md`
+- [ ] **Extended stdlib** — all tiers specced in `docs/StdLib.md`; Tier 1: `std.env`, `std.path`, `std.json`, `std.net`, `std.http`, `std.compress`, `std.regex`; Tier 2: `std.proc`, `std.bytes`, `std.date`, `std.uuid`, `std.toml`, `std.ws`; Tier 3: `std.csv`, `std.xml`, `std.test`, `std.rand`
 - [ ] **Glourang** (`@std.glourang`) — native UI library (Qt6 backend); designed, not yet implemented.
   See `docs/Glourang.md` for full API spec. Flat procedural API: windows, layouts, widgets, media
   (jpg/png/gif/webp/svg images, video, audio), menus, dialogs, canvas, system tray, timers, styling.
