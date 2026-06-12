@@ -62,6 +62,7 @@ static AstNode *parse_if_chain(Parser *p);
 static AstNode *parse_when(Parser *p);
 static AstNode *parse_brace_literal(Parser *p);
 static AstNode *parse_err_decl(Parser *p);
+static AstNode *parse_fn_decl(Parser *p);
 
 /* Consume zero or more implicit newlines / explicit semicolons. */
 static void skip_newlines(Parser *p)
@@ -740,7 +741,7 @@ static AstNode *parse_type_alias(Parser *p)
     return n;
 }
 
-/* struct Name { field: type, ... } */
+/* struct Name { field: type, ...  pub fn method(...) { } ... } */
 static AstNode *parse_struct_decl(Parser *p)
 {
     AstNode *n = ast_node_new(NODE_STRUCT_DECL, p->cur.line);
@@ -749,11 +750,18 @@ static AstNode *parse_struct_decl(Parser *p)
     expect(p, TOK_LBRACE);
     skip_newlines(p);
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
-        AstNode *field = ast_node_new(NODE_PARAM, p->cur.line);
-        field->param.name = tok_dup(expect(p, TOK_IDENT));
-        expect(p, TOK_COLON);
-        field->param.type = parse_type(p);
-        node_list_push(&n->struct_decl.fields, field);
+        if (check(p, TOK_PUB) || check(p, TOK_FN)) {
+            /* method declaration: [pub] fn name(params) -> ret { body } */
+            match(p, TOK_PUB);
+            node_list_push(&n->struct_decl.methods, parse_fn_decl(p));
+        } else {
+            /* field: name: type */
+            AstNode *field = ast_node_new(NODE_PARAM, p->cur.line);
+            field->param.name = tok_dup(expect(p, TOK_IDENT));
+            expect(p, TOK_COLON);
+            field->param.type = parse_type(p);
+            node_list_push(&n->struct_decl.fields, field);
+        }
         skip_newlines(p);
         match(p, TOK_COMMA);
         skip_newlines(p);

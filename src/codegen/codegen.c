@@ -17,6 +17,8 @@ void codegen_init(Codegen *cg, FILE *out)
     cg->has_malkur         = 0;
     cg->has_pelentar       = 0;
     cg->enum_count         = 0;
+    cg->struct_count       = 0;
+    cg->current_struct     = NULL;
     cg->defer_counter      = 0;
     cg->err_count          = 0;
     cg->in_err_fn          = 0;
@@ -100,6 +102,13 @@ static int is_type_var(Codegen *cg, const char *name)
 {
     for (int i = 0; i < cg->type_var_count; i++)
         if (strcmp(cg->type_vars[i], name) == 0) return 1;
+    return 0;
+}
+
+static int is_struct_name(Codegen *cg, const char *name)
+{
+    for (int i = 0; i < cg->struct_count; i++)
+        if (strcmp(cg->struct_names[i], name) == 0) return 1;
     return 0;
 }
 
@@ -637,6 +646,11 @@ static void emit_expr(Codegen *cg, AstNode *node)
             else if (node->field.target->kind == NODE_IDENT &&
                      is_err_name(cg, node->field.target->ident.name))
                 fprintf(cg->out, "_olrn_err_%s::%s",
+                        node->field.target->ident.name, node->field.name);
+            /* Struct.method → Struct::method for static method calls */
+            else if (node->field.target->kind == NODE_IDENT &&
+                     is_struct_name(cg, node->field.target->ident.name))
+                fprintf(cg->out, "%s::%s",
                         node->field.target->ident.name, node->field.name);
             /* .len property — i64 length of str / arrays ('len' is a
                reserved field name, enforced in sema) */
@@ -1354,6 +1368,95 @@ static int param_is_any(AstNode *param)
            strcmp(param->param.type->type_ref.name, "any") == 0;
 }
 
+/* emit a struct method inline (called from within the struct { } body) */
+static void emit_method(Codegen *cg, AstNode *fn)
+{
+    codegen_reset_fn_state(cg);
+
+    /* detect self: first param whose type name is "@self" */
+    int has_self = 0;
+    int param_start = 0;
+    if (fn->fn_decl.params.count > 0) {
+        AstNode *p0 = fn->fn_decl.params.items[0];
+        if (p0->param.type && p0->param.type->type_ref.name &&
+            strcmp(p0->param.type->type_ref.name, "@self") == 0) {
+            has_self = 1;
+            param_start = 1;
+        }
+    }
+
+    AstNode *ret_type = fn->fn_decl.ret_type;
+    int is_result_fn = ret_type && ret_type->type_ref.is_result;
+    if (is_result_fn) {
+        cg->in_err_fn = 1;
+        snprintf(cg->err_ret_cpp, sizeof(cg->err_ret_cpp), "%s",
+                 map_type(ret_type->type_ref.name ? ret_type->type_ref.name : "void"));
+    }
+
+    /* detect any params (skip self) */
+    int has_any = 0;
+    for (int i = param_start; i < fn->fn_decl.params.count; i++)
+        if (param_is_any(fn->fn_decl.params.items[i])) { has_any = 1; break; }
+
+    fputs("    ", cg->out); /* member indentation */
+    if (has_any) {
+        fputs("template<", cg->out);
+        int first = 1;
+        for (int i = param_start; i < fn->fn_decl.params.count; i++) {
+            AstNode *param = fn->fn_decl.params.items[i];
+            if (param_is_any(param)) {
+                if (!first) fputs(", ", cg->out);
+                fprintf(cg->out, "typename T_%s", param->param.name);
+                first = 0;
+            }
+        }
+        fputs(">\n    ", cg->out);
+        cg->in_template = 1;
+    }
+
+    if (!has_self) fputs("static ", cg->out);
+    emit_type(cg, fn->fn_decl.ret_type);
+    fprintf(cg->out, " %s(", fn->fn_decl.name);
+    for (int i = param_start; i < fn->fn_decl.params.count; i++) {
+        AstNode *param = fn->fn_decl.params.items[i];
+        if (i > param_start) fputs(", ", cg->out);
+        if (param_is_any(param))
+            fprintf(cg->out, "T_%s", param->param.name);
+        else
+            emit_type(cg, param->param.type);
+        fprintf(cg->out, " %s", param->param.name);
+    }
+    /* instance methods are const — fields are mutable so self mutation still works */
+    fputs(has_self ? ") const\n    {\n" : ")\n    {\n", cg->out);
+    cg->indent = 2; /* method body: 2-level indent */
+
+    if (has_self) {
+        /* inject self reference so body code works unchanged */
+        fputs("        auto& self = *this;\n", cg->out);
+    }
+
+    if (is_result_fn && fn_has_errdefer(fn->fn_decl.body)) {
+        cg->has_errdefer = 1;
+        emit_indent(cg); fputs("bool _fn_ok = false;\n", cg->out);
+    }
+
+    AstNode *body = fn->fn_decl.body;
+    for (int i = 0; i < body->block.stmts.count; i++)
+        emit_stmt(cg, body->block.stmts.items[i]);
+
+    if (is_result_fn && strcmp(cg->err_ret_cpp, "void") == 0) {
+        AstNode *last = body->block.stmts.count > 0
+            ? body->block.stmts.items[body->block.stmts.count - 1] : NULL;
+        if (!last || last->kind != NODE_RET) {
+            if (cg->has_errdefer) { emit_indent(cg); fputs("_fn_ok = true;\n", cg->out); }
+            emit_indent(cg); fputs("return _OlrnResult<void>();\n", cg->out);
+        }
+    }
+
+    cg->indent = 0;
+    fputs("    }\n", cg->out);
+}
+
 /* emit function forward declaration (signature + ;) so call order is unrestricted */
 static void emit_fn_fwd(Codegen *cg, AstNode *fn)
 {
@@ -1662,6 +1765,13 @@ void codegen_emit(Codegen *cg, AstNode *program)
     }
     if (has_enums) fputc('\n', cg->out);
 
+    /* register struct names first (needed for :: dispatch in method calls) */
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_STRUCT_DECL && cg->struct_count < MAX_STRUCT_NAMES)
+            cg->struct_names[cg->struct_count++] = decl->struct_decl.name;
+    }
+
     /* struct declarations */
     int has_structs = 0;
     for (int i = 0; i < program->program.decls.count; i++) {
@@ -1671,9 +1781,17 @@ void codegen_emit(Codegen *cg, AstNode *program)
         fprintf(cg->out, "struct %s {\n", decl->struct_decl.name);
         for (int j = 0; j < decl->struct_decl.fields.count; j++) {
             AstNode *f = decl->struct_decl.fields.items[j];
-            fputs("    ", cg->out);
+            /* mutable so instance methods can modify fields through a const binding */
+            fputs("    mutable ", cg->out);
             emit_type(cg, f->param.type);
             fprintf(cg->out, " %s;\n", f->param.name);
+        }
+        if (decl->struct_decl.methods.count > 0) {
+            fputc('\n', cg->out);
+            cg->current_struct = decl->struct_decl.name;
+            for (int j = 0; j < decl->struct_decl.methods.count; j++)
+                emit_method(cg, decl->struct_decl.methods.items[j]);
+            cg->current_struct = NULL;
         }
         fputs("};\n", cg->out);
     }

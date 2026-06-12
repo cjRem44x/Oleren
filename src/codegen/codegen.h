@@ -8,6 +8,7 @@
 #define MAX_IMPORT_ALIAS 32
 #define MAX_ENUM_NAMES   64
 #define MAX_ERR_NAMES    64
+#define MAX_STRUCT_NAMES 64
 
 typedef struct {
     FILE *out;
@@ -24,6 +25,9 @@ typedef struct {
     int   defer_counter; /* unique ID for each deferred guard in a function */
     const char *enum_names[MAX_ENUM_NAMES]; /* known enum type names for :: access */
     int   enum_count;
+    const char *struct_names[MAX_STRUCT_NAMES]; /* known struct names for :: static dispatch */
+    int   struct_count;
+    const char *current_struct; /* struct name being emitted (for method context) */
     /* error handling state */
     const char *err_names[MAX_ERR_NAMES]; /* known error set names */
     int   err_count;
