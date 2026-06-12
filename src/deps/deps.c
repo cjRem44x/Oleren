@@ -10,11 +10,15 @@
 #endif
 
 const SysDep SYS_DEPS[] = {
-    { "malkur", "SDL2", "sdl2", "SDL2/SDL.h",
-      /* lin */ "-lSDL2",
-      /* mac */ "-lSDL2",
-      /* win */ "-lmingw32 -lSDL2main -lSDL2" },
-    { NULL, NULL, NULL, NULL, NULL, NULL, NULL }
+    /*  module     lib          pkg          pkg_pacman   pkg_apt
+        header              flags_lin          flags_mac          flags_win */
+    { "malkur", "SDL2",       "sdl2",       "sdl2",       "sdl2",
+      "SDL2/SDL.h",       "-lSDL2",       "-lSDL2",       "-lmingw32 -lSDL2main -lSDL2" },
+    { "malkur", "SDL2_mixer", "SDL2_mixer", "sdl2_mixer", "sdl2-mixer",
+      "SDL2/SDL_mixer.h", "-lSDL2_mixer", "-lSDL2_mixer", "-lSDL2_mixer" },
+    { "malkur", "SDL2_image", "SDL2_image", "sdl2_image", "sdl2-image",
+      "SDL2/SDL_image.h", "-lSDL2_image", "-lSDL2_image", "-lSDL2_image" },
+    { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL }
 };
 
 const SysDep *dep_for_module(const char *module)
@@ -22,6 +26,14 @@ const SysDep *dep_for_module(const char *module)
     for (int i = 0; SYS_DEPS[i].module; i++)
         if (strcmp(SYS_DEPS[i].module, module) == 0) return &SYS_DEPS[i];
     return NULL;
+}
+
+int deps_for_module(const char *module, const SysDep **out, int max)
+{
+    int n = 0;
+    for (int i = 0; SYS_DEPS[i].module && n < max; i++)
+        if (strcmp(SYS_DEPS[i].module, module) == 0) out[n++] = &SYS_DEPS[i];
+    return n;
 }
 
 /* run a command, capture first line of stdout into buf; 0 on success */
@@ -120,32 +132,32 @@ void dep_print_hint(const SysDep *d)
     fprintf(stderr,
         "  install it with one of:\n"
         "    MSYS2:  pacman -S mingw-w64-x86_64-%s\n"
-        "    vcpkg:  vcpkg install %s\n", d->pkg, d->pkg);
+        "    vcpkg:  vcpkg install %s\n", d->pkg_pacman, d->pkg_apt);
 #elif defined(__APPLE__)
-    fprintf(stderr, "  install it with:  brew install %s\n", d->pkg);
+    fprintf(stderr, "  install it with:  brew install %s\n", d->pkg_pacman);
 #else
     {
         const char *id = linux_distro();
         if (strstr(id, "arch") || strstr(id, "cachyos") ||
             strstr(id, "manjaro") || strstr(id, "endeavour"))
             fprintf(stderr, "  install it with:  sudo pacman -S %s\n",
-                    d->pkg);
+                    d->pkg_pacman);
         else if (strstr(id, "debian") || strstr(id, "ubuntu") ||
                  strstr(id, "mint") || strstr(id, "pop"))
             fprintf(stderr, "  install it with:  sudo apt install lib%s-dev\n",
-                    d->pkg);
+                    d->pkg_apt);
         else if (strstr(id, "fedora") || strstr(id, "rhel"))
             fprintf(stderr, "  install it with:  sudo dnf install %s-devel\n",
                     d->lib);
         else if (strstr(id, "suse"))
             fprintf(stderr, "  install it with:  sudo zypper install lib%s-devel\n",
-                    d->pkg);
+                    d->pkg_apt);
         else
             fprintf(stderr,
                 "  install the %s development package, e.g.:\n"
                 "    pacman -S %s   |   apt install lib%s-dev   |   "
                 "dnf install %s-devel\n",
-                d->lib, d->pkg, d->pkg, d->lib);
+                d->lib, d->pkg_pacman, d->pkg_apt, d->lib);
     }
 #endif
 }

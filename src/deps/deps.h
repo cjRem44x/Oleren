@@ -6,11 +6,13 @@
 /* System-library dependencies of stdlib modules (e.g. malkur → SDL2).
    Resolution order: pkg-config → per-platform fallback flags. */
 typedef struct {
-    const char *module;    /* stdlib module that pulls it in ("malkur") */
-    const char *lib;       /* human name ("SDL2") */
-    const char *pkg;       /* pkg-config package name ("sdl2") */
-    const char *header;    /* marker include in generated C++ ("SDL2/SDL.h") */
-    const char *flags_lin; /* fallback link flags per platform */
+    const char *module;      /* stdlib module that pulls it in ("malkur") */
+    const char *lib;         /* human name ("SDL2_mixer") */
+    const char *pkg;         /* pkg-config package name ("SDL2_mixer") */
+    const char *pkg_pacman;  /* Arch/MSYS2 pacman name ("sdl2_mixer") */
+    const char *pkg_apt;     /* Debian/Ubuntu apt base name ("sdl2-mixer") */
+    const char *header;      /* marker include in generated C++ */
+    const char *flags_lin;   /* fallback link flags per platform */
     const char *flags_mac;
     const char *flags_win;
 } SysDep;
@@ -18,8 +20,11 @@ typedef struct {
 /* registry, terminated by a NULL .module entry */
 extern const SysDep SYS_DEPS[];
 
-/* dep needed by a stdlib module name, or NULL */
+/* first dep for a stdlib module name, or NULL */
 const SysDep *dep_for_module(const char *module);
+
+/* all deps for a stdlib module; fills out[0..] up to max, returns count */
+int deps_for_module(const char *module, const SysDep **out, int max);
 
 /* true if the dependency is installed (pkg-config or header probe) */
 int dep_available(const SysDep *d);

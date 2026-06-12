@@ -415,8 +415,9 @@ static int cmd_deps(int argc, char **argv)
             AstNode *imp = program->program.imports.items[i];
             if (!imp->import_decl.is_lib || !imp->import_decl.module)
                 continue;
-            const SysDep *d = dep_for_module(imp->import_decl.module);
-            if (d && n < 16) needed[n++] = d;
+            const SysDep *batch[16];
+            int got = deps_for_module(imp->import_decl.module, batch, 16);
+            for (int j = 0; j < got && n < 16; j++) needed[n++] = batch[j];
         }
         ast_free(program); free(src);
         printf("system deps for %s\n", entry);
