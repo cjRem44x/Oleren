@@ -1,0 +1,54 @@
+# olrn sac 10_crypto.olrn
+# requires libsodium: sudo pacman -S libsodium  (Arch)
+#                     sudo apt install libsodium-dev  (Debian/Ubuntu)
+
+crypt :: @std.pelentar
+
+fn main() -> !void
+{
+    @pl("── hashing ─────────────────────────────────────────")
+    msg :: "hello, pelentar"
+    @pf("blake2b: {}\n", crypt.hash(crypt.BLAKE2B, msg))
+    @pf("sha256:  {}\n", crypt.hash(crypt.SHA256,  msg))
+
+    @pl("\n── symmetric encrypt/decrypt (XChaCha20-Poly1305) ──")
+    key :: crypt.keygen()
+    @pf("key (hex): {}\n", key)
+
+    ct    :: try crypt.encrypt(key, "top secret payload")
+    plain :: try crypt.decrypt(key, ct)
+    @pf("decrypted: {plain}\n")
+    @pf("match:     {}\n", plain == "top secret payload")
+
+    @pl("\n── password hashing (Argon2id) ──────────────────────")
+    hash :: try crypt.hashpk(crypt.FAST, "hunter2")
+    ok   :: try crypt.auth_hashpk(crypt.FAST, "hunter2", hash)
+    bad  :: try crypt.auth_hashpk(crypt.FAST, "wrong",   hash)
+    @pf("correct password: {ok}\n")
+    @pf("wrong password:   {bad}\n")
+
+    @pl("\n── signing (Ed25519) ────────────────────────────────")
+    kp  :: crypt.sign_keygen()
+    sig :: crypt.sign(kp.sign_key, msg)
+    @pf("signature: {}\n", sig)
+    @pf("verify ok: {}\n", crypt.verify(kp.verify_key, msg, sig))
+    @pf("tampered:  {}\n", crypt.verify(kp.verify_key, "wrong", sig))
+
+    @pl("\n── asymmetric box (X25519) ──────────────────────────")
+    alice :: crypt.box_keygen()
+    bob   :: crypt.box_keygen()
+
+    ct2 :: try crypt.box_encrypt(alice.sec_key, bob.pub_key, "hello bob")
+    pt2 :: try crypt.box_decrypt(bob.sec_key, alice.pub_key, ct2)
+    @pf("bob received: {pt2}\n")
+
+    @pl("\n── encoding ─────────────────────────────────────────")
+    raw :: crypt.rand_bytes(12)
+    @pf("rand hex:    {}\n", crypt.hex_encode(raw))
+    @pf("rand base64: {}\n", crypt.base64_encode(raw))
+
+    @pl("\n── KDF (Argon2id) ───────────────────────────────────")
+    salt :: crypt.rand_hex(16)
+    key2 :: try crypt.kdf(crypt.DEFAULT, "my passphrase", salt, 32)
+    @pf("derived key: {key2}\n")
+}

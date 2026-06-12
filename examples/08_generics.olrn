@@ -1,0 +1,82 @@
+# olrn sac 08_generics.olrn
+# 'any' params: monomorphized per concrete type at the call site
+
+fn type_name(x: any) -> str
+{
+    when @type(x) {
+        i32  => { ret "i32" },
+        i64  => { ret "i64" },
+        f32  => { ret "f32" },
+        f64  => { ret "f64" },
+        str  => { ret "str" },
+        bool => { ret "bool" },
+        _    => { ret "unknown" },
+    }
+    ret "unknown"
+}
+
+fn print_val(x: any)
+{
+    @pf("[{}] {}\n", type_name(x), x)
+}
+
+fn clamp_val(v: any, lo: any, hi: any) -> any
+{
+    if v < lo { ret lo }
+    if v > hi { ret hi }
+    ret v
+}
+
+fn sum_i64(arr: []i64) -> i64
+{
+    total :i64 = 0
+    for n => arr {
+        total += n
+    }
+    ret total
+}
+
+struct Box {
+    value: i64,
+}
+
+fn box_new(v: i64) -> Box
+{
+    ret Box{.value=v}
+}
+
+fn box_get(b: Box) -> i64
+{
+    ret b.value
+}
+
+fn main() -> void
+{
+    # type dispatch
+    x :i32: 42
+    y :f64: 3.14
+    s :str: "hello"
+
+    print_val(x)
+    print_val(y)
+    print_val(s)
+    print_val(true)
+
+    @pf("type_name(x)    = {}\n", type_name(x))
+    @pf("type_name(y)    = {}\n", type_name(y))
+    @pf("type_name(true) = {}\n", type_name(true))
+
+    # generic clamp
+    clamped_i :: clamp_val(150, 0, 100)
+    clamped_f :: clamp_val(1.5, 0.0, 1.0)
+    @pf("clamp(150, 0, 100)   = {}\n", clamped_i)
+    @pf("clamp(1.5, 0.0, 1.0) = {}\n", clamped_f)
+
+    # generic sum over typed array
+    nums :[]i64: {1, 2, 3, 4, 5}
+    @pf("sum([1,2,3,4,5]) = {}\n", sum_i64(nums))
+
+    # box
+    bi := box_new(99)
+    @pf("box: {}\n", box_get(bi))
+}

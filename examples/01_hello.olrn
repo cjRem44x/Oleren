@@ -1,0 +1,13 @@
+# olrn sac 01_hello.olrn
+
+fn main() -> void
+{
+    @pl("Hello, Oleren!")
+
+    name :str: "world"
+    @pf("Hello, {}!\n", name)
+
+    x :i32: 6
+    y :i32: 7
+    @pf("{} * {} = {}\n", x, y, x * y)
+}

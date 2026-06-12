@@ -566,6 +566,10 @@ static void emit_expr(Codegen *cg, AstNode *node)
                 fputs("_olrn_type_name(", cg->out);
                 emit_expr(cg, node->call.args.items[0]);
                 fputc(')', cg->out);
+            } else if (strcmp(bname, "hex") == 0 && node->call.args.count == 1) {
+                fputs("_olrn_hex(", cg->out);
+                emit_expr(cg, node->call.args.items[0]);
+                fputc(')', cg->out);
             } else {
                 emit_builtin_stmt(cg, node);
             }
@@ -1071,12 +1075,18 @@ static void emit_stmt(Codegen *cg, AstNode *node)
             }
             /* normal variable declaration */
             emit_indent(cg);
-            if (node->var_decl.is_imu) fputs("const ", cg->out);
-            if (node->var_decl.type_ref) emit_type(cg, node->var_decl.type_ref);
-            else if (init && init->kind == NODE_STR_LIT)
+            /* immutable pointer binding: T* const (const binding, mutable pointee)
+               vs. immutable value: const T (fully const) */
+            int ptr_binding = node->var_decl.is_imu &&
+                              node->var_decl.type_ref &&
+                              node->var_decl.type_ref->type_ref.is_ptr;
+            if (node->var_decl.is_imu && !ptr_binding) fputs("const ", cg->out);
+            if (node->var_decl.type_ref) {
+                emit_type(cg, node->var_decl.type_ref);
+            } else if (init && init->kind == NODE_STR_LIT) {
                 /* auto would give const char*, force std::string */
                 fputs("std::string", cg->out);
-            else if (init && init->kind == NODE_ARRAY_LIT
+            } else if (init && init->kind == NODE_ARRAY_LIT
                      && init->array_lit.elems.count > 0) {
                 /* auto would give initializer_list — infer vector from first elem */
                 AstNode *first = init->array_lit.elems.items[0];
@@ -1085,8 +1095,10 @@ static void emit_stmt(Codegen *cg, AstNode *node)
                 else if (first->kind == NODE_STR_LIT)   fputs("std::vector<std::string>", cg->out);
                 else if (first->kind == NODE_BOOL_LIT)  fputs("std::vector<bool>",        cg->out);
                 else                                    fputs("auto",                      cg->out);
+            } else {
+                fputs("auto", cg->out);
             }
-            else fputs("auto", cg->out);
+            if (ptr_binding) fputs(" const", cg->out);
             fprintf(cg->out, " %s", node->var_decl.name);
             if (node->var_decl.init) {
                 fputs(" = ", cg->out);

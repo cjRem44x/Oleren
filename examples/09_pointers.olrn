@@ -1,0 +1,71 @@
+# olrn sac 09_pointers.olrn
+
+struct Node {
+    value: i32,
+}
+
+fn increment(n: *i32)
+{
+    n.* += 1
+}
+
+fn set_value(node: *Node, v: i32)
+{
+    node->value = v
+}
+
+fn main() -> void
+{
+    # ── raw pointers (*T) ────────────────────────────────────────
+
+    x :i32 = 10
+    p :*i32: &x
+    p.* += 5
+    @pf("x after p.* += 5 : {}\n", x)
+
+    # pointer passed to function
+    increment(&x)
+    @pf("x after increment: {}\n", x)
+
+    # heap allocation with defer cleanup
+    buf :*i32: @alo(i32)
+    defer @free(buf)
+    buf.* = 42
+    @pf("heap int: {}\n", buf.*)
+
+    # struct on heap
+    node :*Node: @alo(Node)
+    defer @free(node)
+    set_value(node, 99)
+    @pf("node.value: {}\n", node->value)
+
+    # whole-struct deref copy
+    copy :Node = node.*
+    copy.value = 0          # does not affect node
+    @pf("node still: {} copy: {}\n", node->value, copy.value)
+
+    # ── smart pointers (^T) ──────────────────────────────────────
+
+    sp :^Node: @alo(Node)   # no @free — reference counted
+    sp->value = 77
+
+    alias :^Node: sp        # both point to same data
+    alias->value = 88
+    @pf("sp->value via alias: {}\n", sp->value)
+
+    # deref copy from smart pointer
+    snap :Node: sp.*
+    @pf("snap.value: {}\n", snap.value)
+
+    # ── multiple defer — LIFO order ──────────────────────────────
+
+    a :*i32: @alo(i32)
+    defer @free(a)          # freed second (LIFO)
+    b :*i32: @alo(i32)
+    defer @free(b)          # freed first (LIFO)
+    a.* = 1
+    b.* = 2
+    @pf("a={} b={}\n", a.*, b.*)
+
+    @pl("done — defers run in reverse order at scope exit")
+}

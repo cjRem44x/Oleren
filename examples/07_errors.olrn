@@ -1,0 +1,70 @@
+# olrn sac 07_errors.olrn
+
+err ParseError { Empty, InvalidChar, Overflow }
+err AppError   { ParseFailed, OutOfRange, NotFound }
+
+fn parse_positive(s: str) -> ParseError!i32
+{
+    if s.len == 0 { ret ParseError.Empty }
+    n :: try @i32(s)
+    if n < 0 { ret ParseError.InvalidChar }
+    ret n
+}
+
+fn lookup(data: []i32, idx: i32) -> AppError!i32
+{
+    if idx < 0 or idx >= @i32(data.len) { ret AppError.OutOfRange }
+    ret data[@i64(idx)]
+}
+
+fn process(s: str, data: []i32) -> !void
+{
+    idx :: try parse_positive(s)
+    val :: try lookup(data, idx)
+    @pf("data[{}] = {}\n", idx, val)
+}
+
+fn risky_init() -> AppError!str
+{
+    buf :str: "allocated"
+    errdefer @pl("cleaning up buf on error")
+
+    if buf.len == 0 { ret AppError.NotFound }
+    ret buf
+}
+
+fn main() -> void
+{
+    data :[]i32: {10, 20, 30, 40, 50}
+
+    # catch with fallback value
+    n :: parse_positive("42") catch 0
+    @pf("parsed: {}\n", n)
+
+    bad :: parse_positive("") catch -1
+    @pf("empty string: {}\n", bad)
+
+    # catch with fallback — no declaration-before-ready problem
+    ok :: lookup(data, 2) catch 0
+    @pf("data[2] = {}\n", ok)
+
+    oob :: lookup(data, 10) catch -999
+    @pf("out-of-range result: {}\n", oob)
+
+    # catch with block to log before fallback
+    logged :: lookup(data, 99) catch |e| {
+        @pl("index out of range, using 0")
+        0
+    }
+    @pf("logged fallback: {}\n", logged)
+
+    # helper function — try chains
+    process("2", data)
+    process("4", data)
+
+    # parse_positive with direct catch
+    direct :: parse_positive("99") catch 0
+    @pf("direct: {}\n", direct)
+
+    @pl("errdefer: cleanup only on error path")
+}

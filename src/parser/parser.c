@@ -240,7 +240,10 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
         int  len = p->cur.len < 31 ? p->cur.len : 31;
         memcpy(buf, p->cur.start, len); buf[len] = '\0';
         left = ast_node_new(NODE_INT_LIT, line);
-        left->int_lit.value = atoll(buf);
+        if (buf[0] == '0' && (buf[1] == 'b' || buf[1] == 'B'))
+            left->int_lit.value = strtoll(buf + 2, NULL, 2);
+        else
+            left->int_lit.value = strtoll(buf, NULL, 0);
         next_tok(p);
     }
     else if (check(p, TOK_FLOAT_LIT)) {

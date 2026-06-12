@@ -1,0 +1,38 @@
+# olrn sac 02_variables.olrn
+
+type EntityId = i32
+
+fn main() -> void
+{
+    # mutable vs immutable
+    x :i32 = 10
+    x = 20
+
+    y :i32: 42      # immutable — y = 1 would be a compile error
+
+    # type inference
+    a := 100        # i64
+    b := 3.14       # f64
+    c := "hello"    # str
+    d := true       # bool
+
+    @pf("x={} y={} a={} b={} c={} d={}\n", x, y, a, b, c, d)
+
+    # multi-declaration
+    mut i32: px=0, py=0, width=800, height=600
+    @pf("window {}x{} at ({},{})\n", width, height, px, py)
+
+    # arithmetic and casting
+    ratio :f64: @f64(width) / @f64(height)
+    @pf("aspect ratio: {}\n", ratio)
+
+    # type alias (defined at top level)
+    id :EntityId: 1001
+    @pf("entity id: {}\n", id)
+
+    # bitwise
+    flags :u32 = 0b1010
+    flags = flags | 0b0101
+    @pf("flags: {}\n", flags)
+    @pf("flags hex: {}\n", @hex(flags))
+}

@@ -1,0 +1,71 @@
+# olrn sac 06_enums.olrn
+
+enum Direction { North, South, East, West }
+
+enum Color { Red, Green, Blue, Yellow }
+
+# typed enum — values are the underlying i32
+enum Key => i32 {
+    SPACE  = 32,
+    ENTER  = 10,
+    ESCAPE = 27,
+}
+
+fn dir_name(d: Direction) -> str
+{
+    when d {
+        Direction.North => { ret "North" },
+        Direction.South => { ret "South" },
+        Direction.East  => { ret "East" },
+        Direction.West  => { ret "West" },
+    }
+    ret "unknown"
+}
+
+fn dir_opposite(d: Direction) -> Direction
+{
+    when d {
+        Direction.North => { ret Direction.South },
+        Direction.South => { ret Direction.North },
+        Direction.East  => { ret Direction.West },
+        Direction.West  => { ret Direction.East },
+    }
+    ret d
+}
+
+fn main() -> void
+{
+    d := Direction.North
+    @pf("direction: {}\n", dir_name(d))
+    @pf("opposite:  {}\n", dir_name(dir_opposite(d)))
+
+    # walk in each direction
+    directions :[]Direction: {
+        Direction.North,
+        Direction.East,
+        Direction.South,
+        Direction.West,
+    }
+
+    x :i32 = 0
+    y :i32 = 0
+    for dir => directions {
+        when dir {
+            Direction.North => { y -= 1 },
+            Direction.South => { y += 1 },
+            Direction.East  => { x += 1 },
+            Direction.West  => { x -= 1 },
+        }
+        @pf("moved {} -> ({}, {})\n", dir_name(dir), x, y)
+    }
+
+    # typed enum
+    key :: Key.SPACE
+    @pf("SPACE keycode: {}\n", @i32(key))
+
+    when key {
+        Key.SPACE  => @pl("jump!"),
+        Key.ENTER  => @pl("confirm"),
+        Key.ESCAPE => @pl("cancel"),
+    }
+}

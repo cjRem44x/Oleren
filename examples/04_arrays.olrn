@@ -1,0 +1,49 @@
+# olrn sac 04_arrays.olrn
+
+struct Point { x: f32, y: f32 }
+
+fn main() -> void
+{
+    # dynamic array
+    nums :[]i32: {10, 20, 30, 40, 50}
+    @pf("len: {}\n", nums.len)
+
+    # for-each
+    for n => nums {
+        @pf("  {}\n", n)
+    }
+
+    # for-each with index
+    @pl("indexed:")
+    for n, i => nums {
+        @pf("  [{}] = {}\n", i, n)
+    }
+
+    # range loop
+    @pl("range 1..=5:")
+    for 1..=5 {
+        @pl("  tick")
+    }
+
+    # fixed-size array
+    fib :[8]i64: {0, 1, 1, 2, 3, 5, 8, 13}
+    @pf("fib[7] = {}\n", fib[7])
+
+    # array of structs
+    pts :[]Point: {
+        Point{.x=0.0, .y=0.0},
+        Point{.x=1.0, .y=2.0},
+        Point{.x=3.0, .y=4.0},
+    }
+
+    for p => pts {
+        @pf("  ({}, {})\n", p.x, p.y)
+    }
+
+    # sum
+    total :i32 = 0
+    for n => nums {
+        total += n
+    }
+    @pf("sum: {}\n", total)
+}

@@ -1,0 +1,33 @@
+# olrn sac 03_strings.olrn
+
+fn main() -> void
+{
+    s :str: "Hello, Oleren!"
+    @pf("string:  {s}\n")
+    @pf("length:  {}\n", s.len)
+    @pf("char[0]: {}\n", s[0])
+
+    # concatenation — first operand must be str (not a string literal)
+    greeting :str = "Hello"
+    greeting = greeting + ", " + "world!"
+    @pf("concat:  {greeting}\n")
+
+    # comparison
+    @pf("equal:   {}\n", s == "Hello, Oleren!")
+    @pf("less:    {}\n", s < "Z")
+
+    # number conversions
+    n :i32: 255
+    @pf("i32->str: {}\n", @str(n))
+    @pf("hex:      {}\n", @hex(n))
+
+    # str->number (fallible)
+    parsed :: @i32("123") catch 0
+    bad    :: @i32("nope") catch -1
+    @pf("parsed: {}\n", parsed)
+    @pf("bad:    {}\n", bad)
+
+    # format strings
+    x :f64: 3.14159
+    @pf("pi ~= {}\n", x)
+}

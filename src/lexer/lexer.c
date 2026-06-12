@@ -133,6 +133,20 @@ static Token lex_one(Lexer *l)
 
     /* number */
     if (isdigit(c)) {
+        /* hex: 0x... */
+        if (c == '0' && (cur(l) == 'x' || cur(l) == 'X')) {
+            adv(l);
+            while (isxdigit(cur(l))) adv(l);
+            return make_tok(line, TOK_INT_LIT, start,
+                            (int)(l->src + l->pos - start));
+        }
+        /* binary: 0b... */
+        if (c == '0' && (cur(l) == 'b' || cur(l) == 'B')) {
+            adv(l);
+            while (cur(l) == '0' || cur(l) == '1') adv(l);
+            return make_tok(line, TOK_INT_LIT, start,
+                            (int)(l->src + l->pos - start));
+        }
         while (isdigit(cur(l))) adv(l);
         if (cur(l) == '.' && isdigit(peek(l))) {
             adv(l);
