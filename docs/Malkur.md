@@ -31,8 +31,7 @@ calls go through it), embedded 8×8 bitmap font (`draw_text`/`measure_text`),
 audio (sounds + streaming music via SDL_mixer), colors (including `hex()`),
 Vec2 math, 2D collision.
 
-**Planned:** 3D, images/render textures, models, shaders, Vec3/Mat4 math,
-3D collision, TTF fonts via SDL_ttf.
+**Planned:** 3D, images/render textures, models, shaders, Vec3/Mat4 math, 3D collision.
 Sections below marked *Planned* are design spec, not yet implemented.
 
 ---
@@ -325,21 +324,25 @@ mk.end_render_tex()
 ## Fonts & Text
 
 An embedded 8×8 pixel-bitmap font (95 printable ASCII characters, no external
-dep) is available via `draw_text`. TTF/OTF fonts via SDL_ttf are planned.
+dep) is available via `draw_text`. TTF/OTF fonts are available via SDL_ttf.
 
 ```rust
-# Embedded 8x8 font — implemented
+# Embedded 8x8 font
 mk.draw_text(text: str, x: f32, y: f32, size: f32, color: Color)
    # size=8 → 1px per bit; size=16 → 2×2 per bit; etc.
 mk.measure_text(text: str, size: f32) -> Vec2   # Vec2{len*size, size}
 
-# TTF font support — planned (SDL_ttf)
-mk.load_font(path: str) -> !Font
-mk.load_font_ex(path: str, size: i32, chars: []i32) -> !Font
+# TTF font support (SDL_ttf)
+mk.load_font(path: str, size: i32) -> MalkurError!Font
+   # loads a TTF/OTF file at the given pixel size; defer mk.unload_font(font)
 mk.unload_font(font: Font)
 mk.draw_text_ex(font: Font, text: str, pos: Vec2, size: f32, spacing: f32, color: Color)
+   # size scales the output relative to the loaded font height
+   # spacing: extra pixels between glyphs
 mk.measure_text_ex(font: Font, text: str, size: f32, spacing: f32) -> Vec2
 ```
+
+System dep: `sudo pacman -S sdl2_ttf` / `sudo apt install libsdl2-ttf-dev`
 
 ---
 

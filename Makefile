@@ -22,7 +22,7 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 
-%.o: %.c
+%.o: %.c $(HDRS)
 	$(CC) $(CFLAGS) -DOLRN_VERSION=\"$(VERSION)\" -c -o $@ $<
 
 # compile every test -> C++ -> binary -> run; fail on first error

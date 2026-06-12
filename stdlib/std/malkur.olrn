@@ -7,6 +7,7 @@ err MalkurError { InitFailed, LoadFailed, AudioFailed }
 type Texture = i64
 type Sound   = i64
 type Music   = i64
+type Font    = i64
 
 # SDL scancodes
 enum keys => i32 {
@@ -445,6 +446,30 @@ fn malkur_draw_text(text: str, x: f32, y: f32, size: f32, c: Color)
 fn malkur_measure_text(text: str, size: f32) -> Vec2
 {
     ret _olrn_mk_measure_text(text, size)
+}
+
+# ── TTF fonts (SDL_ttf) ──────────────────────────────────────────
+
+fn malkur_load_font(path: str, size: i32) -> MalkurError!Font
+{
+    h :: _olrn_mk_load_font(path, size)
+    if h == 0 { ret MalkurError.LoadFailed }
+    ret h
+}
+
+fn malkur_unload_font(font: Font)
+{
+    _olrn_mk_unload_font(font)
+}
+
+fn malkur_draw_text_ex(font: Font, text: str, pos: Vec2, size: f32, spacing: f32, c: Color)
+{
+    _olrn_mk_draw_text_ex(font, text, pos, size, spacing, c)
+}
+
+fn malkur_measure_text_ex(font: Font, text: str, size: f32, spacing: f32) -> Vec2
+{
+    ret _olrn_mk_measure_text_ex(font, text, size, spacing)
 }
 
 # ── audio (SDL_mixer) ───────────────────────────────────────────
