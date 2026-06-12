@@ -1,4 +1,4 @@
-# Oleren `0.1.0`
+# Oleren `0.2.0`
 
 A thin, sugared frontend that compiles to C++ and then to a native binary.
 Designed for fast media applications — games, audio/video pipelines, asset tools.
@@ -33,6 +33,7 @@ olrn sac main.olrn -o=main
 ```rust
 @import (
     std = @std,
+    mk  = @std.malkur,
 )
 
 err AppError { BadInput, NotFound }
@@ -69,6 +70,7 @@ fn main() -> !void
 | Generics | `fn f(x: any)` + `when @type(x) { i64 => ... }` |
 | Extern FFI | `extern fn SDL_Init(flags: u32) -> i32` |
 | Fallible casts | `n := try @i32("42")` — string→numeric returns `!T` |
+| Threading | `std.thread.spawn(fn)` / mutex / atomic i32 + CAS |
 
 ---
 
@@ -80,8 +82,8 @@ fn main() -> !void
 | `olrn build` | Compile the project entry point → `bin/<name>` |
 | `olrn run` | Build then run the output binary |
 | `olrn <file.olrn>` / `olrn emit <file.olrn>` | Emit generated C++ to stdout |
-| `olrn build-src <file.olrn>` | Compile Oleren → C++ file |
-| `olrn build-out <file.cpp>` | Compile existing C++ output → binary |
+| `olrn build-src <file.olrn>` | Compile Oleren → C++ file (project-aware) |
+| `olrn build-out <file.cpp>` | Compile existing C++ output → binary (project-aware) |
 | `olrn check <file.olrn>` | Parse + semantic checks, no output |
 | `olrn deps [file.olrn]` | Check system libs (SDL2, …) with per-OS install hints |
 | `olrn sac <files> -o=<name>` | Stand-alone compiler — no project required |
@@ -126,6 +128,73 @@ fn main() -> !void
 
 ---
 
+## Gamedev — Malkur
+
+`@std.malkur` is the built-in gamedev library (Raylib-inspired flat API, SDL2
+backend). `olrn deps` or `olrn build` auto-resolves `-lSDL2`.
+
+```rust
+@import ( mk = @std.malkur )
+
+fn main() -> !void
+{
+    try mk.init_window(800, 600, "My Game")
+    defer mk.close_window()
+    mk.set_fps(60)
+
+    cam := mk.camera2d(Vec2{.x=0.0, .y=0.0}, Vec2{.x=400.0, .y=300.0}, 1.0)
+    pos := mk.vec2(0.0, 0.0)
+
+    while !mk.should_close() {
+        dt :: mk.dt()
+        if mk.key_down(mk.keys.RIGHT) { pos.x += 200.0 * dt }
+        if mk.key_down(mk.keys.LEFT)  { pos.x -= 200.0 * dt }
+        if mk.pad_connected(0) and mk.pad_btn_pressed(0, mk.pad_btn.A) {
+            @pl("jump!")
+        }
+
+        mk.begin_draw()
+            mk.clear_bg(mk.DARKGRAY)
+            mk.begin_camera2d(cam)
+                mk.draw_rect(pos.x, pos.y, 40.0, 60.0, mk.GREEN)
+            mk.end_camera2d()
+            mk.draw_text("Oleren v0.2", 10.0, 10.0, 16.0, mk.WHITE)
+        mk.end_draw()
+    }
+}
+```
+
+**v0.2 features:** window/loop, keyboard, mouse, gamepad (4 slots, hotplug),
+2D shapes, `draw_rect_rot`, textures (BMP + subrect), camera 2D
+(`begin_camera2d`/`end_camera2d`, world↔screen conversion), embedded 8×8 bitmap
+font (`draw_text`/`measure_text`), colors + `hex()`, Vec2 math, 2D collision.
+
+---
+
+## Threading
+
+```rust
+@import ( std = @std )
+
+fn worker(cnt: i64)
+{
+    std.thread.atomic_add(cnt, 1)
+}
+
+fn main() -> void
+{
+    cnt := std.thread.atomic_new(0)
+    defer std.thread.atomic_free(cnt)
+
+    t := std.thread.spawn_arg(worker, cnt)
+    std.thread.join(t)
+
+    @pl(std.thread.atomic_load(cnt))   # 1
+}
+```
+
+---
+
 ## Project Layout
 
 `olrn init` scaffolds the tree; `olrn build` compiles the entry point to
@@ -165,6 +234,6 @@ system deps for src/main/olrn/main.olrn
 ## Docs
 
 - [`docs/Notes.md`](docs/Notes.md) — full language reference
-- [`docs/StdLib.md`](docs/StdLib.md) — standard library (`std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`)
+- [`docs/StdLib.md`](docs/StdLib.md) — standard library (`std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`, `std.thread`)
 - [`docs/Malkur.md`](docs/Malkur.md) — Malkur gamedev library (`@std.malkur`)
 - [`docs/Roadmap.md`](docs/Roadmap.md) — design roadmap and implementation status

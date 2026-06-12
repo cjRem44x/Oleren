@@ -346,12 +346,12 @@ All planned v0.1.0 features are implemented and passing the test suite.
 - [x] Sema pass — `ErrSet!T` enforcement (set membership, variant existence, try propagation), unused-import + alias-shadowing errors
 - [x] System deps — `olrn deps` + build-time resolution via pkg-config with Linux/macOS/Windows-MinGW fallbacks and per-OS install hints (SDL2 for malkur)
 
-## Next (v0.2.0 candidates)
+## Next (v0.3.0 candidates)
 
-- [x] `std.thread` — spawn/join/detach, mutex, atomic i32, CAS
 - [ ] Multi-return / tuple values — parser + codegen done; sema + tests pending
-- [x] Malkur v0.2 — gamepad (SDL_GameController, 4 slots), camera 2D (world↔screen, pan/zoom), draw_rect_rot, draw_texture_rect, embedded 8×8 font (draw_text/measure_text), mk.hex(); audio + PNG/JPG deferred (no SDL_mixer/SDL_image installed)
+- [ ] Malkur audio — `SDL_mixer` not installed on dev box; `init_audio`, `play_sound`, `play_music` all designed in Malkur.md
+- [ ] PNG/JPG textures — `SDL_image` not installed; `load_texture` is BMP-only today
 - [ ] Windows/macOS validation — dep layer and compiler are written portably
-  (MinGW shims in place) but only Linux is exercised today; needs CI + testing
+  (MinGW shims in place) but only Linux is exercised; needs CI + testing
 - [ ] `olrn_pkg.toml` — deferred; only needed for *outside* resources
   (vendored C/C++ deps, link flags). Builtin libs don't need it.
