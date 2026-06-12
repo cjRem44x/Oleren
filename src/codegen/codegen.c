@@ -167,6 +167,7 @@ static int is_cast_builtin(const char *name)
 static void emit_expr(Codegen *cg, AstNode *node);
 static void emit_stmt(Codegen *cg, AstNode *node);
 static void emit_block_as_return(Codegen *cg, AstNode *block);
+static void emit_fn_fwd(Codegen *cg, AstNode *fn);
 static void emit_if_chain(Codegen *cg, AstNode *node, int continuation);
 static void emit_if_expr(Codegen *cg, AstNode *node);
 static void emit_when_chain(Codegen *cg, AstNode *node);
@@ -1334,6 +1335,43 @@ static int param_is_any(AstNode *param)
            strcmp(param->param.type->type_ref.name, "any") == 0;
 }
 
+/* emit function forward declaration (signature + ;) so call order is unrestricted */
+static void emit_fn_fwd(Codegen *cg, AstNode *fn)
+{
+    if (strcmp(fn->fn_decl.name, "main") == 0) return; /* main never needs fwd decl */
+
+    int has_any = 0;
+    for (int i = 0; i < fn->fn_decl.params.count; i++)
+        if (param_is_any(fn->fn_decl.params.items[i])) { has_any = 1; break; }
+
+    if (has_any) {
+        fputs("template<", cg->out);
+        int first = 1;
+        for (int i = 0; i < fn->fn_decl.params.count; i++) {
+            AstNode *param = fn->fn_decl.params.items[i];
+            if (param_is_any(param)) {
+                if (!first) fputs(", ", cg->out);
+                fprintf(cg->out, "typename T_%s", param->param.name);
+                first = 0;
+            }
+        }
+        fputs(">\n", cg->out);
+    }
+
+    emit_type(cg, fn->fn_decl.ret_type);
+    fprintf(cg->out, " %s(", fn->fn_decl.name);
+    for (int i = 0; i < fn->fn_decl.params.count; i++) {
+        AstNode *param = fn->fn_decl.params.items[i];
+        if (i > 0) fputs(", ", cg->out);
+        if (param_is_any(param))
+            fprintf(cg->out, "T_%s", param->param.name);
+        else
+            emit_type(cg, param->param.type);
+        fprintf(cg->out, " %s", param->param.name);
+    }
+    fputs(");\n", cg->out);
+}
+
 static void emit_fn(Codegen *cg, AstNode *fn)
 {
     codegen_reset_fn_state(cg);
@@ -1683,6 +1721,16 @@ void codegen_emit(Codegen *cg, AstNode *program)
         }
     }
     if (has_globals) fputc('\n', cg->out);
+
+    /* function forward declarations — allows any call order */
+    int has_fwd = 0;
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind != NODE_FN_DECL) continue;
+        emit_fn_fwd(cg, decl);
+        has_fwd = 1;
+    }
+    if (has_fwd) fputc('\n', cg->out);
 
     /* regular function definitions */
     for (int i = 0; i < program->program.decls.count; i++) {

@@ -864,6 +864,7 @@ static AstNode *parse_if_chain(Parser *p)
 static AstNode *parse_when_arm(Parser *p)
 {
     AstNode *n = ast_node_new(NODE_WHEN_ARM, p->cur.line);
+    skip_newlines(p);
 
     /* default arm: _ => ... */
     if (check(p, TOK_IDENT) && p->cur.len == 1 && p->cur.start[0] == '_') {
@@ -890,8 +891,11 @@ static AstNode *parse_when(Parser *p)
     next_tok(p);                                  /* consume when */
     n->when_expr.subject = parse_expr_bp(p, 0);
     expect(p, TOK_LBRACE);
-    while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF))
+    skip_newlines(p);
+    while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         node_list_push(&n->when_expr.arms, parse_when_arm(p));
+        skip_newlines(p);
+    }
     expect(p, TOK_RBRACE);
     return n;
 }
