@@ -1,34 +1,57 @@
 # The Oleren Language
 
+## Contents
+
+- [Goal](#goal)
+- [Compiling](#compiling)
+- [Imports](#imports)
+- [Variables & Types](#variables--types)
+- [Strings](#strings)
+- [Arrays](#arrays)
+- [Functions](#functions)
+- [Structs](#structs)
+- [Enums](#enums)
+- [Unions](#unions)
+- [Loops](#loops)
+- [Control Flow](#control-flow)
+- [Pointers](#pointers)
+- [Error Handling](#error-handling)
+- [Generics](#generics)
+- [Defer](#defer)
+- [Builtins](#builtins)
+- [Threading](#threading)
+- [Malkur](#malkur)
+- [Examples](#examples)
+
+---
+
 ## Goal
 
-The goal is to provide a more reasonable frontend for the C++ industry standard within Game Dev. A new paint job that simplifies and modernizes old school performance without the headache. This language does NOT plan to support OOP, Classes, or Objects Functions, Structs, and other basic types are included as Oleren aims to provide a more Modern C approach.
+Oleren is a more reasonable frontend for the C++ industry standard within game dev — a new paint job that simplifies and modernizes old-school performance without the headache. It does not support OOP, classes, or object methods. Functions, structs, and basic types cover everything; the goal is a modern-C feel that compiles to fast, correct C++.
+
+---
 
 ## Compiling
 
-The Oleren Project Manager allows for a more modern approach to building code, managing assets, and better project organization.
+The Oleren project manager handles building, assets, and organization.
 
-To create a new Oleren project, `mkdir myGame` and `cd` into it, then run `olrn init`. It scaffolds inside the current directory, using the directory name as the project name.
+Create a new project: `mkdir myGame && cd myGame && olrn init`. It scaffolds inside the current directory using the directory name as the project name.
 
-The project structure looks like:
 ```
 /myOlrnDir
     /bin
-        # compiled binary (bin/<name>, named after the directory)
+        # compiled binary (bin/<name>)
     /src
         /main
             /olrn
-                main.olrn # entry point
+                main.olrn   # entry point
     /olrn_out
         # generated C++ output (<name>.cpp)
-    olrn_pkg.toml # build config (scaffolded; not read by the build yet)
+    olrn_pkg.toml
     README.md
 ```
 
-`olrn init` scaffolds this tree (never overwriting existing files), and
-`olrn build` compiles `src/main/olrn/main.olrn` → `olrn_out/<name>.cpp` →
-`bin/<name>`. A bare `main.olrn` in the current directory still works
-(flat mode) and builds to `./<name>`.
+`olrn build` compiles `src/main/olrn/main.olrn` → `olrn_out/<name>.cpp` → `bin/<name>`. A bare `main.olrn` in the current directory (flat mode) still works.
 
 | Command | Description |
 |---|---|
@@ -43,21 +66,16 @@ The project structure looks like:
 | `olrn version` | Print version |
 | `olrn help` | Print usage |
 
-`build-src` + `build-out` are useful together: generate the C++, hand-edit it, then recompile without touching the Oleren source.
-
-`sac` (Stand-Alone Compiler) works outside a project directory and accepts multiple source files:
+`sac` works outside a project directory and accepts multiple source files:
 ```sh
 olrn sac main.olrn util.olrn -o=myprog
 ```
 
+---
+
 ## Imports
 
-All imports live in a single `@import` block at the top of the file.
-Every import is given an alias — that alias is how you access the module.
-
-The standard library (including builtin libs like Malkur) lives under
-`@std`. External dependencies declared in `olrn_pkg.toml` come in under
-`@pkg.libname` (planned — pkg manager not built yet).
+All imports live in a single `@import` block at the top of the file. Every import requires an alias — that alias is how you call into the module.
 
 ```rust
 @import (
@@ -65,796 +83,441 @@ The standard library (including builtin libs like Malkur) lives under
     y   = "../path/to/file", # relative path (no extension needed)
 
     std = @std,              # full standard library
-    mk  = @std.malkur,       # one stdlib submodule, Zig-style alias
-    sdl = @pkg.sdl2,         # external lib from olrn_pkg.toml (planned)
+    mk  = @std.malkur,       # one stdlib submodule
+    ma  = @std.math,
 )
 ```
 
-`@std` gives you the entire stdlib namespace; submodules are accessed
-via dot notation on the alias: `std.io`, `std.fs`, `std.math`, etc.
-`@std.module` binds a single submodule to the alias.
-
-Submodules can also be bound at the top level, after the `@import` block:
+Submodules can also be bound at the top level after the `@import` block:
 
 ```rust
 io :: @std.io
 mk :: @std.malkur
-
-f := io.open("data.bin", IOMode.Read)
 ```
 
 Rules:
-- File imports use a quoted path string. The alias is required.
-- Stdlib imports use `@std` or `@std.module`; external toml-managed
-  libs use `@pkg.libname` (planned). The alias is required.
-- The alias is how you call into that module: `mk.init_window(...)`, `std.io.open(...)`
 - Only one `@import` block per file; it must appear before any declarations.
 - Unused imports are a compile error.
+- The alias is how you call in: `mk.init_window(...)`, `std.io.open(...)`
+
+---
+
+## Variables & Types
+
+Oleren uses a Go/Odin style for declarations.
 
 ```rust
-@import (
-    std = @std,
-    mk  = @std.malkur,
-)
+x :i32 = 5      # explicit mutable
+x := 5          # implicit mutable  (infers i64 for integers)
 
-fn main() -> !void
-{
-    try mk.init_window(800, 600, "Game")
-    defer mk.close_window()
-
-    f :File = std.io.open("data.txt", IOMode.Read)
-    defer std.io.close(f)
-}
+x :i32: 5       # explicit immutable (like const/constexpr)
+x :: 5          # implicit immutable (infers i64)
 ```
 
-## Hello World
+### Multi-declaration
+
+When several variables share the same type, use `mut T:` or `imu T:`:
 
 ```rust
-fn main() -> void # main func signature
-{
-    @pl("Hello World") # a builtin for printLn
-}
-```
-
-## Functions
-
-The signature of a simple return function.
-
-```rust
-fn my_func(arg1: type, arg2: type, ...) -> ret_type
-{
-    ret value
-}
-```
-
-For voids, or subroutines, the `-> type` is not required.
-
-```rust
-fn subrout(args...)
-{
-    ret # void return is optional
-}
-```
-
-## Type Aliases
-
-`type` creates a named alias for any existing type.
-
-```rust
-type Vec2   = [2]f32
-type Color  = u32
-type Index  = i32
-type Name   = str
-type Matrix = [16]f32
-
-# aliases are fully interchangeable with their underlying type
-pos  :Vec2  = .{0.0, 0.0}
-bg   :Color = 0xFF000000
-idx  :Index = 0
-```
-
-Aliases can reference other aliases:
-```rust
-type EntityId = Index
-type Velocity = Vec2
-```
-
-## Variables
-
-We use a very Golang/Odinlang approach to vars.
-
-```rust
-fn main() -> void
-{
-    VAR : type = value # explicit mutable type
-    VAR := value       # implicit mutable type
-
-    VAR :type: value   # explicit immutable type, like const|constexpr|final
-    VAR :: value       # impicit immutable type
-
-    x := 32 # this infers to the largest possible signed int, i64
-    @pl( @type(x) ) # i64
-
-    x: i32 = 43445 # because we use explicit decl here x is a 32-bit int
-}
-```
-
-### Single declaration (one variable)
-
-`:T=` and `:=` are for one variable per expression.
-
-```rust
-x :i32 = 0       # explicit mutable
-x := 0           # implicit mutable (infers i64)
-
-x :i32: 0        # explicit immutable
-x :: 0           # implicit immutable (infers i64)
-```
-
-### Multi-declaration (multiple variables, same type)
-
-When you need several variables of the same type, use `mut T:` or `imu T:`.
-This is one expression defining a group — cleaner than repeating the type.
-
-```rust
-mut i32: x=0, y=0, height=0, width=0, vx=0, vy=0
-
+mut i32: x=0, y=0, width=800, height=600
 imu f32: pi=3.14, e=2.71, tau=6.28
 ```
 
-Rule: all variables in the group share the same type and the same
-mutability (`mut` = mutable, `imu` = immutable). Each gets its own
-initializer. The group is one expression — no `;` needed between vars.
+### Type inference rules
 
 ```rust
-# real usage
-mut i32: x=0, y=0, width=800, height=600
-myColor :mk.Color = ...       # single, different type — back to :T= form
+x := 0          # => i64   (default integer)
+x := 3.45       # => f64   (default float)
+x := "hello"    # => str
+x := false      # => bool
+x := {1,2,3}    # => []i64
 ```
 
-### Arrays
+`undef` requires an explicit type — `x := undef` is always a compile error.
+
+### Primitive types
+
+```
+Integers              Floats
+─────────────         ──────────
+i8   u8   (byte)      f32
+i16  u16              f64
+i32  u32
+i64  u64
+```
+
+### Type aliases
+
+`type` creates a named alias for any existing type:
 
 ```rust
-
-nums :[]u32 = {1,2,3,4,5}
-len :: nums.len # i64 length — works on []T, [N]T, str
-nums[i] = ...
-
-final_arr :[]imu u8 = {1,0,0,1,1} # create an array where the contents are immutable
-final_arr[i] = ... # not allowed
-
-# 'len' is reserved: structs cannot declare a field named len
-
-empnums :[N]i32 = undef # `undef` or undefined reps a empty (not null) value, for arrays this create a empty array of N elems
-empnums[i] = ...
-# empty values: 0, 0.0, "", false
+type EntityId = i32
+type Velocity = f32
+type Matrix   = [16]f32
 ```
 
-This language offers these primitive types:
-
-```rust
-Ints
----------------
-byte   | i8
-ubyte  | u8
-short  | i16
-ushort | u16
-int    | i32
-uint   | u32
-long   | i64
-ulong  | u64
-
-Floats
----------------
-float  | f32
-double | f64
-```
-
-Text is handled by exactly two types — there is no primitive char type
-(`chr` and `[]chr` were removed):
-
-- `str`  — managed string, mutable
-- `istr` — managed string, immutable contents
+---
 
 ## Strings
 
+`str` is a managed string (`std::string` under the hood) — value semantics, automatic cleanup, no manual `@free`.
+
 ```rust
-# str is a managed string (std::string in the C++ output) — value
-# semantics, automatic cleanup, no manual @free, no null states
 word :str = "hello"
+word = word + " world"          # concatenation
+same := word == "hello world"   # comparison
 
-word = word + " world"         # concatenation with +
-same := word == "hello world"  # comparison with ==
+c := word[0]       # read a character
+word[0] = 'H'      # write a character
 
-# indexing reads/writes single characters; character literals exist
-# only for this — there is no standalone char type
-c := word[0]        # 'h'
-word[0] = 'H'
-if word[0] == 'H' { @pl("capitalized") }
+n := word.len      # length (i64)
+```
 
-# istr — contents are immutable; mutation is a compile error
+`istr` — immutable contents, mutable binding:
+
+```rust
 name :istr = "john"
-copy :str = name    # istr -> str copies fine
-# name = "jane"     # error
-# name[0] = 'J'     # error
+copy :str  = name   # copies fine
+# name[0] = 'J'    # compile error
+```
 
-# length is the .len property (i64); also on arrays
-n := word.len
+String functions live in `std.str`:
 
-# string functions live in std.str (and the @str/@i32 cast builtins):
+```rust
 up   := std.str.to_upper(word)
 has  := std.str.contains(word, "wor")
 st   := std.str.starts_with(word, "He")
 en   := std.str.ends_with(word, "ld")
 trim := std.str.trim("  pad  ")
-s    := @str(42)                     # number -> str
-num  := try @i32("42")               # str -> number, fallible (!i32)
-
-# planned (not implemented yet):
-#   method-style calls (word.has(...)), sub/ins/rep/del/spl
+s    := @str(42)              # number → str
+num  := try @i32("42")        # str → number, fallible
+num  := @i32("42") catch 0    # with fallback
 ```
 
-## Loops
+---
+
+## Arrays
 
 ```rust
-for e => array { # elem in array
-    e = ...
-}
+nums :[]i32 = {1, 2, 3, 4, 5}
+n    := nums.len        # i64 length
 
-for e, i => array { # elem and index in array
-    e = ...
-    array[i] = ...
-}
+nums[0] = 99            # index write
+v := nums[2]            # index read
 
-for _, i => array { # just want index
-    ...
-}
+# fixed-size array
+fixed :[8]f32 = undef   # 8 floats, uninitialized
 
-for e => array, 0..N {} # continue until range is < N
-# OR
-for e => array, 0..=N {} # include upper bound
+# immutable elements
+data :[]imu u8 = {1, 0, 1, 1}
+# data[0] = 0   # compile error
 
-# simple counting loop
-for 0..N { # or 0..=N
-}
-
-loop i := 0, i < N, i += 1 {} # traditional loop style
-
-while <condition> {} # basic
-
-while <condition> => my_func() {} # while do's point to (=>) a func call that is called on every loop
+# 'len' is reserved — structs cannot have a field named len
 ```
 
-## Statements
+---
 
-### Logical Operators
-
-`and` and `or` are keywords that compile to `&&` and `||`.
-`!` is logical NOT and stays as-is.
+## Functions
 
 ```rust
-if x > 0 and y > 0 {}
-if done or failed {}
-if !active {}
-if x > 0 and !colliding or y == 0 {}
-```
-
-No `&&` / `||` symbol forms — use `and` / `or` exclusively.
-
-```rust
-if X {}
-elif X and Y or B and X <= Y or X != 0 ... {}
-else {}
-
-when X {
-    Y => foo +=1, # one line
-    Z => { # block of code
-        ...block
-    },
-    4 => func(), # func call
-
-    _ => ... # default
-}
-
-```
-
-## Defer
-
-`defer` works identically to Zig.
-
-- Runs at the end of the **enclosing block** (not function exit)
-- Multiple defers in the same block run **LIFO** (last declared, first run)
-- The expression is **evaluated when it runs** (end of scope), not at declaration
-- Both single-expression and block forms are valid
-- `errdefer` runs only on the error path — see § Error Handling
-
-```rust
-# single expression
-defer @free(ptr)
-defer std.io.close(f)
-
-# block form
-defer {
-    conn.flush()
-    conn.close()
-}
-
-# LIFO order
+fn add(a: i32, b: i32) -> i32
 {
-    a := @alo(Foo)
-    defer @free(a)     # runs second
-    b := @alo(Bar)
-    defer @free(b)     # runs first
-}                      # @free(b) then @free(a)
+    ret a + b
+}
+```
 
-# block scope — defer runs when its block ends, not at function exit
-fn foo()
+Void functions omit `-> type`:
+
+```rust
+fn greet(name: str)
 {
+    @pl("hello, " + name)
+}
+```
+
+Functions are top-level only — no lambdas or nested functions.
+
+---
+
+## Structs
+
+Plain data struct (C-style):
+
+```rust
+struct Vec2 {
+    x: f32,
+    y: f32,
+}
+
+v := Vec2{.x=1.0, .y=2.0}
+v.x = 3.0
+```
+
+Struct with static vars and member functions:
+
+```rust
+struct Player {
+    x: f32, y: f32,
+    hp: i32,
+
+    pub fn init(x: f32, y: f32) -> Player
     {
-        buf := @alo(u8)
-        defer @free(buf)   # freed here when inner block exits
+        ret Player{.x=x, .y=y, .hp=100}
     }
-    # buf is already freed here
-}
 
-# expression evaluated at execution time, not declaration
-x :i32 = 1
-defer @pl(x)    # prints 2, not 1
-x = 2
-```
-
-## Heap Allocation and Pointers
-
-```rust
-# @alo(T) allocates space for one T on the heap and returns a plain *T
-x :*i32 = @alo(i32)
-defer @free(x)       # raw pointers must be freed; defer is the idiom
-x.* = 42             # deref with .*
-@pl(x.*)
-
-struct Foo {
-    x: i32, y: f32
-}
-
-foo :*Foo = @alo(Foo)
-defer @free(foo)
-foo->x = 1           # pointers use -> to reach fields, like C
-foo->y = 2.0
-whole :Foo = foo.*   # .* reads/writes the whole pointee
-
-# smart pointers: ^T — reference-counted, frees itself, no @free
-p2 :^Foo = @alo(Foo) # compiles to a shared_ptr + make_shared
-p2->x = 7
-alias :^Foo = p2     # shared: writes through one handle visible in the other
-
-# ALL pointers and their value assignments must be explicit
-
-V : type = value
-P : *type = &V       # & takes an address
-P.* = <new_value>
-
-x :i32 = 5     # explicit
-p_x :*i32 = &x # explicit
-# GOOD
-
-y := 3.145     # implicit
-p_y :*f32 = &y # explicit
-# WRONG — pointee must be explicitly typed
-
-z :str = "Hello"
-p_z := &z # pointers MUST always be explicit!
-
-# pointers work through function params too
-fn bump(n: *i32) { n.* = n.* + 1 }
-bump(&x)
-
-# planned (not implemented yet):
-#   immutable pointers (*imu T), pointer-to-array indexing (p_arr[i].*)
-
-# Implicit inference
-x := undef OR x :: undef # this, in all cases, is illegal and should fail
-                         # undef reqs explicit
-
-# default to largest size and most basic type
-# same case for :: immuts
-# for nums
-x := 0 # always => i64
-x := 3.45 # always => f64
-
-x := "Jack" # always => str
-x := word[0] # a single character (no nameable type — used with string indexing)
-
-x := false # always => bool
-
-x := {1,2,3,4} # always => []i64
-x := {32.1, 343.5, ...} # always => []f64
-```
-
-## Generics — `any` and `@type`
-
-Oleren does not use angle-bracket generics. Instead, `any` allows a parameter
-to accept any type, and `@type(val)` returns the compile-time type of a value.
-The compiler monomorphizes — a separate instantiation is generated for each
-unique concrete type the function is called with.
-
-### `any` parameter type
-
-```rust
-fn print_val(x: any)
-{
-    T :: @type(x)     # T is an immutable compile-time type constant
-    when T {
-        i64    => @pf("{}\n", x),
-        f64    => @pf("{:.4}\n", x),
-        str    => @pf("{}\n", x),
-        bool   => @pf("{}\n", x),
-        _      => @pl("unsupported type"),
+    pub fn move(self: @self, dx: f32, dy: f32)
+    {
+        self.x += dx
+        self.y += dy
     }
 }
 
-print_val(42)          # T = i64
-print_val(3.14)        # T = f64
-print_val("hello")     # T = str
+p := Player.init(0.0, 0.0)
+p.move(1.0, 0.0)
 ```
 
-### Multiple `any` parameters
+`@self` in a param marks it as the instance receiver — no need to pass it at the call site.
 
-Each `any` parameter can be a different type at the call site.
+### Anonymous struct init — `.{}`
+
+When the type is known from context, `.{}` expands without repeating the name:
 
 ```rust
-fn eq(a: any, b: any) -> bool
-{
-    TA :: @type(a)
-    TB :: @type(b)
-    if TA != TB { ret false }
-    ret a == b
-}
+v :Vec2 = .{.x=1.0, .y=2.0}          # from declaration type
+arr :[]Vec2 = { .{.x=0.0, .y=0.0}, .{.x=1.0, .y=1.0} }  # from array element type
+fn take(v: Vec2) {}
+take(.{.x=0.0, .y=0.0})              # from parameter type
 ```
 
-### `any` return type
+---
 
-A function can return `any` when the output type depends on the input.
+## Enums
 
 ```rust
-fn clamp_val(val: any, lo: any, hi: any) -> any
-{
-    T :: @type(val)
-    when T {
-        i32 => ret @clamp(val, lo, hi),
-        f32 => ret @clamp(val, lo, hi),
-        f64 => ret @clamp(val, lo, hi),
-        _   => @panic("clamp_val: unsupported type"),
-    }
-}
-```
+enum Direction { North, South, East, West }
 
-### `any` in structs
+d :Direction = Direction.North
 
-Struct fields can be `any` for type-flexible containers. The type is fixed
-per instance at the point of initialization.
-
-```rust
-struct Pair {
-    first:  any,
-    second: any,
+# typed enum (values are the underlying type)
+enum Key => i32 {
+    SPACE=44, ENTER=40, ESCAPE=41,
 }
 
-p := Pair{.first = 42, .second = "hello"}
-T :: @type(p.first)    # i64
+k :Key = Key.SPACE
+@pl(@i32(k))   # 44
 ```
 
-### `@type` comparison
-
-`@type(x)` values can be compared directly:
-
-```rust
-fn same_type(a: any, b: any) -> bool
-{
-    ret @type(a) == @type(b)
-}
-```
-
-### Note on compile-time dispatch
-
-Because `when T { ... }` dispatches on a compile-time constant, branches for
-unreachable types are stripped at compile time — there is no runtime overhead.
-If a `when T` has no `_` default and an unsupported type is passed, it is a
-compile error.
-
-```rust
-# Basic
-enum X {ONE, TWO, THREE, FOUR}
-
-x: X = X.ONE
-
-enum Y => f32 {
-    ONE=3.435, TWO=4.53, THREE=-43.53,
-}
-
-y: Y = Y.ONE
-```
+---
 
 ## Unions
 
 ```rust
-unn X {
-    a: i32, b: i32, c: f32,
+unn Variant {
+    i: i32,
+    f: f32,
+    s: str,
 }
 
-x : X = X{.a = 55}
-x.a ...
-x.b = 67
+v := Variant{.i=42}
+v.f = 3.14
 
-unn(enum) Y {
-    a: i32 b: i32,
+# tagged union — use when for safe dispatch
+unn(enum) Shape {
+    rect: Rect,
+    circle: f32,
 }
 
-y := Y{.a=1}
-
-when y {
-    .a => ...,
-    .b => ...,
-    _ => ...,
+s := Shape{.circle=5.0}
+when s {
+    .rect   => @pl("rect"),
+    .circle => @pl("circle"),
 }
 ```
 
-## Structs
+---
+
+## Loops
 
 ```rust
-struct Foo {
-    a: i32, b: f32, ... # these are instancable data fields
-
-    static_var : type = value # this var is static accessed
-
-    pub fn init(...) { # this is a pub accessable static memeber function
-        ...
-    }
-
-    pub fn deinit(self: @self) {} # the `var: @self` in param marks this func as a instance member
-
-    fn priv_func(this: @self) {} # this instance func is private to struct
+# for-each over array
+for e => nums {
+    @pl(e)
 }
 
-foo := Foo.init(...) # bec init is static, it is static acccessed
-defer foo.deinit() # the @self does not need to passed, it is inferred as instance `this`
-```
-
-If a C styled struct is wanted,
-
-```rust
-# just data, no funcs
-struct C_Struct {
-    var1: type,
-    var2: type,
-    ...
+# for-each with index
+for e, i => nums {
+    @pl(i)
+    @pl(e)
 }
 
-my_struct := C_Struct{.var1=45, .var2=45, ...} # standard means of init data fields in struct
-```
+# range (exclusive upper bound)
+for 0..10 { @pl("tick") }
 
-### Anonymous Struct Init — `.{}`
+# range (inclusive)
+for 0..=10 { @pl("tick") }
 
-Works identically to Zig. When the type is known from context, `.{}`
-expands to a full struct init without repeating the type name.
-If the type cannot be determined, the compiler emits a warning.
+# C-style loop
+loop i := 0, i < 10, i += 1 {
+    @pl(i)
+}
 
-```rust
-# type known from declaration
-foo :Foo = .{.x=1, .y=2.0}
-
-# type known from array element type
-arr :[]Foo = { .{.x=0, .y=0}, .{.x=1, .y=1} }
-
-# type known from function parameter
-fn take_foo(f: Foo) {}
-take_foo(.{.x=0, .y=0})
-
-# type known from pointer target
-p.* = .{.name="john", .age=23}
-
-# no context — compiler warns, use explicit form instead
-x := .{.x=1, .y=2}        # warn: type unknown
-x := Foo{.x=1, .y=2}      # explicit, always safe
-```
-
-Fields are named (`.field=val`), any order, all fields must be specified.
-
-## Expressions
-Oleren does not use `;` because expr are only suppose to use one line, unless you have a series of `,` in the declaration.
-```rust
-x : type = value # this is an expr
-y := if W {5} else {6} # this is also a expr
-```
-
-However, similar to Go, we have `;` for when multiple exprs are pushed onto the same line.
-```rust
-x := 5; y :: 3.245; z := "word" # expr; expr; expr
-```
-
-Yet it is ideal for code in Oleren to be structured as,
-```rust
-expr
-expr
-
-fn foo() ...
-{
-    expr
-    expr
-
-    if ... {
-        expr
-        expr
-    } else {
-        expr
-        ...
-    }
-
-    ret ...
+# while
+while !done {
+    done = check()
 }
 ```
+
+---
+
+## Control Flow
+
+```rust
+if x > 0 {
+    @pl("positive")
+} elif x == 0 {
+    @pl("zero")
+} else {
+    @pl("negative")
+}
+
+# if as an expression
+label := if score > 100 { "high" } else { "low" }
+```
+
+`and`, `or`, `!` are the logical operators (`&&`/`||` are not used):
+
+```rust
+if x > 0 and y > 0 { }
+if done or failed  { }
+if !active         { }
+```
+
+`when` is pattern-matched dispatch (like `switch` but exhaustive):
+
+```rust
+when direction {
+    Direction.North => move_up(),
+    Direction.South => move_down(),
+    Direction.East  => move_right(),
+    Direction.West  => move_left(),
+    _ => @panic("unknown direction"),
+}
+
+# one-liner arms or blocks
+when key {
+    Key.SPACE => jump(),
+    Key.ENTER => {
+        confirm()
+        advance()
+    },
+    _ => {},
+}
+```
+
+---
 
 ## Pointers
-A stated above, Oleren utils the C flavor of handling pointers.
-`x : *type = ...`
 
-However, `*` is a raw pointer. Oleren also offers Smart Pointers done with `^`.
+Oleren has two pointer kinds: raw (`*T`) and smart (`^T`).
+
+### Raw pointers — `*T`
+
+Raw pointers work like C. You manage the lifetime manually.
 
 ```rust
-fn main() -> void
+x :i32 = 41
+p :*i32 = &x        # & takes address
+p.* += 1            # .* dereferences
+@pl(x)              # 42
+
+# heap allocation — always pair with defer @free
+buf :*i32 = @alo(i32)
+defer @free(buf)
+buf.* = 99
+```
+
+Struct fields through a raw pointer use `->`:
+
+```rust
+struct Point { x: i32, y: i32 }
+
+pt :*Point = @alo(Point)
+defer @free(pt)
+pt->x = 3
+pt->y = 4
+cp :Point = pt.*    # whole-struct deref copy
+```
+
+Raw pointers as function parameters:
+
+```rust
+fn bump(n: *i32)
 {
-    raw_ptr : *type = ...
-
-    smart_ptr : ^type = ...
+    n.* = n.* + 1
 }
+
+v :i32 = 10
+bump(&v)
+@pl(v)   # 11
 ```
 
-Because Oleren compiles into C++, we have the capability to use both Raw and Smart Pointers. And similarly, smart pointers are managed by runtime.
+### Smart pointers — `^T`
+
+`^T` is reference-counted (`std::shared_ptr` under the hood) — frees itself when the last handle goes out of scope. No `@free` needed or allowed.
 
 ```rust
-struct Person {
-    name: str,
-    age: i32,
-}
+p :^Point = @alo(Point)   # make_shared; no @free
+p->x = 7
+p->y = 1
 
-fn main() -> void
-{
-    p : *Person = @alo(Person) # alloc space for Person and return raw pointer
-    defer @free(p) # needed for raw ptr
+alias :^Point = p         # shared — both handles see the same data
+alias->y = 24
+@pl(p->y)                 # 24
 
-    p.* = .{.name="john", .age=23}  # .{} expands to the known type (Person)
-
-    # prefer ^T for structs with str fields — @alo is malloc, which does
-    # not run constructors; make_shared (what ^T = @alo(T) compiles to) does
-    p2 : ^Person = @alo(Person) # no free needed — manages itself
-}
+cp :Point = p.*           # whole-struct deref copy
 ```
 
-## More on Str's
+### Explicit typing rule
 
-`str` is a managed string (`std::string` in the C++ output): value
-semantics, automatic cleanup, no `@free`, no pointer wrapping needed.
-See § String VS Chars Arrays for the function surface (`std.str.*`).
-
-## Console I/O
-```rust
-fn main() -> void
-{
-    # Console Builtins
-    @pl("hello world")       # PrintLine; multiple args are streamed:
-    x :: 3.14546             # => f64
-    @pl("X = ", x)           # X = 3.14546
-
-    @pf("X = %.3f\n", x)     # PrintF — C printf formatting (%d %s %.3f ...)
-
-    @cout << "X = " << x << @endl  # C++ stream style
-
-    input := @cin("enter prompt: ") # prompt + read a line; returns str (no free)
-}
-```
-
-## Builtins
-
-All builtins use the `@` prefix and are resolved at compile time.
+All pointer declarations must be explicitly typed — the pointee type cannot be inferred:
 
 ```rust
-# ── Output ────────────────────────────────────────────
-@pl(val)                   # print line; multiple args stream: @pl("x = ", x)
-@pf("x = %.3f\n", x)       # printf-style — C format specifiers (%d %s %f)
-@cout << val << @endl      # C++ stream style
+x :i32 = 5
+p :*i32 = &x    # correct
 
-# ── Input ─────────────────────────────────────────────
-input := @cin("prompt: ")  # read line from stdin, returns str (no free needed)
-
-# ── Memory ────────────────────────────────────────────
-@alo(T)                    # allocate heap space for type T, returns *T
-@free(ptr)                 # free heap allocation
-@sizeof(T)                 # size of type in bytes -> i64
-@alignof(T)                # alignment of type -> i64
-
-# ── Types ─────────────────────────────────────────────
-@type(val)                 # compile-time type of val (used with when T {})
-
-# ── Casting ───────────────────────────────────────────
-# @T(val) — cast val to type T. Uses the type name as the builtin.
-# Numeric-to-numeric always succeeds. String-to-numeric returns !T (use try/catch).
-
-@i32(3.145)                # f64 -> i32  (truncates)         => i32
-@f32(someInt)              # i64 -> f32                      => f32
-@str(42)                   # numeric -> str                  => str
-@str(3.14)                 # f64 -> str                      => str
-@bool(x)                   # any numeric -> bool (0 = false) => bool
-
-n  := try @i32("42")       # str -> i32, can fail            => !i32
-f  := try @f64("3.14")     # str -> f64, can fail            => !f64
-n  := @i32("42") catch 0   # with fallback
-
-# ── Random ────────────────────────────────────────────
-@rng(T, low, high)         # random value of type T in range [low, high] inclusive
-
-n  := @rng(i32, 0, 100)    # random i32 from 0 to 100
-f  := @rng(f32, 0.0, 1.0)  # random f32 from 0.0 to 1.0
-b  := @rng(i64, -50, 50)   # random i64 from -50 to 50
-
-# ── Assertions / Safety ───────────────────────────────
-@assert(cond, "msg")       # assertion — prints and aborts on failure (always on)
-@panic("msg")              # immediate abort with message
-@unreachable()             # marks a code path that must never be reached
-
-# ── Math ──────────────────────────────────────────────
-@sqrt(x)                   # square root
-@abs(x)                    # absolute value
-@min(a, b)                 # minimum of two values
-@max(a, b)                 # maximum of two values
-@clamp(v, lo, hi)          # clamp v to [lo, hi]
-
-# ── Memory ops ────────────────────────────────────────
-@memcpy(dst, src, n)       # copy n bytes from src to dst
-@memset(ptr, val, n)       # set n bytes at ptr to val
+y := 3.14
+# p := &y       # error — pointee must be explicitly typed
+p :*f64 = &y    # correct
 ```
+
+---
 
 ## Error Handling
 
-Oleren uses Zig's error union model. Errors are values, not exceptions.
-No runtime overhead, no hidden control flow.
+Oleren uses Zig's error union model. Errors are values — no exceptions, no hidden control flow.
 
-### Error Sets
-
-`err` is both the keyword to define a named error set and the global error
-namespace for ad-hoc errors.
+### Error sets
 
 ```rust
 err FileError { NotFound, PermDenied, ReadFail }
 err NetError  { Timeout, Refused, BadAddr }
 ```
 
-### Error Union Return Types
-
-Two forms for the return type:
+### Return types
 
 ```rust
-fn foo() -> !type          # generic — any error
-fn foo() -> MyErrors!type  # all errors in a named set
+fn foo() -> !i32              # generic — any error
+fn open() -> FileError!File   # named set — only FileError variants
+fn init() -> !void            # can fail, no success value
 ```
 
-A function that calls another `!T` function must itself return an error
-union, unless it handles the error with `catch`.
-
-```rust
-fn read_file(path: str) -> ![]u8         # any error
-fn open(path: str) -> FileError!File     # named set
-fn init() -> !void                         # can fail, no success value
-```
-
-### Returning Errors
-
-Use `err.NAME` to return a value from the global namespace, or
-`MyErrors.NAME` to return from a specific set.
+### Returning errors
 
 ```rust
 fn validate(x: i32) -> !void
 {
     if x < 0    { ret err.InvalidInput }
-    if x > 1000 { ret err.OutOfRange   }
+    if x > 1000 { ret err.OutOfRange }
 }
 
 fn open_file(path: str) -> FileError!File
@@ -864,58 +527,40 @@ fn open_file(path: str) -> FileError!File
 }
 ```
 
-### `try` — Propagate Up the Call Stack
+### `try` — propagate up
 
-`try expr` evaluates `expr`. If it is an error it is immediately returned
-from the current function (which must itself return an error union).
+`try expr` returns the error immediately if `expr` failed:
 
 ```rust
 fn load_config(path: str) -> !Config
 {
-    data := try read_file(path)     # propagate on failure
-    cfg  := try parse_config(data)  # propagate on failure
+    data := try read_file(path)
+    cfg  := try parse_config(data)
     ret cfg
 }
 ```
 
-`try` desugars to:
-```rust
-val := expr catch |e| { ret e }
-```
-
-### `catch` — Handle the Error
-
-`catch` is a postfix operator on any error union expression.
+### `catch` — handle the error
 
 ```rust
-# fallback value — used on error, must match the success type
-count := parse_int(s) catch 0
+count := parse_int(s) catch 0          # fallback value
 name  := read_name()  catch "unknown"
 
-# block with error capture
-data := read_file(path) catch |e| {
-    @pl("read failed")
+data := read_file(path) catch |e| {    # capture + block
+    @pl("read failed: " + @str(e))
     ret undef
 }
 
-# capture-less block — when the error value itself doesn't matter
-n := parse_int(s) catch { ret err.BadInput }
-cleanup() catch { @pl("cleanup failed, ignoring") }
+n := parse_int(s) catch { ret err.BadInput }  # block, no capture
 ```
 
-The catch block must either produce a value of the success type or exit the
-scope (`ret`, `@panic`, etc.). `catch {` always starts a block — an
-array-literal fallback needs parens: `catch ({1, 2})`.
-
-### `errdefer` — Cleanup on Error Path Only
-
-Runs at scope exit only if the scope exits with an error. LIFO like `defer`.
+### `errdefer` — cleanup on error path only
 
 ```rust
 fn init_system() -> !System
 {
     s := try System.alloc()
-    errdefer s.free()       # skipped on success, runs on any error below
+    errdefer s.free()   # skipped on success; runs on any error below
 
     try s.load_config()
     try s.connect()
@@ -923,66 +568,145 @@ fn init_system() -> !System
 }
 ```
 
-### Full Example
+### `main` and top-level errors
 
 ```rust
-err AppError { ConfigMissing, BadInput }
+fn main() -> void  { }    # errors must be caught before reaching main
+fn main() -> !void { }    # runtime prints any uncaught error and exits non-zero
+```
 
-fn parse_args(argc: i32) -> AppError!i32
+---
+
+## Generics
+
+Oleren has no angle-bracket generics. `any` accepts any type; the compiler monomorphizes a separate instantiation per concrete type.
+
+```rust
+fn print_val(x: any)
 {
-    if argc < 2 { ret AppError.BadInput }
-    ret argc - 1
-}
-
-fn run() -> !void
-{
-    _ := try parse_args(1)
-
-    f := std.io.open("data.bin", .Read) catch |e| {
-        ret AppError.ConfigMissing
+    T :: @type(x)
+    when T {
+        i64  => @pf("{}\n", x),
+        f64  => @pf("{:.4}\n", x),
+        str  => @pf("{}\n", x),
+        bool => @pf("{}\n", x),
+        _    => @pl("unsupported type"),
     }
-    defer std.io.close(f)
-
-    @pl("ok")
 }
 
-fn main() -> !void
+print_val(42)       # T = i64
+print_val(3.14)     # T = f64
+print_val("hello")  # T = str
+```
+
+Multiple `any` params can each be different types at the call site:
+
+```rust
+fn eq(a: any, b: any) -> bool
 {
-    try run()   # error propagates to runtime, which prints it and exits
+    if @type(a) != @type(b) { ret false }
+    ret a == b
 }
 ```
 
-### `main` and Top-Level Error Handling
-
-`main` can return either `void` or `!void`.
+`any` in structs fixes the type per instance at init:
 
 ```rust
-fn main() -> void  { ... }   # errors must be caught before reaching main
-fn main() -> !void { ... }   # main IS the top-level handler; runtime prints the error and exits
+struct Pair { first: any, second: any }
+
+p := Pair{.first=42, .second="hello"}
+T :: @type(p.first)   # i64
 ```
 
-When `main` returns `!void`, any uncaught error that reaches it is printed
-by the runtime and the process exits with a non-zero code — identical to
-Zig's behaviour. This is the recommended form for programs that want clean
-top-level error propagation.
+---
+
+## Defer
+
+`defer` runs at the end of the **enclosing block** (not function exit). Multiple defers in the same block run LIFO. The expression is evaluated when it runs, not when it is declared.
 
 ```rust
-fn main() -> !void
+buf :*u8 = @alo(u8)
+defer @free(buf)        # runs at end of enclosing block
+
+# LIFO order
 {
-    try run()   # if run() fails, error is printed and process exits
+    a :*Foo = @alo(Foo)
+    defer @free(a)      # runs second
+    b :*Bar = @alo(Bar)
+    defer @free(b)      # runs first
 }
+
+# expression evaluated at run time
+x :i32 = 1
+defer @pl(x)    # prints 2, not 1
+x = 2
+```
+
+`errdefer` runs only on the error path — see [Error Handling](#error-handling).
+
+---
+
+## Builtins
+
+All builtins use the `@` prefix and are resolved at compile time.
+
+```rust
+# ── Output ──────────────────────────────────────────
+@pl(val)                    # print line — multiple args: @pl("x = ", x)
+@pf("x = %.3f\n", x)        # printf-style format
+@cout << val << @endl       # C++ stream style
+
+# ── Input ───────────────────────────────────────────
+input := @cin("prompt: ")   # read line from stdin, returns str
+
+# ── Memory ──────────────────────────────────────────
+@alo(T)                     # heap alloc for type T → *T
+@free(ptr)                  # free raw heap allocation (not for ^T)
+@sizeof(T)                  # size of type in bytes → i64
+@alignof(T)                 # alignment of type → i64
+
+# ── Types ───────────────────────────────────────────
+@type(val)                  # compile-time type of val
+
+# ── Casting ─────────────────────────────────────────
+@i32(3.145)                 # f64 → i32 (truncates)
+@f32(someInt)               # i64 → f32
+@str(42)                    # numeric → str
+@bool(x)                    # any numeric → bool (0 = false)
+n := try @i32("42")         # str → i32, fallible
+n := @i32("42") catch 0     # with fallback
+
+# ── Random ──────────────────────────────────────────
+@rng(T, lo, hi)             # random T in [lo, hi] inclusive
+n := @rng(i32, 0, 100)
+f := @rng(f32, 0.0, 1.0)
+
+# ── Math ────────────────────────────────────────────
+@sqrt(x)
+@abs(x)
+@min(a, b)
+@max(a, b)
+@clamp(v, lo, hi)
+
+# ── Assertions / Safety ─────────────────────────────
+@assert(cond, "msg")        # aborts on failure
+@panic("msg")               # immediate abort
+@unreachable()              # marks unreachable code paths
+
+# ── Memory ops ──────────────────────────────────────
+@memcpy(dst, src, n)
+@memset(ptr, val, n)
+```
 
 ---
 
 ## Threading
 
-`std.thread` provides POSIX-style threads, a mutex, and an atomic `i32`.
-All handles are opaque `i64` values (heap-allocated objects under the hood).
+`std.thread` provides POSIX-style threads, a mutex, and an atomic `i32`. All handles are opaque `i64` values.
 
 ### Spawn
 
-Workers take no arguments (`spawn`) or a single `i64` (`spawn_arg`). Pass
-raw pointers encoded as `i64` to share state:
+Workers take no arguments (`spawn`) or a single `i64` (`spawn_arg`). Pass raw pointers encoded as `i64` to share state:
 
 ```rust
 @import ( std = @std )
@@ -1004,8 +728,7 @@ fn main() -> void
 }
 ```
 
-Always call `join` or `detach` — both free the thread handle. Joining a
-detached thread (or vice versa) is a bug at the C++ level.
+Always call `join` or `detach` — both free the thread handle.
 
 ### Mutex
 
@@ -1025,78 +748,405 @@ cnt := std.thread.atomic_new(0)
 defer std.thread.atomic_free(cnt)
 
 std.thread.atomic_store(cnt, 5)
-val := std.thread.atomic_load(cnt)        # -> i32
+val := std.thread.atomic_load(cnt)        # → i32
 old := std.thread.atomic_add(cnt, 1)      # fetch-add; returns value before add
-won := std.thread.atomic_cas(cnt, 5, 10)  # compare-and-swap; -> bool
+won := std.thread.atomic_cas(cnt, 5, 10)  # compare-and-swap → bool
 ```
 
 ### Utility
 
 ```rust
-std.thread.yield()          # hint scheduler to reschedule
-id    := std.thread.id()    # -> i64, hashed id of calling thread
-cores := std.thread.cores() # -> i32, hardware_concurrency
+std.thread.yield()
+id    := std.thread.id()     # → i64
+cores := std.thread.cores()  # → i32
 ```
 
 ---
 
-## Malkur v0.2 — Gamedev Library
+## Malkur
 
-`@std.malkur` is the built-in gamedev library. See [`Malkur.md`](Malkur.md)
-for the complete API. Summary of what's in v0.2:
+`@std.malkur` is the built-in gamedev library. See [`Malkur.md`](Malkur.md) for the full API.
+
+### Core game loop
+
+```rust
+@import ( mk = @std.malkur )
+
+fn main() -> !void
+{
+    try mk.init_window(1280, 720, "My Game")
+    defer mk.close_window()
+    mk.set_fps(60)
+
+    while !mk.should_close() {
+        dt :: mk.dt()
+
+        mk.begin_draw()
+            mk.clear_bg(mk.BLACK)
+            # ... draw calls here
+        mk.end_draw()
+    }
+}
+```
 
 ### Camera 2D
 
 ```rust
 cam := mk.camera2d(
-    Vec2{.x=player.x, .y=player.y},  # target (world point to center on)
-    Vec2{.x=400.0, .y=300.0},         # offset (screen anchor, usually center)
-    1.5,                               # zoom
+    mk.vec2(player.x, player.y),   # target (world point to center on)
+    mk.vec2(640.0, 360.0),          # offset (screen anchor, usually center)
+    1.5,                            # zoom
 )
 
 mk.begin_draw()
     mk.clear_bg(mk.BLACK)
     mk.begin_camera2d(cam)
-        # all draws here are in world space; camera transform is applied
+        # draw calls here are in world space
         mk.draw_rect(0.0, 0.0, 100.0, 60.0, mk.GREEN)
     mk.end_camera2d()
-    # UI draws here — no camera, screen space
+    # UI here — screen space, no camera
     mk.draw_text("score: 42", 10.0, 10.0, 16.0, mk.WHITE)
 mk.end_draw()
 
-# coordinate conversion
 world_pt  := mk.screen_to_world2d(mk.mouse_pos(), cam)
-screen_pt := mk.world_to_screen2d(player_pos, cam)
+screen_pt := mk.world_to_screen2d(mk.vec2(player.x, player.y), cam)
 ```
 
 ### Gamepad
 
 ```rust
 if mk.pad_connected(0) {
-    if mk.pad_btn_pressed(0, mk.pad_btn.A) { @pl("jump!") }
+    if mk.pad_btn_pressed(0, mk.pad_btn.A) { jump() }
     lx :: mk.pad_axis(0, mk.pad_axis.LEFTX)   # -1.0 to 1.0
     lt :: mk.pad_axis(0, mk.pad_axis.LT)       # trigger, 0.0 to 1.0
 }
 ```
 
-Hotplug is handled inside `mk.should_close()`. Up to 4 pads (slots 0–3).
-
-### New draw functions
+### Drawing
 
 ```rust
-# rotated rectangle — origin is pivot point relative to rect top-left
-origin := Vec2{.x=50.0, .y=25.0}
-mk.draw_rect_rot(x, y, w, h, origin, rot_degrees, color)
+mk.draw_rect(x, y, w, h, mk.RED)
+mk.draw_rect_rot(x, y, w, h, mk.vec2(w/2.0, h/2.0), angle, mk.ORANGE)
+mk.draw_circle(cx, cy, r, mk.BLUE)
+mk.draw_line(x1, y1, x2, y2, 2.0, mk.WHITE)
+mk.draw_text("hello", 10.0, 10.0, 16.0, mk.WHITE)
 
-# sub-rect texture blit
-src := mk.rect(0.0, 0.0, 32.0, 32.0)   # source rect in texture
-dst := mk.rect(200.0, 100.0, 64.0, 64.0)   # destination on screen
+# texture
+tex := try mk.load_texture("assets/sprite.png")
+defer mk.unload_texture(tex)
+mk.draw_texture(tex, x, y, mk.WHITE)
+
+src := mk.rect(0.0, 0.0, 32.0, 32.0)    # source rect in texture
+dst := mk.rect(200.0, 100.0, 64.0, 64.0) # destination on screen
 mk.draw_texture_rect(tex, src, dst, mk.WHITE)
 
-# text — embedded 8x8 bitmap font; size=8 is 1px/bit, size=16 is 2px/bit
-mk.draw_text("hello", x, y, 16.0, mk.WHITE)
-sz := mk.measure_text("hello", 16.0)   # Vec2{w, h}
+# color helpers
+coral := mk.hex(0xFF7F50FF)             # RRGGBBAA packed u32
+faded := mk.color_fade(mk.RED, 0.5)
+```
 
-# color from packed u32 RRGGBBAA
-coral := mk.hex(0xFF7F50FF)
+### Audio
+
+```rust
+try mk.init_audio()
+defer mk.close_audio()
+
+shoot := try mk.load_sound("assets/shoot.wav")
+defer mk.unload_sound(shoot)
+bgm := try mk.load_music("assets/bgm.ogg")
+defer mk.unload_music(bgm)
+
+mk.play_music(bgm, -1)   # -1 = loop forever
+
+# in game loop:
+if mk.key_pressed(mk.keys.SPACE) { mk.play_sound(shoot) }
+```
+
+---
+
+## Examples
+
+Complete runnable programs for each core feature area.
+
+### Hello World
+
+```rust
+fn main() -> void
+{
+    @pl("Hello, World!")
+}
+```
+
+### Variables, Types, and Casting
+
+```rust
+fn main() -> void
+{
+    # mutable and immutable
+    x :i32 = 10
+    y :: 3.14      # immutable f64
+
+    # multi-declaration
+    mut i32: a=1, b=2, c=3
+
+    # casting
+    f := @f64(x)       # i32 → f64
+    s := @str(x)       # i32 → str
+    @pl("x = " + s)
+
+    # string → numeric (fallible)
+    n := @i32("42") catch -1
+    @pl(n)   # 42
+}
+```
+
+### Functions and Multiple Returns
+
+```rust
+fn clamp_score(score: i32, lo: i32, hi: i32) -> i32
+{
+    if score < lo { ret lo }
+    if score > hi { ret hi }
+    ret score
+}
+
+fn min_max(a: f32, b: f32) -> (f32, f32)
+{
+    if a < b { ret (a, b) }
+    ret (b, a)
+}
+
+fn main() -> void
+{
+    @pl(clamp_score(150, 0, 100))   # 100
+
+    lo, hi := min_max(7.5, 3.2)
+    @pl(lo)   # 3.2
+    @pl(hi)   # 7.5
+}
+```
+
+### Structs and Methods
+
+```rust
+struct Rect {
+    x: f32, y: f32,
+    w: f32, h: f32,
+
+    pub fn new(x: f32, y: f32, w: f32, h: f32) -> Rect
+    {
+        ret Rect{.x=x, .y=y, .w=w, .h=h}
+    }
+
+    pub fn area(self: @self) -> f32
+    {
+        ret self.w * self.h
+    }
+
+    pub fn overlaps(self: @self, other: Rect) -> bool
+    {
+        ret self.x < other.x + other.w and self.x + self.w > other.x
+           and self.y < other.y + other.h and self.y + self.h > other.y
+    }
+}
+
+fn main() -> void
+{
+    a := Rect.new(0.0, 0.0, 10.0, 5.0)
+    b := Rect.new(8.0, 3.0, 10.0, 5.0)
+
+    @pl(a.area())        # 50
+    @pl(a.overlaps(b))   # true
+}
+```
+
+### Loops and Arrays
+
+```rust
+fn main() -> void
+{
+    nums :[]i32 = {10, 20, 30, 40, 50}
+
+    # sum with for-each
+    sum :i32 = 0
+    for v => nums { sum += v }
+    @pl(sum)   # 150
+
+    # index + element
+    for v, i => nums {
+        @pl(@str(i) + ": " + @str(v))
+    }
+
+    # range loop — FizzBuzz
+    for i := 1, i <= 20, i += 1 {
+        if i % 15 == 0      { @pl("FizzBuzz") }
+        elif i % 3 == 0     { @pl("Fizz") }
+        elif i % 5 == 0     { @pl("Buzz") }
+        else                { @pl(i) }
+    }
+}
+```
+
+### Pointers — Raw and Smart
+
+```rust
+struct Node {
+    val:  i32,
+    next: *Node,
+}
+
+fn bump(p: *i32)
+{
+    p.* += 1
+}
+
+fn main() -> void
+{
+    # raw pointer — manual lifetime
+    x :i32 = 41
+    bump(&x)
+    @pl(x)   # 42
+
+    # heap allocation — defer handles cleanup
+    n :*Node = @alo(Node)
+    defer @free(n)
+    n->val = 99
+    n->next = 0   # null
+    @pl(n->val)   # 99
+
+    # smart pointer — reference-counted, no @free
+    struct Point { x: f32, y: f32 }
+
+    p :^Point = @alo(Point)
+    p->x = 3.0
+    p->y = 4.0
+
+    alias :^Point = p     # shared — same object
+    alias->x = 10.0
+    @pl(p->x)   # 10.0 — change visible through original handle
+}
+```
+
+### Error Handling
+
+```rust
+err ParseError { Empty, Invalid, Overflow }
+
+fn parse_positive(s: str) -> ParseError!i32
+{
+    if s.len == 0 { ret ParseError.Empty }
+    n := @i32(s) catch { ret ParseError.Invalid }
+    if n < 0     { ret ParseError.Overflow }
+    ret n
+}
+
+fn run() -> !void
+{
+    a := try parse_positive("42")
+    @pl(a)   # 42
+
+    b := parse_positive("") catch |_| { @i64(0) }
+    @pl(b)   # 0
+
+    c := parse_positive("bad") catch |_| { @i64(-1) }
+    @pl(c)   # -1
+}
+
+fn main() -> !void
+{
+    try run()
+}
+```
+
+### Generics with `any`
+
+```rust
+fn sum(arr: []any) -> any
+{
+    T :: @type(arr[0])
+    acc :T = 0
+    for v => arr { acc += v }
+    ret acc
+}
+
+fn largest(a: any, b: any) -> any
+{
+    if a > b { ret a }
+    ret b
+}
+
+fn main() -> void
+{
+    ints :[]i32 = {1, 2, 3, 4, 5}
+    @pl(sum(ints))              # 15
+
+    @pl(largest(3.14, 2.71))   # 3.14
+    @pl(largest(10, 42))       # 42
+}
+```
+
+### Defer and Resource Cleanup
+
+```rust
+@import ( io = @std.io )
+
+fn process_file(path: str) -> !void
+{
+    f := try io.open(path, IOMode.Read)
+    defer io.close(f)          # always runs, even on error below
+
+    buf :*u8 = @alo(u8)
+    defer @free(buf)           # LIFO: freed after io.close
+
+    data := try io.read(f, buf, 1024)
+    @pl(@str(data.len) + " bytes read")
+}
+
+fn main() -> !void
+{
+    try process_file("data.txt")
+}
+```
+
+### Malkur — Simple Game
+
+```rust
+@import ( mk = @std.malkur )
+
+struct Ball {
+    x: f32, y: f32,
+    vx: f32, vy: f32,
+    r: f32,
+}
+
+fn main() -> !void
+{
+    try mk.init_window(800, 600, "Ball")
+    defer mk.close_window()
+    mk.set_fps(60)
+
+    ball := Ball{
+        .x=400.0, .y=300.0,
+        .vx=200.0, .vy=150.0,
+        .r=20.0,
+    }
+
+    while !mk.should_close() {
+        dt :: mk.dt()
+
+        ball.x += ball.vx * dt
+        ball.y += ball.vy * dt
+
+        if ball.x - ball.r < 0.0 or ball.x + ball.r > 800.0 { ball.vx = -ball.vx }
+        if ball.y - ball.r < 0.0 or ball.y + ball.r > 600.0 { ball.vy = -ball.vy }
+
+        if mk.key_pressed(mk.keys.ESCAPE) { break }
+
+        mk.begin_draw()
+            mk.clear_bg(mk.BLACK)
+            mk.draw_circle(ball.x, ball.y, ball.r, mk.RED)
+            mk.draw_text("ESC to quit", 10.0, 10.0, 16.0, mk.WHITE)
+        mk.end_draw()
+    }
+}
 ```
