@@ -250,7 +250,7 @@ cwd := std.fs.cwd()
 
 **`std.time`** — timing (critical for game loops)
 
-**`@std.malkur` (Malkur)** — built-in gamedev library. See `docs/Malkur.md` for the full API surface. Raylib-inspired flat API on an SDL2 backend; importing auto-links `-lSDL2`. v0.2 shipped: window/loop, keyboard, mouse, gamepad (4 slots, hotplug), 2D shapes, `draw_rect_rot`, textures (BMP + subrect), camera 2D (pan/zoom, world↔screen), embedded 8×8 bitmap font (`draw_text`/`measure_text`), colors + `hex()`, Vec2 math, 2D collision.
+**`@std.malkur` (Malkur)** — built-in gamedev library. See `docs/Malkur.md` for the full API surface. Raylib-inspired flat API on an SDL2 backend; importing auto-links `-lSDL2`. v0.3 shipped: window/loop, keyboard, mouse, gamepad (4 slots, hotplug), 2D shapes, `draw_rect_rot`, textures (BMP + PNG + JPG via SDL_image, subrect), camera 2D (pan/zoom, world↔screen), embedded 8×8 bitmap font (`draw_text`/`measure_text`), audio (sounds + streaming music via SDL_mixer), colors + `hex()`, Vec2 math, 2D collision.
 ```rust
 t0 := std.time.now()          # nanosecond timestamp
 dt := std.time.since(t0)      # elapsed as f64 seconds
@@ -340,17 +340,18 @@ All planned v0.1.0 features are implemented and passing the test suite.
 - [x] Heap allocation (`@alo`, `@free`), raw and smart pointers
 - [x] Standard library — `std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`, `std.thread`
 - [x] CLI — `build`, `run`, `build-src`, `build-out`, `check`, `emit`, `sac`, `init`
-- [x] Malkur gamedev library v0.2 — gamepad, camera 2D, rotated/subrect draws, embedded font, hex() via `@std.malkur` (SDL2 backend)
+- [x] Malkur gamedev library v0.3 — gamepad, camera 2D, rotated/subrect draws, embedded font, hex(), PNG/JPG textures (SDL_image), audio sounds + music (SDL_mixer) via `@std.malkur` (SDL2 backend)
 - [x] Sema pass — `ErrSet!T` enforcement (set membership, variant existence, try propagation), unused-import + alias-shadowing errors
 - [x] System deps — `olrn deps` + build-time resolution via pkg-config with Linux/macOS/Windows-MinGW fallbacks and per-OS install hints (SDL2 for malkur)
 - [x] Multi-return / tuples — `fn f() -> (T1, T2)`, `a, b := f()`, `_ ` discard; `when` as expression (`ret when x { A => val, _ => other }`)
 
-## Next (v0.3.0 candidates)
+## Next (v0.4.0 candidates)
 
-- [x] Multi-return / tuple values — `fn f() -> (T1, T2)`, `a, b := f()`, `_` discard; `when` as expression bug fixed (`ret when x { ... }` now works)
-- [ ] Malkur audio — `SDL_mixer` not installed on dev box; `init_audio`, `play_sound`, `play_music` all designed in Malkur.md
-- [ ] PNG/JPG textures — `SDL_image` not installed; `load_texture` is BMP-only today
+- [x] Multi-return / tuple values — `fn f() -> (T1, T2)`, `a, b := f()`, `_` discard; `when` as expression bug fixed
+- [x] Malkur audio — `init_audio`, `play_sound`, `play_music`, `stop_music`, volume/pause/resume (SDL_mixer)
+- [x] PNG/JPG textures — `load_texture` now uses `IMG_Load` (SDL_image), supports BMP/PNG/JPG
 - [ ] Windows/macOS validation — dep layer and compiler are written portably
   (MinGW shims in place) but only Linux is exercised; needs CI + testing
 - [ ] `olrn_pkg.toml` — deferred; only needed for *outside* resources
   (vendored C/C++ deps, link flags). Builtin libs don't need it.
+- [ ] TTF fonts via SDL_ttf — `draw_text_ex`, `load_font`, `measure_text_ex`

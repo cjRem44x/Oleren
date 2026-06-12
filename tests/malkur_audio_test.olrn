@@ -1,0 +1,44 @@
+@import (
+    mk = @std.malkur,
+)
+
+fn main() -> !void
+{
+    # open a headless window (SDL_VIDEODRIVER=offscreen)
+    try mk.init_window(320, 240, "audio test")
+    defer mk.close_window()
+
+    # init audio
+    try mk.init_audio()
+    defer mk.close_audio()
+
+    # idempotent second call
+    try mk.init_audio()
+
+    # verify state with nothing playing
+    playing :: mk.music_playing()
+    paused  :: mk.music_paused()
+    if playing { @panic("music_playing should be false at start") }
+    if paused  { @panic("music_paused should be false at start") }
+
+    # volume / stop calls must be safe with nothing loaded
+    mk.music_set_volume(0.5)
+    mk.stop_sounds()
+    mk.stop_music()
+    mk.pause_music()
+    mk.resume_music()
+
+    # PNG: IMG_Load on a bad path returns 0 → LoadFailed; verify the path works
+    bad_tex :: mk.load_texture("nonexistent.png") catch |_| { @i64(0) }
+    if bad_tex != 0 { @panic("expected 0 for missing texture") }
+
+    # Sound: missing file → 0 → LoadFailed
+    bad_snd :: mk.load_sound("nonexistent.wav") catch |_| { @i64(0) }
+    if bad_snd != 0 { @panic("expected 0 for missing sound") }
+
+    # Music: missing file → 0 → LoadFailed
+    bad_mus :: mk.load_music("nonexistent.ogg") catch |_| { @i64(0) }
+    if bad_mus != 0 { @panic("expected 0 for missing music") }
+
+    @pl("malkur audio+image test ok")
+}

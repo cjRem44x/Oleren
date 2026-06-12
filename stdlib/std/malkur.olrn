@@ -2,9 +2,11 @@
 # Import explicitly: mk :: @std.malkur  (or  mk = @std.malkur  in @import)
 # Types Color, Vec2, Rect come from the C++ backend.
 
-err MalkurError { InitFailed, LoadFailed }
+err MalkurError { InitFailed, LoadFailed, AudioFailed }
 
 type Texture = i64
+type Sound   = i64
+type Music   = i64
 
 # SDL scancodes
 enum keys => i32 {
@@ -215,7 +217,7 @@ fn malkur_draw_poly(center: Vec2, sides: i32, r: f32, rot: f32, c: Color)
     _olrn_mk_draw_poly(center, sides, r, rot, c)
 }
 
-# ── textures (BMP for now; PNG/JPG when SDL_image lands) ────────
+# ── textures (BMP, PNG, JPG via SDL_image) ──────────────────────
 
 fn malkur_load_texture(path: str) -> !Texture
 {
@@ -443,6 +445,93 @@ fn malkur_draw_text(text: str, x: f32, y: f32, size: f32, c: Color)
 fn malkur_measure_text(text: str, size: f32) -> Vec2
 {
     ret _olrn_mk_measure_text(text, size)
+}
+
+# ── audio (SDL_mixer) ───────────────────────────────────────────
+
+fn malkur_init_audio() -> !void
+{
+    ok :: _olrn_mk_init_audio()
+    if !ok { ret MalkurError.AudioFailed }
+}
+
+fn malkur_close_audio()
+{
+    _olrn_mk_close_audio()
+}
+
+fn malkur_load_sound(path: str) -> !Sound
+{
+    s :: _olrn_mk_load_sound(path)
+    if s == 0 { ret MalkurError.LoadFailed }
+    ret s
+}
+
+fn malkur_unload_sound(s: Sound)
+{
+    _olrn_mk_unload_sound(s)
+}
+
+fn malkur_play_sound(s: Sound)
+{
+    _olrn_mk_play_sound(s)
+}
+
+fn malkur_stop_sounds()
+{
+    _olrn_mk_stop_sounds()
+}
+
+fn malkur_sound_set_volume(s: Sound, vol: f32)
+{
+    _olrn_mk_sound_set_volume(s, vol)
+}
+
+fn malkur_load_music(path: str) -> !Music
+{
+    m :: _olrn_mk_load_music(path)
+    if m == 0 { ret MalkurError.LoadFailed }
+    ret m
+}
+
+fn malkur_unload_music(m: Music)
+{
+    _olrn_mk_unload_music(m)
+}
+
+fn malkur_play_music(m: Music, loops: i32)
+{
+    _olrn_mk_play_music(m, loops)
+}
+
+fn malkur_stop_music()
+{
+    _olrn_mk_stop_music()
+}
+
+fn malkur_pause_music()
+{
+    _olrn_mk_pause_music()
+}
+
+fn malkur_resume_music()
+{
+    _olrn_mk_resume_music()
+}
+
+fn malkur_music_playing() -> bool
+{
+    ret _olrn_mk_music_playing()
+}
+
+fn malkur_music_paused() -> bool
+{
+    ret _olrn_mk_music_paused()
+}
+
+fn malkur_music_set_volume(vol: f32)
+{
+    _olrn_mk_music_set_volume(vol)
 }
 
 # ── color from packed u32 (RRGGBBAA) ────────────────────────────

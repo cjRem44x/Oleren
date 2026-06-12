@@ -19,19 +19,20 @@ stops with install instructions for your OS — `olrn deps` checks up front.
 )
 ```
 
-## Status (v0.2)
+## Status (v0.3)
 
 The API is flat — every call goes through the alias (`mk.draw_rect(...)`),
 Raylib-style; window/renderer/input state lives in the backend.
 
 **Implemented (SDL2 backend):** window & core loop, keyboard, mouse, gamepad
-(up to 4 controllers), 2D shapes, `draw_rect_rot`, textures (BMP + src/dst
-subrect), camera 2D (world↔screen transforms, all draw calls go through it),
-embedded 8×8 bitmap font (`draw_text`/`measure_text`), colors (including
-`hex()`), Vec2 math, 2D collision.
+(up to 4 controllers), 2D shapes, `draw_rect_rot`, textures (BMP + PNG + JPG
+via SDL_image, src/dst subrect), camera 2D (world↔screen transforms, all draw
+calls go through it), embedded 8×8 bitmap font (`draw_text`/`measure_text`),
+audio (sounds + streaming music via SDL_mixer), colors (including `hex()`),
+Vec2 math, 2D collision.
 
-**Planned:** audio, 3D, images/render textures, models, shaders, Vec3/Mat4
-math, 3D collision, PNG/JPG via SDL_image, TTF fonts via SDL_ttf.
+**Planned:** 3D, images/render textures, models, shaders, Vec3/Mat4 math,
+3D collision, TTF fonts via SDL_ttf.
 Sections below marked *Planned* are design spec, not yet implemented.
 
 ---
@@ -297,7 +298,7 @@ mk.draw_billboard(cam: Camera3D, tex: Texture, pos: Vec3, size: f32, tint: Color
 ## Textures & Images
 
 ```rust
-# loading — implemented; BMP only until SDL_image lands
+# loading — BMP, PNG, JPG (SDL_image backend)
 mk.load_texture(path: str) -> !Texture
 mk.unload_texture(tex: Texture)
 
@@ -388,36 +389,48 @@ mk.shader_set_texture(shader: Shader, name: str, tex: Texture)
 
 ## Audio
 
-> **Planned** — not yet implemented.
+SDL_mixer backend. Requires `sdl2_mixer` (Arch) / `libsdl2-mixer-dev` (apt).
 
 ```rust
-mk.init_audio()       # call once at startup
-mk.close_audio()      # call at shutdown
+# Init / shutdown — call init_audio once after init_window
+mk.init_audio() -> !void
+mk.close_audio()
 
-# Sounds (short, loaded fully into memory)
+# Sounds (short clips, loaded fully into memory — WAV, OGG, MP3)
+type Sound = i64
 mk.load_sound(path: str) -> !Sound
-mk.unload_sound(sound: Sound)
-mk.play_sound(sound: Sound)
-mk.stop_sound(sound: Sound)
-mk.pause_sound(sound: Sound)
-mk.resume_sound(sound: Sound)
-mk.sound_playing(sound: Sound) -> bool
-mk.sound_set_volume(sound: Sound, vol: f32)   # 0.0 - 1.0
-mk.sound_set_pitch(sound: Sound, pitch: f32)
+mk.unload_sound(s: Sound)
+mk.play_sound(s: Sound)
+mk.stop_sounds()                       # stop all active sound channels
+mk.sound_set_volume(s: Sound, vol: f32)  # 0.0 - 1.0
 
-# Music (streamed from disk)
+# Music (streaming — MP3, OGG, WAV, FLAC, ...)
+type Music = i64
 mk.load_music(path: str) -> !Music
-mk.unload_music(music: Music)
-mk.play_music(music: Music)
-mk.stop_music(music: Music)
-mk.pause_music(music: Music)
-mk.resume_music(music: Music)
-mk.update_music(music: Music)   # must be called every frame while playing
-mk.music_playing(music: Music) -> bool
-mk.music_set_volume(music: Music, vol: f32)
-mk.music_set_pitch(music: Music, pitch: f32)
-mk.music_length(music: Music) -> f32    # total duration in seconds
-mk.music_pos(music: Music)    -> f32    # current playback position
+mk.unload_music(m: Music)
+mk.play_music(m: Music, loops: i32)    # -1 = loop forever
+mk.stop_music()
+mk.pause_music()
+mk.resume_music()
+mk.music_playing() -> bool
+mk.music_paused()  -> bool
+mk.music_set_volume(vol: f32)          # 0.0 - 1.0 (global music volume)
+```
+
+**Example:**
+```rust
+try mk.init_audio()
+defer mk.close_audio()
+
+shoot  := try mk.load_sound("assets/shoot.wav")
+bgm    := try mk.load_music("assets/bgm.ogg")
+defer mk.unload_sound(shoot)
+defer mk.unload_music(bgm)
+
+mk.play_music(bgm, -1)   # loop forever
+
+# in game loop:
+if mk.key_pressed(mk.keys.SPACE) { mk.play_sound(shoot) }
 ```
 
 ---
