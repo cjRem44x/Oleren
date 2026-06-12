@@ -1029,8 +1029,18 @@ static void emit_stmt(Codegen *cg, AstNode *node)
             if (node->var_decl.is_imu) fputs("const ", cg->out);
             if (node->var_decl.type_ref) emit_type(cg, node->var_decl.type_ref);
             else if (init && init->kind == NODE_STR_LIT)
-                /* := "lit" infers str — auto would give const char* */
+                /* auto would give const char*, force std::string */
                 fputs("std::string", cg->out);
+            else if (init && init->kind == NODE_ARRAY_LIT
+                     && init->array_lit.elems.count > 0) {
+                /* auto would give initializer_list — infer vector from first elem */
+                AstNode *first = init->array_lit.elems.items[0];
+                if      (first->kind == NODE_INT_LIT)   fputs("std::vector<int64_t>",     cg->out);
+                else if (first->kind == NODE_FLOAT_LIT) fputs("std::vector<double>",      cg->out);
+                else if (first->kind == NODE_STR_LIT)   fputs("std::vector<std::string>", cg->out);
+                else if (first->kind == NODE_BOOL_LIT)  fputs("std::vector<bool>",        cg->out);
+                else                                    fputs("auto",                      cg->out);
+            }
             else fputs("auto", cg->out);
             fprintf(cg->out, " %s", node->var_decl.name);
             if (node->var_decl.init) {
