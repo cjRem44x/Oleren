@@ -477,15 +477,21 @@ static void emit_expr(Codegen *cg, AstNode *node)
             }
             fputc(')', cg->out);
             break;
-        case NODE_CALL_EXPR:
+        case NODE_CALL_EXPR: {
+            AstNode *ce = node->call_expr.callee;
+            /* .len() — treat as property, callee emit already includes .size() */
+            if (ce->kind == NODE_FIELD && strcmp(ce->field.name, "len") == 0 &&
+                node->call_expr.args.count == 0) {
+                emit_expr(cg, ce);
+                break;
+            }
             /* strip import alias prefix: utils.square(x) → square(x),
                std.io.open(f) → io_open(f) */
-            if (callee_is_import_qualified(cg, node->call_expr.callee) &&
-                (node->call_expr.callee->kind == NODE_FIELD ||
-                 node->call_expr.callee->kind == NODE_FIELD_PTR)) {
-                emit_qualified_fn(cg, node->call_expr.callee);
+            if (callee_is_import_qualified(cg, ce) &&
+                (ce->kind == NODE_FIELD || ce->kind == NODE_FIELD_PTR)) {
+                emit_qualified_fn(cg, ce);
             } else {
-                emit_expr(cg, node->call_expr.callee);
+                emit_expr(cg, ce);
             }
             fputc('(', cg->out);
             for (int i = 0; i < node->call_expr.args.count; i++) {
@@ -494,6 +500,7 @@ static void emit_expr(Codegen *cg, AstNode *node)
             }
             fputc(')', cg->out);
             break;
+        }
         case NODE_BUILTIN_CALL: {
             const char *bname = node->call.name;
             if (node->call.args.count == 0) {
