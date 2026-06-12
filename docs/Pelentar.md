@@ -44,15 +44,30 @@ enum stren => i32 {
 }
 ```
 
-| Level | Argon2id ops | Argon2id mem | When to use |
-|---|---|---|---|
-| `FAST` | `OPSLIMIT_INTERACTIVE` | `MEMLIMIT_INTERACTIVE` (64 MB) | High-frequency auth, low-power devices |
-| `DEFAULT` | `OPSLIMIT_MODERATE` | `MEMLIMIT_MODERATE` (256 MB) | General-purpose password storage |
-| `STRONG` | `OPSLIMIT_SENSITIVE` | `MEMLIMIT_SENSITIVE` (1 GB) | Master keys, archive encryption, exports |
+### Password hashing (`hashpk` / `auth_hashpk`)
 
-For file encryption the `stren` level controls key derivation cost (same
-Argon2id table above); the cipher is always XChaCha20-Poly1305 regardless
-of strength.
+Controls Argon2id cost parameters:
+
+| Level | Argon2id ops | Argon2id mem | Approx. time | When to use |
+|---|---|---|---|---|
+| `FAST` | `OPSLIMIT_INTERACTIVE` | 64 MB | ~0.5s | High-frequency auth, low-power devices |
+| `DEFAULT` | `OPSLIMIT_MODERATE` | 256 MB | ~2–3s | General-purpose password storage |
+| `STRONG` | `OPSLIMIT_SENSITIVE` | 1 GB | ~5–10s | Master keys, exports, long-term storage |
+
+### File encryption (`enc_file` / `dec_file`)
+
+Controls both key derivation cost (same Argon2id table) **and** the cipher:
+
+| Level | Cipher | Key | Notes |
+|---|---|---|---|
+| `FAST` | AES-128-GCM | 128-bit | Hardware-accelerated (AES-NI); fastest on modern CPUs |
+| `DEFAULT` | AES-256-GCM | 256-bit | Hardware-accelerated; recommended for most files |
+| `STRONG` | XChaCha20-Poly1305 | 256-bit | Pure software; immune to AES timing side-channels; 192-bit nonce |
+
+`STRONG` is not "more encrypted than DEFAULT" in the classical sense — both are
+unbreakable in practice. The difference is threat model: `STRONG` removes any
+dependency on AES-NI hardware correctness and is preferred in high-assurance or
+constrained environments.
 
 ---
 
@@ -127,17 +142,18 @@ fn restore(path: str, passphrase: str) -> !void
 **File format** (binary layout written into the file):
 
 ```
-[4 bytes magic: "PLNT"]
-[1 byte version: 0x01]
-[1 byte stren: 0=FAST 1=DEFAULT 2=STRONG]
+[4 bytes  magic:   "PLNT"]
+[1 byte   version: 0x01]
+[1 byte   stren:   0=FAST 1=DEFAULT 2=STRONG]
+[1 byte   cipher:  0=AES-128-GCM  1=AES-256-GCM  2=XChaCha20-Poly1305]
 [32 bytes Argon2id salt]
-[24 bytes XChaCha20-Poly1305 nonce]
-[N bytes ciphertext + 16 bytes Poly1305 tag]
+[12 bytes nonce (AES-GCM) OR 24 bytes nonce (XChaCha20)]
+[N bytes  ciphertext + 16 bytes authentication tag]
 ```
 
-The header contains everything needed to decrypt; the passphrase is the
-only external input required. To detect whether a file is encrypted, check
-for the `PLNT` magic bytes at offset 0.
+The header is fully self-describing — `stren` and `cipher` record exactly
+how the file was encrypted. The passphrase is the only external input needed
+to decrypt. To detect whether a file is encrypted, check for `PLNT` at offset 0.
 
 ---
 
