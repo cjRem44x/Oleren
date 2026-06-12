@@ -5,9 +5,11 @@
 
 void lexer_init(Lexer *l, const char *src)
 {
-    l->src  = src;
-    l->pos  = 0;
-    l->line = 1;
+    l->src       = src;
+    l->pos       = 0;
+    l->line      = 1;
+    l->last_type = TOK_EOF; /* nothing emitted yet — won't trigger implicit newline */
+    l->has_held  = 0;
 }
 
 static char cur(Lexer *l)  { return l->src[l->pos]; }
@@ -68,10 +70,25 @@ static TokenType check_kw(const char *s, int len)
     return TOK_IDENT;
 }
 
-Token lexer_next(Lexer *l)
+/* Returns 1 if a token of this type can end a statement, triggering an
+   implicit newline when the source line changes afterwards. */
+static int can_end_stmt(TokenType t)
 {
-    skip_ws_and_comments(l);
+    switch (t) {
+        case TOK_IDENT:
+        case TOK_INT_LIT: case TOK_FLOAT_LIT:
+        case TOK_STR_LIT: case TOK_CHAR_LIT:
+        case TOK_TRUE:    case TOK_FALSE:
+        case TOK_RPAREN:  case TOK_RBRACKET: case TOK_RBRACE:
+            return 1;
+        default:
+            return 0;
+    }
+}
 
+/* Lex a single token at the current position (whitespace already skipped). */
+static Token lex_one(Lexer *l)
+{
     const char *start = l->src + l->pos;
     int line = l->line;
 
@@ -162,6 +179,32 @@ Token lexer_next(Lexer *l)
     }
 
     return make_tok(line, TOK_ERROR, start, 1);
+}
+
+Token lexer_next(Lexer *l)
+{
+    /* return the real token that was deferred behind a TOK_NEWLINE */
+    if (l->has_held) {
+        Token t = l->held_tok;
+        l->has_held  = 0;
+        l->last_type = t.type;
+        return t;
+    }
+
+    int line_before = l->line;
+    skip_ws_and_comments(l);
+
+    /* implicit newline: the source line changed after a statement-ending token */
+    if (l->line > line_before && can_end_stmt(l->last_type)) {
+        l->held_tok  = lex_one(l);   /* defer the real token for next call */
+        l->has_held  = 1;
+        l->last_type = TOK_NEWLINE;
+        return make_tok(line_before, TOK_NEWLINE, l->src + l->pos, 0);
+    }
+
+    Token t = lex_one(l);
+    l->last_type = t.type;
+    return t;
 }
 
 const char *tok_type_name(TokenType t)

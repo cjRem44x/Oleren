@@ -46,6 +46,7 @@ typedef enum {
     TOK_LSHIFT,    /* << */
     TOK_RSHIFT,    /* >> */
 
+    TOK_NEWLINE,   /* implicit statement separator — auto-inserted at line boundaries */
     TOK_EOF,
     TOK_ERROR,
 } TokenType;
@@ -61,6 +62,9 @@ typedef struct {
     const char *src;
     int         pos;
     int         line;
+    TokenType   last_type; /* type of the last emitted token */
+    int         has_held;  /* 1 = held_tok is valid and should be returned next */
+    Token       held_tok;  /* real token deferred behind a TOK_NEWLINE */
 } Lexer;
 
 void        lexer_init(Lexer *l, const char *src);

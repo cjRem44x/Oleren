@@ -63,6 +63,13 @@ static AstNode *parse_when(Parser *p);
 static AstNode *parse_brace_literal(Parser *p);
 static AstNode *parse_err_decl(Parser *p);
 
+/* Consume zero or more implicit newlines / explicit semicolons. */
+static void skip_newlines(Parser *p)
+{
+    while (p->cur.type == TOK_NEWLINE || p->cur.type == TOK_SEMICOLON)
+        next_tok(p);
+}
+
 static AstNode *parse_expr(Parser *p) { return parse_expr_bp(p, 0); }
 
 static AstNode *parse_type(Parser *p)
@@ -131,9 +138,12 @@ static AstNode *parse_type(Parser *p)
 static void parse_arg_list(Parser *p, NodeList *args)
 {
     expect(p, TOK_LPAREN);
+    skip_newlines(p);
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
         node_list_push(args, parse_expr_bp(p, 0));
+        skip_newlines(p);
         if (!match(p, TOK_COMMA)) break;
+        skip_newlines(p);
     }
     expect(p, TOK_RPAREN);
 }
@@ -169,6 +179,7 @@ static OpBp infix_bp(TokenType t)
         case TOK_LBRACKET: case TOK_LPAREN:          return (OpBp){ 110, 111 };
         /* catch: between or(10) and and(20) */
         case TOK_CATCH:                              return (OpBp){ 12, 13 };
+        case TOK_NEWLINE:  case TOK_SEMICOLON:       return (OpBp){ -1, -1 };
         default:                                     return (OpBp){ -1, -1 };
     }
 }
@@ -192,8 +203,9 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
         }
         expect(p, TOK_RPAREN);
     }
-    else if (check(p, TOK_MINUS) || check(p, TOK_BANG) || check(p, TOK_AMP)) {
-        /* unary prefix: -x  !x  &x */
+    else if (check(p, TOK_MINUS) || check(p, TOK_BANG) || check(p, TOK_AMP)
+             || check(p, TOK_STAR) || check(p, TOK_CARET)) {
+        /* unary prefix: -x  !x  &x  *p (deref)  ^p (smart deref) */
         Token op = next_tok(p);
         AstNode *n = ast_node_new(NODE_UNARY, op.line);
         n->unary.op      = op.type;
@@ -275,6 +287,7 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
             AstNode *n = ast_node_new(NODE_STRUCT_LIT, name.line);
             n->struct_lit.type_name = tok_dup(name);
             next_tok(p); /* consume { */
+            skip_newlines(p);
             while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
                 expect(p, TOK_DOT);
                 AstNode *fi = ast_node_new(NODE_FIELD_INIT, p->cur.line);
@@ -282,7 +295,9 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
                 expect(p, TOK_EQ);
                 fi->field_init.value = parse_expr_bp(p, 0);
                 node_list_push(&n->struct_lit.fields, fi);
+                skip_newlines(p);
                 match(p, TOK_COMMA);
+                skip_newlines(p);
             }
             expect(p, TOK_RBRACE);
             left = n;
@@ -479,6 +494,7 @@ static void parse_import_block(Parser *p, AstNode *prog)
 {
     next_tok(p);                    /* consume '@import' */
     expect(p, TOK_LPAREN);
+    skip_newlines(p);
 
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
         AstNode *entry = ast_node_new(NODE_IMPORT_DECL, p->cur.line);
@@ -512,7 +528,9 @@ static void parse_import_block(Parser *p, AstNode *prog)
         }
 
         node_list_push(&prog->program.imports, entry);
+        skip_newlines(p);
         match(p, TOK_COMMA);
+        skip_newlines(p);
     }
     expect(p, TOK_RPAREN);
 }
@@ -679,13 +697,17 @@ static AstNode *parse_brace_literal(Parser *p)
         AstNode *n = ast_node_new(NODE_STRUCT_LIT, line);
         n->struct_lit.type_name = NULL;
         while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+            skip_newlines(p);
+            if (check(p, TOK_RBRACE)) break;
             expect(p, TOK_DOT);
             AstNode *fi = ast_node_new(NODE_FIELD_INIT, p->cur.line);
             fi->field_init.name = tok_dup(expect(p, TOK_IDENT));
             expect(p, TOK_EQ);
             fi->field_init.value = parse_expr_bp(p, 0);
             node_list_push(&n->struct_lit.fields, fi);
+            skip_newlines(p);
             match(p, TOK_COMMA);
+            skip_newlines(p);
         }
         expect(p, TOK_RBRACE);
         return n;
@@ -693,9 +715,12 @@ static AstNode *parse_brace_literal(Parser *p)
 
     /* { expr, ... } → array literal */
     AstNode *n = ast_node_new(NODE_ARRAY_LIT, line);
+    skip_newlines(p);
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         node_list_push(&n->array_lit.elems, parse_expr_bp(p, 0));
-        match(p, TOK_COMMA);
+        skip_newlines(p);
+        if (!match(p, TOK_COMMA)) break;
+        skip_newlines(p);
     }
     expect(p, TOK_RBRACE);
     return n;
@@ -719,13 +744,16 @@ static AstNode *parse_struct_decl(Parser *p)
     next_tok(p); /* consume 'struct' */
     n->struct_decl.name = tok_dup(expect(p, TOK_IDENT));
     expect(p, TOK_LBRACE);
+    skip_newlines(p);
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         AstNode *field = ast_node_new(NODE_PARAM, p->cur.line);
         field->param.name = tok_dup(expect(p, TOK_IDENT));
         expect(p, TOK_COLON);
         field->param.type = parse_type(p);
         node_list_push(&n->struct_decl.fields, field);
+        skip_newlines(p);
         match(p, TOK_COMMA);
+        skip_newlines(p);
     }
     expect(p, TOK_RBRACE);
     return n;
@@ -740,12 +768,15 @@ static AstNode *parse_enum_decl(Parser *p)
     if (match(p, TOK_FAT_ARROW))
         n->enum_decl.base_type = parse_type(p);
     expect(p, TOK_LBRACE);
+    skip_newlines(p);
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         AstNode *v = ast_node_new(NODE_ENUM_VARIANT, p->cur.line);
         v->enum_variant.name  = tok_dup(expect(p, TOK_IDENT));
         v->enum_variant.value = match(p, TOK_EQ) ? parse_expr_bp(p, 0) : NULL;
         node_list_push(&n->enum_decl.variants, v);
+        skip_newlines(p);
         match(p, TOK_COMMA);
+        skip_newlines(p);
     }
     expect(p, TOK_RBRACE);
     return n;
@@ -764,13 +795,16 @@ static AstNode *parse_unn_decl(Parser *p)
     }
     n->unn_decl.name = tok_dup(expect(p, TOK_IDENT));
     expect(p, TOK_LBRACE);
+    skip_newlines(p);
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         AstNode *field = ast_node_new(NODE_PARAM, p->cur.line);
         field->param.name = tok_dup(expect(p, TOK_IDENT));
         expect(p, TOK_COLON);
         field->param.type = parse_type(p);
         node_list_push(&n->unn_decl.fields, field);
+        skip_newlines(p);
         match(p, TOK_COMMA);
+        skip_newlines(p);
     }
     expect(p, TOK_RBRACE);
     return n;
@@ -783,11 +817,14 @@ static AstNode *parse_err_decl(Parser *p)
     next_tok(p); /* consume 'err' */
     n->err_decl.name = tok_dup(expect(p, TOK_IDENT));
     expect(p, TOK_LBRACE);
+    skip_newlines(p);
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         AstNode *v = ast_node_new(NODE_IDENT, p->cur.line);
         v->ident.name = tok_dup(expect(p, TOK_IDENT));
         node_list_push(&n->err_decl.variants, v);
+        skip_newlines(p);
         match(p, TOK_COMMA);
+        skip_newlines(p);
     }
     expect(p, TOK_RBRACE);
     return n;
@@ -894,7 +931,9 @@ static AstNode *parse_stmt(Parser *p)
     }
 
     AstNode *expr = parse_expr(p);
-    match(p, TOK_SEMICOLON);
+    /* consume optional statement terminator */
+    while (p->cur.type == TOK_NEWLINE || p->cur.type == TOK_SEMICOLON)
+        next_tok(p);
     return expr;
 }
 
@@ -902,9 +941,11 @@ static AstNode *parse_block(Parser *p)
 {
     AstNode *n = ast_node_new(NODE_BLOCK, p->cur.line);
     expect(p, TOK_LBRACE);
+    skip_newlines(p);
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         AstNode *s = parse_stmt(p);
         if (s) node_list_push(&n->block.stmts, s);
+        skip_newlines(p);
     }
     expect(p, TOK_RBRACE);
     return n;
@@ -913,13 +954,16 @@ static AstNode *parse_block(Parser *p)
 static void parse_params(Parser *p, NodeList *params)
 {
     expect(p, TOK_LPAREN);
+    skip_newlines(p);
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
         AstNode *param = ast_node_new(NODE_PARAM, p->cur.line);
         param->param.name = tok_dup(expect(p, TOK_IDENT));
         expect(p, TOK_COLON);
         param->param.type = parse_type(p);
         node_list_push(params, param);
+        skip_newlines(p);
         if (!match(p, TOK_COMMA)) break;
+        skip_newlines(p);
     }
     expect(p, TOK_RPAREN);
 }
@@ -930,11 +974,13 @@ static AstNode *parse_fn_decl(Parser *p)
     expect(p, TOK_FN);
     n->fn_decl.name = tok_dup(expect(p, TOK_IDENT));
     parse_params(p, &n->fn_decl.params);
+    skip_newlines(p);
 
     if (match(p, TOK_ARROW)) {
         /* void return: consume the keyword, leave ret_type NULL */
         if (check(p, TOK_VOID)) next_tok(p);
         else n->fn_decl.ret_type = parse_type(p);
+        skip_newlines(p);
     }
 
     n->fn_decl.body = parse_block(p);
@@ -981,7 +1027,10 @@ AstNode *parser_parse_program(Parser *p)
         (check(p, TOK_BUILTIN) && tok_text_is(p->cur, "import")))
         parse_import_block(p, prog);
 
+    skip_newlines(p);
     while (!check(p, TOK_EOF)) {
+        skip_newlines(p);
+        if (check(p, TOK_EOF)) break;
         if (check(p, TOK_EXTERN)) {
             node_list_push(&prog->program.decls, parse_extern_fn(p));
         } else if (check(p, TOK_FN) || check(p, TOK_PUB)) {

@@ -262,11 +262,22 @@ static void emit_type(Codegen *cg, AstNode *type_ref)
     }
 }
 
-/* recursively flatten "a + b + c" into << a << b << c for @pl/@cout.
-   Non-+ nodes emit as a single << operand. */
+/* Returns 1 if this node is a string-concat chain (leftmost leaf is a string
+   literal). Only those chains should be flattened into << segments; numeric
+   `a + b` must remain as arithmetic. */
+static int is_str_chain(AstNode *node)
+{
+    if (node->kind == NODE_STR_LIT) return 1;
+    if (node->kind == NODE_BINARY && node->binary.op == TOK_PLUS)
+        return is_str_chain(node->binary.left);
+    return 0;
+}
+
+/* recursively flatten "str + b + c" into << str << b << c for @pl/@cout.
+   Arithmetic + expressions (no leading string literal) are emitted as one operand. */
 static void emit_pl_chain(Codegen *cg, AstNode *node)
 {
-    if (node->kind == NODE_BINARY && node->binary.op == TOK_PLUS) {
+    if (node->kind == NODE_BINARY && node->binary.op == TOK_PLUS && is_str_chain(node)) {
         emit_pl_chain(cg, node->binary.left);
         emit_pl_chain(cg, node->binary.right);
     } else {
@@ -559,9 +570,11 @@ static void emit_expr(Codegen *cg, AstNode *node)
         }
         case NODE_UNARY:
             switch (node->unary.op) {
-                case TOK_MINUS: fputc('-', cg->out); break;
-                case TOK_BANG:  fputc('!', cg->out); break;
-                case TOK_AMP:   fputc('&', cg->out); break;
+                case TOK_MINUS: fputc('-',  cg->out); break;
+                case TOK_BANG:  fputc('!',  cg->out); break;
+                case TOK_AMP:   fputc('&',  cg->out); break;
+                case TOK_STAR:  fputc('*',  cg->out); break;  /* *p  — raw deref   */
+                case TOK_CARET: fputs("*",  cg->out); break;  /* ^p  — smart deref */
                 default: break;
             }
             emit_expr(cg, node->unary.operand);

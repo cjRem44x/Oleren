@@ -19,6 +19,7 @@ typedef struct {
     /* symbol table — a stack of local names (vars, params, bindings),
        so a local that shadows an import alias doesn't count as a use */
     const char *syms[MAX_SYMS];
+    int         sym_is_smart[MAX_SYMS]; /* 1 if declared as ^T */
     int         sym_count;
     int         scope_start[MAX_SCOPES];
     int         scope_depth;
@@ -41,7 +42,7 @@ static void pop_scope(Check *c)
         c->sym_count = c->scope_start[c->scope_depth];
 }
 
-static void declare(Check *c, const char *name, int line)
+static void declare(Check *c, const char *name, int line, int is_smart)
 {
     if (!name || strcmp(name, "_") == 0) return;
     /* shadowing an import alias is banned: codegen treats alias-rooted
@@ -57,8 +58,19 @@ static void declare(Check *c, const char *name, int line)
             break;
         }
     }
-    if (c->sym_count < MAX_SYMS)
-        c->syms[c->sym_count++] = name;
+    if (c->sym_count < MAX_SYMS) {
+        c->syms[c->sym_count]          = name;
+        c->sym_is_smart[c->sym_count]  = is_smart;
+        c->sym_count++;
+    }
+}
+
+static int sym_is_smart(Check *c, const char *name)
+{
+    for (int i = c->sym_count - 1; i >= 0; i--)
+        if (strcmp(c->syms[i], name) == 0)
+            return c->sym_is_smart[i];
+    return 0;
 }
 
 static int is_local(Check *c, const char *name)
@@ -187,7 +199,7 @@ static void walk(Check *c, AstNode *n)
             walk(c, n->catch_expr.fallback);
             if (n->catch_expr.body) {
                 push_scope(c);
-                declare(c, n->catch_expr.err_var, n->line);
+                declare(c, n->catch_expr.err_var, n->line, 0);
                 walk(c, n->catch_expr.body);
                 pop_scope(c);
             }
@@ -204,15 +216,17 @@ static void walk(Check *c, AstNode *n)
         case NODE_FOR_EACH:
             walk(c, n->for_each.iter);
             push_scope(c);
-            declare(c, n->for_each.elem, n->line);
-            declare(c, n->for_each.idx, n->line);
+            declare(c, n->for_each.elem, n->line, 0);
+            declare(c, n->for_each.idx,  n->line, 0);
             walk(c, n->for_each.body);
             pop_scope(c);
             break;
-        case NODE_VAR_DECL:
+        case NODE_VAR_DECL: {
             walk(c, n->var_decl.init);   /* init may reference outer names */
-            declare(c, n->var_decl.name, n->line);
+            int smart = n->var_decl.type_ref && n->var_decl.type_ref->type_ref.is_smart;
+            declare(c, n->var_decl.name, n->line, smart);
             break;
+        }
         case NODE_VAR_DECL_GROUP: walk_list(c, &n->var_decl_group.entries); break;
         case NODE_IF:
             walk(c, n->if_expr.cond); walk(c, n->if_expr.then_block);
@@ -229,6 +243,19 @@ static void walk(Check *c, AstNode *n)
         case NODE_DEFER:     walk(c, n->defer_stmt.expr); break;
         case NODE_ERRDEFER:  walk(c, n->errdefer_stmt.expr); break;
         case NODE_BUILTIN_CALL:
+            if (strcmp(n->call.name, "free") == 0 && n->call.args.count == 1) {
+                AstNode *arg = n->call.args.items[0];
+                if (arg->kind == NODE_IDENT && sym_is_smart(c, arg->ident.name)) {
+                    fprintf(stderr,
+                            "error: line %d: '@free' called on '%s' which is a "
+                            "smart pointer (^T) — smart pointers free themselves; "
+                            "remove the @free call\n",
+                            n->line, arg->ident.name);
+                    c->errors++;
+                }
+            }
+            walk_list(c, &n->call.args);
+            break;
         case NODE_CALL:      walk_list(c, &n->call.args); break;
         case NODE_CALL_EXPR: walk(c, n->call_expr.callee); walk_list(c, &n->call_expr.args); break;
         case NODE_ARRAY_LIT: walk_list(c, &n->array_lit.elems); break;
@@ -283,9 +310,11 @@ int check_program(AstNode *program)
         c.fn_name = fn->fn_decl.name;
         c.fn_set  = fn_err_set(fn);
         push_scope(&c);
-        for (int j = 0; j < fn->fn_decl.params.count; j++)
-            declare(&c, fn->fn_decl.params.items[j]->param.name,
-                    fn->fn_decl.params.items[j]->line);
+        for (int j = 0; j < fn->fn_decl.params.count; j++) {
+            AstNode *pm = fn->fn_decl.params.items[j];
+            int smart = pm->param.type && pm->param.type->type_ref.is_smart;
+            declare(&c, pm->param.name, pm->line, smart);
+        }
         walk(&c, fn->fn_decl.body);
         pop_scope(&c);
     }
