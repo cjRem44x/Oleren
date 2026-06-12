@@ -662,8 +662,6 @@ static int cmd_build(void)
 /* olrn run  — build then execute */
 static int cmd_run(void)
 {
-    if (cmd_build() != 0) return 1;
-
     const char *name = project_name();
     if (!name) return 1;
 
@@ -672,6 +670,12 @@ static int cmd_run(void)
         snprintf(cmd, sizeof(cmd), "./bin/%s", name);
     else
         snprintf(cmd, sizeof(cmd), "./%s", name);
+
+    if (access(cmd + 2, F_OK) != 0) {
+        fprintf(stderr, "error: '%s' not found — run 'olrn build' first\n",
+                cmd + 2);
+        return 1;
+    }
     return system(cmd);
 }
 
