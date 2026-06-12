@@ -15,13 +15,13 @@ fn main() -> !void
         mk.clear_bg(mk.DARKGRAY)
 
         # draw_rect_rot — rotated rectangle
-        origin := Vec2{.x=50.0, .y=25.0}
+        origin := mk.vec2(50.0, 25.0)
         mk.draw_rect_rot(320.0, 180.0, 100.0, 50.0, origin, @f32(frame), mk.ORANGE)
 
         # camera2d — pan scene
         cam := mk.camera2d(
-            Vec2{.x=0.0, .y=0.0},
-            Vec2{.x=100.0, .y=80.0},
+            mk.vec2_zero(),
+            mk.vec2(100.0, 80.0),
             1.5,
         )
         mk.begin_camera2d(cam)
@@ -45,10 +45,10 @@ fn main() -> !void
         _ :: mk.pad_connected(0)
 
         # screen_to_world2d round-trip sanity
-        screen_pt := Vec2{.x=200.0, .y=150.0}
+        screen_pt := mk.vec2(200.0, 150.0)
         world_pt  := mk.screen_to_world2d(screen_pt, cam)
         back      := mk.world_to_screen2d(world_pt, cam)
-        if @f32(math_abs(@f64(back.x - screen_pt.x))) > 0.01 {
+        if @abs(@f64(back.x - screen_pt.x)) > 0.01 {
             @panic("screen_to_world2d round-trip failed")
         }
 
