@@ -1860,8 +1860,20 @@ void codegen_emit(Codegen *cg, AstNode *program)
         if (decl->struct_decl.methods.count > 0) {
             fputc('\n', cg->out);
             cg->current_struct = decl->struct_decl.name;
-            for (int j = 0; j < decl->struct_decl.methods.count; j++)
-                emit_method(cg, decl->struct_decl.methods.items[j]);
+            /* public methods first */
+            for (int j = 0; j < decl->struct_decl.methods.count; j++) {
+                AstNode *m = decl->struct_decl.methods.items[j];
+                if (m->fn_decl.is_pub) emit_method(cg, m);
+            }
+            /* private methods in their own access section */
+            int has_priv = 0;
+            for (int j = 0; j < decl->struct_decl.methods.count; j++) {
+                AstNode *m = decl->struct_decl.methods.items[j];
+                if (!m->fn_decl.is_pub) {
+                    if (!has_priv) { fputs("  private:\n", cg->out); has_priv = 1; }
+                    emit_method(cg, m);
+                }
+            }
             cg->current_struct = NULL;
         }
         for (int j = 0; j < decl->struct_decl.statics.count; j++) {

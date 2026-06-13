@@ -850,11 +850,14 @@ static AstNode *parse_struct_decl(Parser *p)
     skip_newlines(p);
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         if (check(p, TOK_FN)) {
-            node_list_push(&n->struct_decl.methods, parse_fn_decl(p));
+            /* bare fn inside struct — private */
+            AstNode *m = parse_fn_decl(p);
+            m->fn_decl.is_pub = 0;
+            node_list_push(&n->struct_decl.methods, m);
         } else if (check(p, TOK_PUB)) {
             next_tok(p); /* consume 'pub' */
             if (check(p, TOK_FN)) {
-                /* pub fn — method */
+                /* pub fn — public method */
                 node_list_push(&n->struct_decl.methods, parse_fn_decl(p));
             } else {
                 /* pub NAME : type = expr  — static field */
@@ -1116,6 +1119,7 @@ static void parse_params(Parser *p, NodeList *params)
 static AstNode *parse_fn_decl(Parser *p)
 {
     AstNode *n = ast_node_new(NODE_FN_DECL, p->cur.line);
+    n->fn_decl.is_pub = 1; /* default public; struct context overrides for bare fn */
     expect(p, TOK_FN);
     n->fn_decl.name = tok_dup(expect(p, TOK_IDENT));
     parse_params(p, &n->fn_decl.params);

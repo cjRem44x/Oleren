@@ -76,6 +76,7 @@ struct AstNode {
             NodeList params;
             AstNode *ret_type; /* NULL means void */
             AstNode *body;
+            int      is_pub;   /* 0 = private to struct; 1 = public (default) */
         } fn_decl;
 
         /* NODE_PARAM */
