@@ -200,9 +200,10 @@ static OpBp infix_bp(TokenType t)
         case TOK_PLUS_EQ: case TOK_MINUS_EQ:
         case TOK_STAR_EQ: case TOK_SLASH_EQ:
         case TOK_PERCENT_EQ:                         return (OpBp){ 5, 4 };
-        /* postfix: . -> [] () — highest */
-        case TOK_DOT: case TOK_ARROW:
-        case TOK_LBRACKET: case TOK_LPAREN:          return (OpBp){ 110, 111 };
+        /* postfix: . -> [] () .* — highest */
+        case TOK_DOT:     case TOK_ARROW:
+        case TOK_LBRACKET: case TOK_LPAREN:
+        case TOK_DOTDEREF:                            return (OpBp){ 110, 111 };
         /* catch: between or(10) and and(20) */
         case TOK_CATCH:                              return (OpBp){ 12, 13 };
         case TOK_NEWLINE:  case TOK_SEMICOLON:       return (OpBp){ -1, -1 };
@@ -443,6 +444,15 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
             n->subscript.target = left;
             n->subscript.index  = parse_expr_bp(p, 0);
             expect(p, TOK_RBRACKET);
+            left = n;
+            continue;
+        }
+
+        /* .* deref — lexed as a single token to prevent .*= misparse */
+        if (tt == TOK_DOTDEREF) {
+            next_tok(p);
+            AstNode *n = ast_node_new(NODE_DEREF, line);
+            n->deref.target = left;
             left = n;
             continue;
         }
@@ -997,7 +1007,19 @@ static AstNode *parse_when_arm(Parser *p)
     if (check(p, TOK_LBRACE)) {
         n->when_arm.body = parse_block(p);
     } else {
-        n->when_arm.body = parse_expr_bp(p, 0);
+        AstNode *lhs = parse_expr_bp(p, 0);
+        TokenType att = p->cur.type;
+        if (att == TOK_EQ      || att == TOK_PLUS_EQ  || att == TOK_MINUS_EQ ||
+            att == TOK_STAR_EQ || att == TOK_SLASH_EQ || att == TOK_PERCENT_EQ) {
+            AstNode *assign = ast_node_new(NODE_ASSIGN, lhs->line);
+            assign->assign.op  = att;
+            assign->assign.lhs = lhs;
+            next_tok(p);
+            assign->assign.rhs = parse_expr_bp(p, 0);
+            n->when_arm.body = assign;
+        } else {
+            n->when_arm.body = lhs;
+        }
     }
     match(p, TOK_COMMA);
     return n;

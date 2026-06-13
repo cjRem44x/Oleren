@@ -80,6 +80,7 @@ static int can_end_stmt(TokenType t)
         case TOK_STR_LIT: case TOK_MSTR_LIT: case TOK_CHAR_LIT:
         case TOK_TRUE:    case TOK_FALSE:
         case TOK_RPAREN:  case TOK_RBRACKET: case TOK_RBRACE:
+        case TOK_DOTDEREF:
             return 1;
         default:
             return 0;
@@ -182,7 +183,10 @@ static Token lex_one(Lexer *l)
         case '.': if (cur(l)=='.'){adv(l);
                       if (cur(l)=='='){adv(l);return make_tok(line,TOK_DOTDOTEQ, start,3);}
                       if (cur(l)=='.'){adv(l);return make_tok(line,TOK_ELLIPSIS,  start,3);}
-                      return make_tok(line,TOK_DOTDOT,start,2);}                          return make_tok(line,TOK_DOT,start,1);
+                      return make_tok(line,TOK_DOTDOT,start,2);}
+                  /* .* deref postfix — consume * here so .*= doesn't become . + *= */
+                  if (cur(l)=='*'){adv(l);return make_tok(line,TOK_DOTDEREF,start,2);}
+                  return make_tok(line,TOK_DOT,start,1);
         case '!': if (cur(l)=='='){adv(l);return make_tok(line,TOK_NEQ,      start,2);} return make_tok(line,TOK_BANG,     start,1);
         case '<': if (cur(l)=='='){adv(l);return make_tok(line,TOK_LEQ,    start,2);}
                   if (cur(l)=='<'){adv(l);return make_tok(line,TOK_LSHIFT,start,2);} return make_tok(line,TOK_LT,start,1);
@@ -308,6 +312,7 @@ const char *tok_type_name(TokenType t)
         case TOK_DOTDOT:    return "..";
         case TOK_DOTDOTEQ:  return "..=";
         case TOK_ELLIPSIS:  return "...";
+        case TOK_DOTDEREF:  return ".*";
         case TOK_PLUS_EQ:   return "+=";
         case TOK_MINUS_EQ:  return "-=";
         case TOK_STAR_EQ:   return "*=";

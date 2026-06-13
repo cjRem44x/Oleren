@@ -43,6 +43,7 @@ typedef enum {
     TOK_DOTDOT,    /* .. */
     TOK_DOTDOTEQ,  /* ..= */
     TOK_ELLIPSIS,  /* ... */
+    TOK_DOTDEREF,  /* .* raw-pointer deref postfix */
     TOK_LSHIFT,    /* << */
     TOK_RSHIFT,    /* >> */
 
