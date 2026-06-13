@@ -6,7 +6,7 @@
 - [Compiling](#compiling)
 - [Imports](#imports)
 - [Variables & Types](#variables--types)
-- [Strings](#strings)
+- [Strings](#strings) — `str`, `istr`, `mstr` (`"""..."""` multiline)
 - [Arrays](#arrays)
 - [Lists (`@ls`)](#lists-ls)
 - [Collections (`@map`, `@set`)](#collections-map-set)
@@ -65,6 +65,7 @@ Create a new project: `mkdir myGame && cd myGame && olrn init`. It scaffolds ins
 | `olrn check <file.olrn>` | Parse + semantic checks, no output |
 | `olrn deps [file.olrn]` | Check system libs (SDL2, …) with per-OS install hints |
 | `olrn sac <files> [-o=name]` | Stand-alone: compile one or more files to binary |
+| `olrn view <file>` | Open an image, GIF, or video in a built-in SDL2 viewer |
 | `olrn version` | Print version |
 | `olrn help` | Print usage |
 
@@ -72,6 +73,31 @@ Create a new project: `mkdir myGame && cd myGame && olrn init`. It scaffolds ins
 ```sh
 olrn sac main.olrn util.olrn -o=myprog
 ```
+
+### `olrn view`
+
+Built-in media viewer — opens images, animated GIFs, and videos in an SDL2 window without writing any Oleren code:
+
+```sh
+olrn view photo.png
+olrn view animation.gif
+olrn view clip.mp4
+```
+
+Controls:
+
+| Key / Action | Effect |
+|---|---|
+| Scroll wheel | Zoom in / out |
+| `+` / `-` | Zoom in / out |
+| `0` | Reset zoom and pan to 1:1 center |
+| Click + drag | Pan |
+| `E` | Toggle enhance (images and GIFs only): denoise → sharpen → S-curve levels |
+| `Space` | Pause / resume (video only) |
+| `Q` / `Esc` | Quit |
+
+Supported formats: PNG, JPG, BMP, WebP, GIF (animated), MP4, MKV, AVI, MOV, WebM, and more.  
+Video playback requires `ffmpeg` to be installed. Images and GIFs only need SDL2 + SDL2\_image.
 
 ---
 
@@ -192,6 +218,34 @@ name :istr = "john"
 copy :str  = name   # copies fine
 # name[0] = 'J'    # compile error
 ```
+
+`mstr` — multiline string, written with triple-quote `"""..."""` literals. The raw content (newlines, indentation) is preserved verbatim. Same underlying type as `str` (`std::string`), interchangeable at runtime:
+
+```rust
+bio :mstr = """
+Name: Alice
+Role: Engineer
+"""
+
+query := """
+SELECT *
+FROM users
+WHERE active = 1;
+"""
+
+# immutable mstr
+banner :mstr: """
+╔══════════╗
+║  Oleren  ║
+╚══════════╝
+"""
+
+# inline concat with str
+lang :str = "Oleren"
+msg := """Hello from """ + lang + """!"""
+```
+
+All string forms (`str`, `istr`, `mstr`) share the same methods and operators — `+`, `==`, `.len`, `[]`, `std.str.*`.
 
 String functions live in `std.str`:
 
