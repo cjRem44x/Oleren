@@ -172,9 +172,10 @@ won := std.thread.atomic_cas(cnt, 0, 1)     # compare-and-swap; -> bool
 ## `std.malkur` — Gamedev
 
 See [`Malkur.md`](Malkur.md) for the full API surface. Raylib-inspired flat API
-on an SDL2 backend. v0.3 shipped: window/loop, keyboard, mouse, gamepad, 2D
-shapes, textures (PNG/JPG via SDL_image), camera 2D, embedded font, audio
-sounds + streaming music (SDL_mixer), colors, Vec2 math, 2D collision.
+on an SDL2 backend. v0.4 shipped: window/loop, keyboard, mouse, gamepad, 2D
+shapes, textures (PNG/JPG via SDL_image), camera 2D, embedded 8×8 bitmap font,
+TTF/OTF fonts (SDL_ttf), audio — sounds + streaming music (SDL_mixer), colors,
+Vec2 math, 2D collision.
 
 ---
 
@@ -430,17 +431,11 @@ thread.cond_free(cv)
 
 ### `std.col` — Collections
 
-```rust
-# dynamic array (Vec)
-v := col.vec_init(i32)
-defer col.vec_deinit(v)
-col.vec_push(v, 42)
-val := col.vec_pop(v)        -> i32
-val := col.vec_get(v, i)     -> i32
-col.vec_set(v, i, val)
-col.vec_len(v) -> i32
-for item => v.items {}
+> **Note:** the built-in `@ls(T)` covers dynamic arrays — see the
+> [Lists section](Language.md#lists-ls) in Language.md. `std.col` provides
+> the other collection types: HashMap, HashSet, Queue, Stack.
 
+```rust
 # HashMap
 m := col.map_init(str, i32)
 defer col.map_deinit(m)

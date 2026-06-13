@@ -19,7 +19,7 @@ stops with install instructions for your OS — `olrn deps` checks up front.
 )
 ```
 
-## Status (v0.3)
+## Status (v0.4)
 
 The API is flat — every call goes through the alias (`mk.draw_rect(...)`),
 Raylib-style; window/renderer/input state lives in the backend.
@@ -28,6 +28,7 @@ Raylib-style; window/renderer/input state lives in the backend.
 (up to 4 controllers), 2D shapes, `draw_rect_rot`, textures (BMP + PNG + JPG
 via SDL_image, src/dst subrect), camera 2D (world↔screen transforms, all draw
 calls go through it), embedded 8×8 bitmap font (`draw_text`/`measure_text`),
+TTF/OTF fonts (`load_font`/`draw_text_ex`/`measure_text_ex` via SDL_ttf),
 audio (sounds + streaming music via SDL_mixer), colors (including `hex()`),
 Vec2 math, 2D collision.
 

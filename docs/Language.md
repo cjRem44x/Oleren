@@ -765,6 +765,9 @@ input := @cin("prompt: ")   # read line from stdin, returns str
 n := try @i32("42")         # str → i32, fallible
 n := @i32("42") catch 0     # with fallback
 
+# ── Lists ───────────────────────────────────────────
+@ls.init(T, cap)            # create @ls(T) with initial capacity
+
 # ── Random ──────────────────────────────────────────
 @rng(T, lo, hi)             # random T in [lo, hi] inclusive
 n := @rng(i32, 0, 100)
