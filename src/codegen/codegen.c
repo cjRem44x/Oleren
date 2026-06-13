@@ -1795,14 +1795,22 @@ void codegen_emit(Codegen *cg, AstNode *program)
         }
         for (int j = 0; j < decl->struct_decl.statics.count; j++) {
             AstNode *sv = decl->struct_decl.statics.items[j];
-            fputs("    static inline ", cg->out);
+            fputs("    static ", cg->out);
             if (sv->var_decl.is_imu) fputs("const ", cg->out);
             emit_type(cg, sv->var_decl.type_ref);
-            fprintf(cg->out, " %s = ", sv->var_decl.name);
+            fprintf(cg->out, " %s;\n", sv->var_decl.name);
+        }
+        fputs("};\n", cg->out);
+        /* out-of-class definitions — struct type is complete here */
+        for (int j = 0; j < decl->struct_decl.statics.count; j++) {
+            AstNode *sv = decl->struct_decl.statics.items[j];
+            fputs("inline ", cg->out);
+            if (sv->var_decl.is_imu) fputs("const ", cg->out);
+            emit_type(cg, sv->var_decl.type_ref);
+            fprintf(cg->out, " %s::%s = ", decl->struct_decl.name, sv->var_decl.name);
             emit_expr(cg, sv->var_decl.init);
             fputs(";\n", cg->out);
         }
-        fputs("};\n", cg->out);
     }
     if (has_structs) fputc('\n', cg->out);
 

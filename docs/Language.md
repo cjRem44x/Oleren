@@ -263,16 +263,19 @@ v := Vec2{.x=1.0, .y=2.0}
 v.x = 3.0
 ```
 
-Struct with static vars and member functions:
+Struct with static fields and member functions:
 
 ```rust
 struct Player {
     x: f32, y: f32,
     hp: i32,
 
+    pub MAX_HP : i32 : 100      # immutable static — Player.MAX_HP
+    pub TAG    : str = "player" # mutable static   — Player.TAG
+
     pub fn init(x: f32, y: f32) -> Player
     {
-        ret Player{.x=x, .y=y, .hp=100}
+        ret Player{.x=x, .y=y, .hp=Player.MAX_HP}
     }
 
     pub fn move(self: @self, dx: f32, dy: f32)
@@ -284,9 +287,22 @@ struct Player {
 
 p := Player.init(0.0, 0.0)
 p.move(1.0, 0.0)
+@pl(Player.MAX_HP)   # 100
+@pl(Player.TAG)      # player
 ```
 
 `@self` in a param marks it as the instance receiver — no need to pass it at the call site.
+
+### Static fields
+
+`pub` fields are static members of the struct, not per-instance:
+
+```rust
+pub NAME : T : val   # immutable static (const) — declared with ::
+pub NAME : T = val   # mutable static            — declared with =
+```
+
+Both are accessed via `Struct.NAME`. Static fields can hold any type — numbers, strings, arrays. Immutable statics are good for constants; mutable statics are shared across all uses (like C++ `static inline`).
 
 ### Anonymous struct init — `.{}`
 
@@ -962,6 +978,8 @@ struct Rect {
     x: f32, y: f32,
     w: f32, h: f32,
 
+    pub UNIT : Rect : .{.x=0.0, .y=0.0, .w=1.0, .h=1.0}  # immutable static
+
     pub fn new(x: f32, y: f32, w: f32, h: f32) -> Rect
     {
         ret Rect{.x=x, .y=y, .w=w, .h=h}
@@ -984,8 +1002,9 @@ fn main() -> void
     a := Rect.new(0.0, 0.0, 10.0, 5.0)
     b := Rect.new(8.0, 3.0, 10.0, 5.0)
 
-    @pl(a.area())        # 50
-    @pl(a.overlaps(b))   # true
+    @pl(a.area())           # 50
+    @pl(a.overlaps(b))      # true
+    @pl(Rect.UNIT.w)        # 1
 }
 ```
 

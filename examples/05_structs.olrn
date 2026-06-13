@@ -4,9 +4,12 @@ struct Vec2 {
     x: f32,
     y: f32,
 
+    pub ZERO : Vec2 : .{.x=0.0, .y=0.0}
+    pub ONE  : Vec2 : .{.x=1.0, .y=1.0}
+
     pub fn zero() -> Vec2
     {
-        ret Vec2{.x=0.0, .y=0.0}
+        ret Vec2.ZERO
     }
 
     pub fn add(self: @self, other: Vec2) -> Vec2
@@ -35,9 +38,12 @@ struct Player {
     hp:   i32,
     name: str,
 
+    pub MAX_HP  : i32 : 100
+    pub SPECIES : str = "human"
+
     pub fn init(name: str, x: f32, y: f32) -> Player
     {
-        ret Player{.pos=Vec2{.x=x, .y=y}, .hp=100, .name=name}
+        ret Player{.pos=Vec2{.x=x, .y=y}, .hp=Player.MAX_HP, .name=name}
     }
 
     pub fn move(self: @self, dx: f32, dy: f32)
@@ -48,13 +54,20 @@ struct Player {
 
     pub fn print(self: @self)
     {
-        @pf("{}: hp={} pos=", self.name, self.hp)
+        @pf("{} ({}): hp={}/{} pos=", self.name, Player.SPECIES, self.hp, Player.MAX_HP)
         self.pos.print()
     }
 }
 
 fn main() -> void
 {
+    # static fields
+    Vec2.ZERO.print()
+    Vec2.ONE.print()
+    @pf("Player.MAX_HP = {}\n", Player.MAX_HP)
+    @pf("Player.SPECIES = {}\n", Player.SPECIES)
+
+    # methods
     z := Vec2.zero()
     z.print()
 
@@ -71,5 +84,9 @@ fn main() -> void
 
     p := Player.init("hero", 0.0, 0.0)
     p.move(5.0, -3.0)
+    p.print()
+
+    # mutable static — shared across all uses
+    Player.SPECIES = "elf"
     p.print()
 }
