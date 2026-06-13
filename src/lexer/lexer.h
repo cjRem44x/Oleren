@@ -3,7 +3,7 @@
 
 typedef enum {
     /* literals */
-    TOK_INT_LIT, TOK_FLOAT_LIT, TOK_STR_LIT, TOK_CHAR_LIT,
+    TOK_INT_LIT, TOK_FLOAT_LIT, TOK_STR_LIT, TOK_MSTR_LIT, TOK_CHAR_LIT,
 
     /* keywords */
     TOK_FN, TOK_RET, TOK_IF, TOK_ELIF, TOK_ELSE,

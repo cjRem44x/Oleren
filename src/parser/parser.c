@@ -241,6 +241,13 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
     else if (check(p, TOK_STR_LIT)) {
         left = ast_node_new(NODE_STR_LIT, line);
         left->str_lit.value = tok_dup(p->cur);
+        left->str_lit.is_mstr = 0;
+        next_tok(p);
+    }
+    else if (check(p, TOK_MSTR_LIT)) {
+        left = ast_node_new(NODE_STR_LIT, line);
+        left->str_lit.value = tok_dup(p->cur);
+        left->str_lit.is_mstr = 1;
         next_tok(p);
     }
     else if (check(p, TOK_CHAR_LIT)) {

@@ -163,7 +163,7 @@ static int is_cast_builtin(const char *name)
 {
     static const char *tnames[] = {
         "i8","u8","i16","u16","i32","u32","i64","u64",
-        "f32","f64","str","istr","bool",
+        "f32","f64","str","mstr","istr","bool",
         "byte","ubyte","short","ushort","int","uint","long","ulong",
         "float","double", NULL
     };
@@ -198,6 +198,7 @@ static const char *map_type(const char *name)
     if (strcmp(name, "f32")  == 0 || strcmp(name, "float")  == 0) return "float";
     if (strcmp(name, "f64")  == 0 || strcmp(name, "double") == 0) return "double";
     if (strcmp(name, "str")  == 0) return "std::string";
+    if (strcmp(name, "mstr") == 0) return "std::string";
     if (strcmp(name, "istr") == 0) return "std::string"; /* const added in emit_type */
     if (strcmp(name, "bool") == 0) return "bool";
     if (strcmp(name, "void") == 0) return "void";
@@ -461,7 +462,10 @@ static void emit_expr(Codegen *cg, AstNode *node)
     if (!node) return;
     switch (node->kind) {
         case NODE_STR_LIT:
-            fprintf(cg->out, "\"%s\"", node->str_lit.value);
+            if (node->str_lit.is_mstr)
+                fprintf(cg->out, "R\"OLRN(%s)OLRN\"", node->str_lit.value);
+            else
+                fprintf(cg->out, "\"%s\"", node->str_lit.value);
             break;
         case NODE_INT_LIT:
             /* Oleren: untyped integer literals always infer to i64 */

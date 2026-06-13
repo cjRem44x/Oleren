@@ -192,7 +192,7 @@ struct AstNode {
         struct { AstNode *target; } deref;
 
         /* literals */
-        struct { char      *value; } str_lit;
+        struct { char *value; int is_mstr; } str_lit;
         struct { long long  value; } int_lit;
         struct { double     value; } float_lit;
         struct { char       value; } char_lit;

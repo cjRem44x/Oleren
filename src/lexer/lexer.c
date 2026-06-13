@@ -77,7 +77,7 @@ static int can_end_stmt(TokenType t)
     switch (t) {
         case TOK_IDENT:
         case TOK_INT_LIT: case TOK_FLOAT_LIT:
-        case TOK_STR_LIT: case TOK_CHAR_LIT:
+        case TOK_STR_LIT: case TOK_MSTR_LIT: case TOK_CHAR_LIT:
         case TOK_TRUE:    case TOK_FALSE:
         case TOK_RPAREN:  case TOK_RBRACKET: case TOK_RBRACE:
             return 1;
@@ -96,8 +96,22 @@ static Token lex_one(Lexer *l)
 
     char c = adv(l);
 
-    /* string literal */
+    /* string literal — single or triple-quoted */
     if (c == '"') {
+        /* triple-quoted multiline string """...""" */
+        if (cur(l) == '"' && peek(l) == '"') {
+            adv(l); adv(l); /* consume 2nd and 3rd opening " */
+            const char *inner = l->src + l->pos;
+            while (cur(l)) {
+                if (cur(l) == '"' && l->src[l->pos+1] == '"' && l->src[l->pos+2] == '"')
+                    break;
+                adv(l);
+            }
+            int inner_len = (int)(l->src + l->pos - inner);
+            if (cur(l)) { adv(l); adv(l); adv(l); } /* consume closing """ */
+            return make_tok(line, TOK_MSTR_LIT, inner, inner_len);
+        }
+        /* single-quoted string */
         while (cur(l) && cur(l) != '"') {
             if (cur(l) == '\\') adv(l);
             adv(l);
@@ -227,6 +241,7 @@ const char *tok_type_name(TokenType t)
         case TOK_INT_LIT:   return "INT_LIT";
         case TOK_FLOAT_LIT: return "FLOAT_LIT";
         case TOK_STR_LIT:   return "STR_LIT";
+        case TOK_MSTR_LIT:  return "MSTR_LIT";
         case TOK_CHAR_LIT:  return "CHAR_LIT";
         case TOK_FN:        return "fn";
         case TOK_RET:       return "ret";

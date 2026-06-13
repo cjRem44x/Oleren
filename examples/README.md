@@ -25,6 +25,7 @@ olrn sac <file.olrn> -o=name  # compile to ./name
 | `10_crypto.olrn` | `@std.pelentar`: hashing, AEAD, password hashing, signing |
 | `11_lists.olrn` | `@ls(T)` growable list: `add`, `pop`, `insert`, `remove`, `deinit` |
 | `12_collections.olrn` | `@map(K, V)` hash map and `@set(T)` hash set |
+| `13_mstr.olrn`        | `mstr` multiline strings, `"""..."""` literal syntax |
 
 ## System deps
 

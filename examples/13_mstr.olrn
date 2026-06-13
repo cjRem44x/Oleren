@@ -1,0 +1,33 @@
+fn main() -> void
+{
+    # Basic multiline string
+    bio :mstr = """
+Name: Alice
+Role: Engineer
+Team: Core
+"""
+    @pl(bio)
+
+    # Implicit type inference from """..."""
+    query := """
+SELECT *
+FROM users
+WHERE active = 1
+ORDER BY name;
+"""
+    @pl(query)
+
+    # Inline concatenation
+    lang :str = "Oleren"
+    msg := """Hello from """ + lang + """!
+Multiline suffix here."""
+    @pl(msg)
+
+    # Immutable mstr
+    banner :mstr: """
+╔══════════════╗
+║  Oleren v0.5 ║
+╚══════════════╝
+"""
+    @pl(banner)
+}
