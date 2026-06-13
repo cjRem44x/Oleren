@@ -552,7 +552,7 @@ static void emit_expr(Codegen *cg, AstNode *node)
             } else if (strcmp(bname, "alo") == 0 && node->call.args.count == 1) {
                 AstNode *arg = node->call.args.items[0];
                 const char *t = (arg->kind == NODE_IDENT) ? map_type(arg->ident.name) : "void";
-                fprintf(cg->out, "((%s*)malloc(sizeof(%s)))", t, t);
+                fprintf(cg->out, "std::make_shared<%s>()", t);
             } else if (strcmp(bname, "sizeof") == 0 && node->call.args.count == 1) {
                 AstNode *arg = node->call.args.items[0];
                 const char *t = (arg->kind == NODE_IDENT) ? map_type(arg->ident.name) : "void";
