@@ -973,6 +973,7 @@ static AstNode *parse_stmt(Parser *p)
 static AstNode *parse_block(Parser *p)
 {
     AstNode *n = ast_node_new(NODE_BLOCK, p->cur.line);
+    skip_newlines(p);
     expect(p, TOK_LBRACE);
     skip_newlines(p);
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
