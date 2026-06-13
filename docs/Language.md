@@ -27,7 +27,7 @@
 
 ## Goal
 
-Oleren is a more reasonable frontend for the C++ industry standard within game dev — a new paint job that simplifies and modernizes old-school performance without the headache. It does not support OOP, classes, or object methods. Functions, structs, and basic types cover everything; the goal is a modern-C feel that compiles to fast, correct C++.
+Oleren is a more reasonable frontend for the C++ industry standard within game dev — a new paint job that simplifies and modernizes old-school performance without the headache. No OOP, no classes, no inheritance. Functions, structs with methods, and basic types cover everything; the goal is a modern-C feel that compiles to fast, correct C++.
 
 ---
 
@@ -131,6 +131,16 @@ x := 3.45       # => f64   (default float)
 x := "hello"    # => str
 x := false      # => bool
 x := {1,2,3}    # => []i64
+```
+
+### Integer literals
+
+Decimal, hexadecimal, and binary are all supported:
+
+```rust
+dec := 255          # decimal
+hex := 0xFF         # hexadecimal — 255
+bin := 0b11111111   # binary      — 255
 ```
 
 `undef` requires an explicit type — `x := undef` is always a compile error.
@@ -474,7 +484,25 @@ alias :^Point = p         # shared — both handles see the same data
 alias->y = 24
 @pl(p->y)                 # 24
 
-cp :Point = p.*           # whole-struct deref copy
+cp :Point = p.^           # whole-struct deref copy (.^ for smart, .* for raw)
+```
+
+### Pointer-to-pointer — `**T`
+
+Multiple `*` levels are supported in types, parameters, and return values:
+
+```rust
+x  :i32   = 42
+p  :*i32  = &x
+pp :**i32 = &p
+
+pp.*.* = 99     # double-deref write
+@pl(x)          # 99
+
+fn write_through(pp: **i32, v: i32)
+{
+    pp.*.* = v
+}
 ```
 
 ### Explicit typing rule
@@ -672,6 +700,7 @@ input := @cin("prompt: ")   # read line from stdin, returns str
 @i32(3.145)                 # f64 → i32 (truncates)
 @f32(someInt)               # i64 → f32
 @str(42)                    # numeric → str
+@hex(255)                   # integer → lowercase hex string ("ff")
 @bool(x)                    # any numeric → bool (0 = false)
 n := try @i32("42")         # str → i32, fallible
 n := @i32("42") catch 0     # with fallback
@@ -1024,6 +1053,8 @@ fn main() -> void
     alias :^Point = p     # shared — same object
     alias->x = 10.0
     @pl(p->x)   # 10.0 — change visible through original handle
+
+    cp :Point = p.^     # deref copy (.^ for smart ptrs, .* for raw)
 }
 ```
 

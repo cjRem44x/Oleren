@@ -322,9 +322,9 @@ See Language.md § Generics.
 
 ---
 
-## Compiler Status — v0.1.0
+## Compiler Status — v0.4.0
 
-All planned v0.1.0 features are implemented and passing the test suite.
+All planned v0.4.0 features are implemented and passing the test suite.
 
 - [x] Binary expressions + Pratt parser (full operator precedence)
 - [x] `if / elif / else`, `when` (switch/match)
@@ -340,7 +340,7 @@ All planned v0.1.0 features are implemented and passing the test suite.
 - [x] Heap allocation (`@alo`, `@free`), raw and smart pointers
 - [x] Standard library — `std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`, `std.thread`
 - [x] CLI — `build`, `run`, `build-src`, `build-out`, `check`, `emit`, `sac`, `init`
-- [x] Malkur gamedev library v0.3 — gamepad, camera 2D, rotated/subrect draws, embedded font, hex(), PNG/JPG textures (SDL_image), audio sounds + music (SDL_mixer) via `@std.malkur` (SDL2 backend)
+- [x] Malkur gamedev library v0.4 — gamepad, camera 2D, rotated/subrect draws, embedded + TTF fonts (`load_font`/`draw_text_ex`/`measure_text_ex` via SDL_ttf), hex(), PNG/JPG textures (SDL_image), audio sounds + music (SDL_mixer) via `@std.malkur` (SDL2 backend)
 - [x] Sema pass — `ErrSet!T` enforcement (set membership, variant existence, try propagation), unused-import + alias-shadowing errors
 - [x] System deps — `olrn deps` + build-time resolution via pkg-config with Linux/macOS/Windows-MinGW fallbacks and per-OS install hints (SDL2 for malkur)
 - [x] Multi-return / tuples — `fn f() -> (T1, T2)`, `a, b := f()`, `_ ` discard; `when` as expression (`ret when x { A => val, _ => other }`)
@@ -359,7 +359,12 @@ All planned v0.1.0 features are implemented and passing the test suite.
   (MinGW shims in place) but only Linux is exercised; needs CI + testing
 - [ ] `olrn_pkg.toml` — deferred; only needed for *outside* resources
   (vendored C/C++ deps, link flags). Builtin libs don't need it.
-- [ ] TTF fonts via SDL_ttf — `draw_text_ex`, `load_font`, `measure_text_ex`
+- [x] TTF fonts via SDL_ttf — `load_font`, `unload_font`, `draw_text_ex`, `measure_text_ex`
+- [x] Struct methods — `pub fn` and `@self` inside struct bodies; static and instance dispatch
+- [x] Smart pointer postfix deref — `p.^` for `^T`, parallel to `p.*` for `*T`
+- [x] Pointer-to-pointer types — `**T`, `***T`, etc.; multi-level deref with `p.*.*`
+- [x] Integer literal formats — hex (`0xFF`) and binary (`0b1010`)
+- [x] `@hex(v)` builtin — integer to lowercase hex string
 - [ ] **Extended stdlib** — all tiers specced in `docs/StdLib.md`; Tier 1: `std.env`, `std.path`, `std.json`, `std.net`, `std.http`, `std.compress`, `std.regex`; Tier 2: `std.proc`, `std.bytes`, `std.date`, `std.uuid`, `std.toml`, `std.ws`; Tier 3: `std.csv`, `std.xml`, `std.test`, `std.rand`
 - [ ] **Glourang** (`@std.glourang`) — native UI library (Qt6 backend); designed, not yet implemented.
   See `docs/Glourang.md` for full API spec. Flat procedural API: windows, layouts, widgets, media
