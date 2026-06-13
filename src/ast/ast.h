@@ -92,6 +92,9 @@ struct AstNode {
             int   is_arr;    /* [] or [N] array */
             int   arr_size;  /* 0 = dynamic, N = fixed [N] */
             int   is_list;   /* @ls(T) growable list */
+            int   is_map;    /* @map(K, V) hash map */
+            char *map_val;   /* V type; name = K type */
+            int   is_set;    /* @set(T) hash set */
             int   is_imu;    /* immutable elems */
             int   is_result; /* !T error union  */
             char *err_set;   /* ErrSet!T set name; NULL = generic !T */
@@ -116,10 +119,11 @@ struct AstNode {
         /* NODE_FOR_RANGE — for lo..hi { } */
         struct { AstNode *lo; AstNode *hi; int inclusive; AstNode *body; } for_range;
 
-        /* NODE_FOR_EACH — for e => iter or for e, i => iter */
+        /* NODE_FOR_EACH — for e => iter or for e, i => iter or for k, v => map */
         struct {
             char    *elem;  /* NULL or "_" for ignored elem */
             char    *idx;   /* NULL if no index var */
+            int      is_kv; /* 1 = key-value map iteration */
             AstNode *iter;
             AstNode *body;
         } for_each;

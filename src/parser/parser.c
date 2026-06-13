@@ -6,10 +6,11 @@
 
 void parser_init(Parser *p, Lexer *l)
 {
-    p->lexer     = l;
-    p->had_error = 0;
-    p->cur       = lexer_next(l);
-    p->peek      = lexer_next(l);
+    p->lexer         = l;
+    p->had_error     = 0;
+    p->cur           = lexer_next(l);
+    p->peek          = lexer_next(l);
+    p->map_var_count = 0;
 }
 
 /* consume current token, slide the window forward */
@@ -120,11 +121,27 @@ static AstNode *parse_type(Parser *p)
         next_tok(p);
     } else if (check(p, TOK_BUILTIN) && tok_text_is(p->cur, "ls")) {
         /* @ls(T) — growable list */
-        next_tok(p); /* consume 'ls' */
+        next_tok(p);
         expect(p, TOK_LPAREN);
         n->type_ref.name = tok_dup(expect(p, TOK_IDENT));
         expect(p, TOK_RPAREN);
         n->type_ref.is_list = 1;
+    } else if (check(p, TOK_BUILTIN) && tok_text_is(p->cur, "map")) {
+        /* @map(K, V) — hash map */
+        next_tok(p);
+        expect(p, TOK_LPAREN);
+        n->type_ref.name    = tok_dup(expect(p, TOK_IDENT));
+        expect(p, TOK_COMMA);
+        n->type_ref.map_val = tok_dup(expect(p, TOK_IDENT));
+        expect(p, TOK_RPAREN);
+        n->type_ref.is_map = 1;
+    } else if (check(p, TOK_BUILTIN) && tok_text_is(p->cur, "set")) {
+        /* @set(T) — hash set */
+        next_tok(p);
+        expect(p, TOK_LPAREN);
+        n->type_ref.name = tok_dup(expect(p, TOK_IDENT));
+        expect(p, TOK_RPAREN);
+        n->type_ref.is_set = 1;
     } else if (check(p, TOK_BUILTIN)) {
         /* @self — instance method marker; stored as "@self" */
         Token bt = next_tok(p);
@@ -269,8 +286,7 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
         next_tok(p);
     }
     else if (check(p, TOK_BUILTIN) && tok_text_is(p->cur, "ls")) {
-        /* @ls.method(args) — list operations */
-        next_tok(p); /* consume 'ls' */
+        next_tok(p);
         expect(p, TOK_DOT);
         Token mt = expect(p, TOK_IDENT);
         char full[64];
@@ -278,6 +294,34 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
         memcpy(full, "ls.", 3);
         memcpy(full + 3, mt.start, mlen);
         full[3 + mlen] = '\0';
+        left = ast_node_new(NODE_BUILTIN_CALL, line);
+        left->call.name = strdup(full);
+        parse_arg_list(p, &left->call.args);
+    }
+    else if (check(p, TOK_BUILTIN) && tok_text_is(p->cur, "map")) {
+        /* @map.method(args) */
+        next_tok(p);
+        expect(p, TOK_DOT);
+        Token mt = expect(p, TOK_IDENT);
+        char full[64];
+        int mlen = mt.len < 56 ? mt.len : 56;
+        memcpy(full, "map.", 4);
+        memcpy(full + 4, mt.start, mlen);
+        full[4 + mlen] = '\0';
+        left = ast_node_new(NODE_BUILTIN_CALL, line);
+        left->call.name = strdup(full);
+        parse_arg_list(p, &left->call.args);
+    }
+    else if (check(p, TOK_BUILTIN) && tok_text_is(p->cur, "set")) {
+        /* @set.method(args) */
+        next_tok(p);
+        expect(p, TOK_DOT);
+        Token mt = expect(p, TOK_IDENT);
+        char full[64];
+        int mlen = mt.len < 56 ? mt.len : 56;
+        memcpy(full, "set.", 4);
+        memcpy(full + 4, mt.start, mlen);
+        full[4 + mlen] = '\0';
         left = ast_node_new(NODE_BUILTIN_CALL, line);
         left->call.name = strdup(full);
         parse_arg_list(p, &left->call.args);
@@ -588,6 +632,13 @@ static AstNode *parse_var_decl_implicit(Parser *p, int is_imu)
     n->var_decl.type_ref = NULL;                /* auto-infer */
     next_tok(p);                                /* consume := or :: */
     n->var_decl.init = parse_expr_bp(p, 0);
+    /* track @map variables for for-each disambiguation */
+    if (n->var_decl.init && n->var_decl.init->kind == NODE_BUILTIN_CALL &&
+        strncmp(n->var_decl.init->call.name, "map.", 4) == 0 &&
+        p->map_var_count < 64) {
+        strncpy(p->map_vars[p->map_var_count], n->var_decl.name, 63);
+        p->map_vars[p->map_var_count++][63] = '\0';
+    }
     return n;
 }
 
@@ -687,12 +738,21 @@ static AstNode *parse_for(Parser *p)
     }
     if (check(p, TOK_IDENT) && p->peek.type == TOK_COMMA) {
         AstNode *n = ast_node_new(NODE_FOR_EACH, p->cur.line);
-        Token elem = next_tok(p);          /* e or _ */
+        Token elem = next_tok(p);
         n->for_each.elem = tok_dup(elem);
         next_tok(p);                        /* consume , */
         n->for_each.idx  = tok_dup(expect(p, TOK_IDENT));
         expect(p, TOK_FAT_ARROW);
         n->for_each.iter = parse_expr_bp(p, 0);
+        /* detect @map key-value iteration */
+        if (n->for_each.iter->kind == NODE_IDENT) {
+            for (int mi = 0; mi < p->map_var_count; mi++) {
+                if (strcmp(n->for_each.iter->ident.name, p->map_vars[mi]) == 0) {
+                    n->for_each.is_kv = 1;
+                    break;
+                }
+            }
+        }
         n->for_each.body = parse_block(p);
         return n;
     }

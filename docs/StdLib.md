@@ -431,26 +431,11 @@ thread.cond_free(cv)
 
 ### `std.col` — Collections
 
-> **Note:** the built-in `@ls(T)` covers dynamic arrays — see the
-> [Lists section](Language.md#lists-ls) in Language.md. `std.col` provides
-> the other collection types: HashMap, HashSet, Queue, Stack.
+> **Note:** `@ls(T)`, `@map(K, V)`, and `@set(T)` are built-in — no import
+> needed. See [Language.md](Language.md#collections-map-set). `std.col`
+> (planned) will add Queue and Stack when implemented.
 
 ```rust
-# HashMap
-m := col.map_init(str, i32)
-defer col.map_deinit(m)
-col.map_set(m, "key", 1)
-val, ok := col.map_get(m, "key")
-col.map_del(m, "key")
-col.map_has(m, "key") -> bool
-for k, v => m {}
-
-# HashSet
-s := col.set_init(str)
-col.set_add(s, "tag")
-col.set_has(s, "tag") -> bool
-col.set_del(s, "tag")
-
 # Queue (FIFO)
 q := col.queue_init(i32)
 col.queue_push(q, val)

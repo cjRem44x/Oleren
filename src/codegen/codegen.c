@@ -270,6 +270,11 @@ static void emit_type(Codegen *cg, AstNode *type_ref)
         fprintf(cg->out, "std::shared_ptr<%s>", base);
     } else if (type_ref->type_ref.is_list) {
         fprintf(cg->out, "_OlrnList<%s>", base);
+    } else if (type_ref->type_ref.is_map) {
+        fprintf(cg->out, "_OlrnMap<%s, %s>",
+                base, map_type(type_ref->type_ref.map_val));
+    } else if (type_ref->type_ref.is_set) {
+        fprintf(cg->out, "_OlrnSet<%s>", base);
     } else {
         fputs(base, cg->out);
         for (int i = 0; i < is_ptr; i++) fputs(" *", cg->out);
@@ -433,8 +438,10 @@ static void emit_builtin_stmt(Codegen *cg, AstNode *node)
         return;
     }
 
-    /* @ls.* — delegate to expression emitter */
-    if (strncmp(name, "ls.", 3) == 0) {
+    /* @ls.* / @map.* / @set.* — delegate to expression emitter */
+    if (strncmp(name, "ls.", 3) == 0 ||
+        strncmp(name, "map.", 4) == 0 ||
+        strncmp(name, "set.", 4) == 0) {
         emit_expr(cg, node);
         fputs(";\n", cg->out);
         return;
@@ -596,6 +603,28 @@ static void emit_expr(Codegen *cg, AstNode *node)
                     a[0]->kind == NODE_IDENT) {
                     /* @ls.init(T, cap) → _olrn_ls_init<T>(cap) */
                     fprintf(cg->out, "_olrn_ls_init<%s>(", map_type(a[0]->ident.name));
+                    emit_expr(cg, a[1]);
+                    fputc(')', cg->out);
+                }
+            } else if (strncmp(bname, "map.", 4) == 0) {
+                const char *m = bname + 4;
+                AstNode **a = node->call.args.items;
+                int ac = node->call.args.count;
+                if (strcmp(m, "init") == 0 && ac == 3 &&
+                    a[0]->kind == NODE_IDENT && a[1]->kind == NODE_IDENT) {
+                    /* @map.init(K, V, cap) → _olrn_map_init<K, V>(cap) */
+                    fprintf(cg->out, "_olrn_map_init<%s, %s>(",
+                            map_type(a[0]->ident.name), map_type(a[1]->ident.name));
+                    emit_expr(cg, a[2]);
+                    fputc(')', cg->out);
+                }
+            } else if (strncmp(bname, "set.", 4) == 0) {
+                const char *m = bname + 4;
+                AstNode **a = node->call.args.items;
+                int ac = node->call.args.count;
+                if (strcmp(m, "init") == 0 && ac == 2 && a[0]->kind == NODE_IDENT) {
+                    /* @set.init(T, cap) → _olrn_set_init<T>(cap) */
+                    fprintf(cg->out, "_olrn_set_init<%s>(", map_type(a[0]->ident.name));
                     emit_expr(cg, a[1]);
                     fputc(')', cg->out);
                 }
@@ -1255,7 +1284,20 @@ static void emit_stmt(Codegen *cg, AstNode *node)
         case NODE_FOR_EACH: {
             const char *elem = node->for_each.elem;
             const char *idx  = node->for_each.idx;
-            if (idx) {
+            AstNode    *eb   = node->for_each.body;
+            if (node->for_each.is_kv && idx) {
+                /* for k, v => map — C++17 structured binding over _data */
+                emit_indent(cg);
+                fprintf(cg->out, "for (auto& [%s, %s] : ", elem, idx);
+                emit_expr(cg, node->for_each.iter);
+                fputs("._data) {\n", cg->out);
+                cg->indent++;
+                for (int i = 0; i < eb->block.stmts.count; i++)
+                    emit_stmt(cg, eb->block.stmts.items[i]);
+                cg->indent--;
+                emit_indent(cg);
+                fputs("}\n", cg->out);
+            } else if (idx) {
                 /* for e, i => iter — wrap block so the index counter is scoped */
                 emit_indent(cg);
                 fputs("{\n", cg->out);
@@ -1267,7 +1309,6 @@ static void emit_stmt(Codegen *cg, AstNode *node)
                 emit_expr(cg, node->for_each.iter);
                 fputs(") {\n", cg->out);
                 cg->indent++;
-                AstNode *eb = node->for_each.body;
                 for (int i = 0; i < eb->block.stmts.count; i++)
                     emit_stmt(cg, eb->block.stmts.items[i]);
                 emit_indent(cg);
@@ -1284,7 +1325,6 @@ static void emit_stmt(Codegen *cg, AstNode *node)
                 emit_expr(cg, node->for_each.iter);
                 fputs(") {\n", cg->out);
                 cg->indent++;
-                AstNode *eb = node->for_each.body;
                 for (int i = 0; i < eb->block.stmts.count; i++)
                     emit_stmt(cg, eb->block.stmts.items[i]);
                 cg->indent--;
@@ -1663,6 +1703,8 @@ void codegen_emit(Codegen *cg, AstNode *program)
     fputs("#include <cmath>\n", cg->out);
     fputs("#include <cstring>\n", cg->out);
     fputs("#include <random>\n", cg->out);
+    fputs("#include <unordered_map>\n", cg->out);
+    fputs("#include <unordered_set>\n", cg->out);
     fputs("#include <cstdint>\n", cg->out);
     fputs("#include <cstdlib>\n", cg->out);
     fputs("#include <cstdio>\n", cg->out);

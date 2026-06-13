@@ -24,6 +24,7 @@ olrn sac <file.olrn> -o=name  # compile to ./name
 | `09_pointers.olrn` | Raw `*T` and smart `^T` pointers, `defer @free`, `->` |
 | `10_crypto.olrn` | `@std.pelentar`: hashing, AEAD, password hashing, signing |
 | `11_lists.olrn` | `@ls(T)` growable list: `add`, `pop`, `insert`, `remove`, `deinit` |
+| `12_collections.olrn` | `@map(K, V)` hash map and `@set(T)` hash set |
 
 ## System deps
 

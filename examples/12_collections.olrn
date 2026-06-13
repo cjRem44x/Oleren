@@ -1,0 +1,67 @@
+# olrn sac 12_collections.olrn
+
+fn main() -> void
+{
+    # ── @map(K, V) ───────────────────────────────────────────────
+
+    scores := @map.init(str, i32, 8)
+    defer scores.deinit()
+
+    scores.set("alice", 100)
+    scores.set("bob",   85)
+    scores.set("carol", 92)
+
+    @pf("len={}\n", scores.len)
+    @pf("has alice={}\n", scores.has("alice"))
+    @pf("alice score={}\n", scores.get("alice"))
+    @pf("missing key returns={}\n", scores.get("zzz"))
+
+    scores.set("alice", 110)    # update existing key
+    scores.del("bob")
+    @pf("after update+del len={}\n", scores.len)
+
+    # key-value iteration
+    @pf("scores:\n")
+    for k, v => scores
+    {
+        @pf("  {}: {}\n", k, v)
+    }
+
+    # iterate just keys or values
+    ks := scores.keys()
+    vs := scores.vals()
+    @pf("keys len={} vals len={}\n", ks.len, vs.len)
+
+    @pf("@type={}\n", @type(scores))
+
+    # ── @set(T) ──────────────────────────────────────────────────
+
+    tags := @set.init(str, 8)
+    defer tags.deinit()
+
+    tags.add("fast")
+    tags.add("safe")
+    tags.add("fast")    # duplicate — silently ignored
+
+    @pf("set len={}\n", tags.len)
+    @pf("has fast={} has slow={}\n", tags.has("fast"), tags.has("slow"))
+
+    tags.del("fast")
+    @pf("after del: has fast={}\n", tags.has("fast"))
+
+    @pf("@type={}\n", @type(tags))
+
+    # iterate set (order is unspecified)
+    for t => tags
+    {
+        @pf("  tag: {}\n", t)
+    }
+
+    # @set of integers
+    seen := @set.init(i32, 16)
+    defer seen.deinit()
+    seen.add(1)
+    seen.add(2)
+    seen.add(1)     # dup
+    @pf("int set len={} has 2={}\n", seen.len, seen.has(2))
+}

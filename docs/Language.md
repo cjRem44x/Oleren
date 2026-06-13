@@ -8,6 +8,8 @@
 - [Variables & Types](#variables--types)
 - [Strings](#strings)
 - [Arrays](#arrays)
+- [Lists (`@ls`)](#lists-ls)
+- [Collections (`@map`, `@set`)](#collections-map-set)
 - [Functions](#functions)
 - [Structs](#structs)
 - [Enums](#enums)
@@ -268,6 +270,78 @@ for n => nums { @pf("{} ", n) }   # range-for works
 | `ls.len` | Current length (i64) |
 | `ls.cap` | Current capacity (i64) |
 | `ls[i]` | Index access (read/write) |
+
+---
+
+## Collections (`@map`, `@set`)
+
+### `@map(K, V)` — hash map
+
+```rust
+scores := @map.init(str, i32, 16)   # initial bucket count 16; type is @map(str, i32)
+defer scores.deinit()
+
+scores.set("alice", 100)            # insert or update
+scores.set("bob", 85)
+
+ok  := scores.has("alice")          # bool
+val := scores.get("alice")          # i32 — default V{} if missing
+scores.del("bob")
+scores.clear()
+scores.len                          # i64
+
+# key-value iteration
+for k, v => scores { @pf("{}: {}\n", k, v) }
+
+# keys / values as lists
+ks := scores.keys()                 # @ls(str)
+vs := scores.vals()                 # @ls(i32)
+
+@type(scores)                       # "@map(str, i32)"
+```
+
+**Method summary:**
+
+| Method | Description |
+|---|---|
+| `m.set(k, v)` | Insert or update key |
+| `m.get(k)` | Get value; returns `V{}` if missing |
+| `m.has(k)` | Check key existence → bool |
+| `m.del(k)` | Remove key |
+| `m.clear()` | Empty without releasing |
+| `m.deinit()` | Empty and release |
+| `m.len` | Entry count (i64) |
+| `m.keys()` | All keys as `@ls(K)` |
+| `m.vals()` | All values as `@ls(V)` |
+
+### `@set(T)` — hash set
+
+```rust
+tags := @set.init(str, 8)          # type is @set(str)
+defer tags.deinit()
+
+tags.add("fast")
+tags.add("fast")                   # duplicate — silently ignored
+ok := tags.has("fast")             # bool
+tags.del("fast")
+tags.clear()
+tags.len                           # i64
+
+for t => tags { @pf("{}\n", t) }   # order unspecified
+
+@type(tags)                        # "@set(str)"
+```
+
+**Method summary:**
+
+| Method | Description |
+|---|---|
+| `s.add(v)` | Insert element |
+| `s.has(v)` | Test membership → bool |
+| `s.del(v)` | Remove element |
+| `s.clear()` | Empty without releasing |
+| `s.deinit()` | Empty and release |
+| `s.len` | Element count (i64) |
 
 ---
 
@@ -765,8 +839,10 @@ input := @cin("prompt: ")   # read line from stdin, returns str
 n := try @i32("42")         # str → i32, fallible
 n := @i32("42") catch 0     # with fallback
 
-# ── Lists ───────────────────────────────────────────
+# ── Collections ─────────────────────────────────────
 @ls.init(T, cap)            # create @ls(T) with initial capacity
+@map.init(K, V, cap)        # create @map(K, V) with initial bucket count
+@set.init(T, cap)           # create @set(T) with initial bucket count
 
 # ── Random ──────────────────────────────────────────
 @rng(T, lo, hi)             # random T in [lo, hi] inclusive

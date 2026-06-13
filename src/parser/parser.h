@@ -9,6 +9,9 @@ typedef struct {
     Token  cur;
     Token  peek;
     int    had_error;
+    /* @map variable names — for for-each disambiguation */
+    char   map_vars[64][64];
+    int    map_var_count;
 } Parser;
 
 void     parser_init(Parser *p, Lexer *l);
