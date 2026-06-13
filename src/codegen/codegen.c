@@ -268,6 +268,8 @@ static void emit_type(Codegen *cg, AstNode *type_ref)
         fprintf(cg->out, "std::vector<%s>", base);
     } else if (is_smart) {
         fprintf(cg->out, "std::shared_ptr<%s>", base);
+    } else if (type_ref->type_ref.is_list) {
+        fprintf(cg->out, "_OlrnList<%s>", base);
     } else {
         fputs(base, cg->out);
         for (int i = 0; i < is_ptr; i++) fputs(" *", cg->out);
@@ -431,6 +433,13 @@ static void emit_builtin_stmt(Codegen *cg, AstNode *node)
         return;
     }
 
+    /* @ls.* — delegate to expression emitter */
+    if (strncmp(name, "ls.", 3) == 0) {
+        emit_expr(cg, node);
+        fputs(";\n", cg->out);
+        return;
+    }
+
     /* fallback: emit as a plain call */
     fprintf(cg->out, "/* @%s */ (", name);
     for (int i = 0; i < node->call.args.count; i++) {
@@ -579,6 +588,49 @@ static void emit_expr(Codegen *cg, AstNode *node)
                 fputs("_olrn_hex(", cg->out);
                 emit_expr(cg, node->call.args.items[0]);
                 fputc(')', cg->out);
+            } else if (strncmp(bname, "ls.", 3) == 0) {
+                const char *m = bname + 3;
+                AstNode **a = node->call.args.items;
+                int ac = node->call.args.count;
+                if (strcmp(m, "init") == 0 && ac == 2 &&
+                    a[0]->kind == NODE_IDENT) {
+                    /* @ls.init(T, cap) → _olrn_ls_init<T>(cap) */
+                    fprintf(cg->out, "_olrn_ls_init<%s>(", map_type(a[0]->ident.name));
+                    emit_expr(cg, a[1]);
+                    fputc(')', cg->out);
+                } else if (strcmp(m, "push") == 0 && ac == 2) {
+                    /* @ls.push(list, val) → list.push_back(val) */
+                    emit_expr(cg, a[0]);
+                    fputs(".push_back(", cg->out);
+                    emit_expr(cg, a[1]);
+                    fputc(')', cg->out);
+                } else if (strcmp(m, "pop") == 0 && ac == 1) {
+                    /* @ls.pop(list) → _olrn_ls_pop(list) */
+                    fputs("_olrn_ls_pop(", cg->out);
+                    emit_expr(cg, a[0]);
+                    fputc(')', cg->out);
+                } else if (strcmp(m, "clear") == 0 && ac == 1) {
+                    emit_expr(cg, a[0]);
+                    fputs(".clear()", cg->out);
+                } else if (strcmp(m, "remove") == 0 && ac == 2) {
+                    /* @ls.remove(list, i) → list.erase(list.begin()+i) */
+                    emit_expr(cg, a[0]);
+                    fputs(".erase(", cg->out);
+                    emit_expr(cg, a[0]);
+                    fputs(".begin()+(", cg->out);
+                    emit_expr(cg, a[1]);
+                    fputs("))", cg->out);
+                } else if (strcmp(m, "insert") == 0 && ac == 3) {
+                    /* @ls.insert(list, i, val) → list.insert(list.begin()+i, val) */
+                    emit_expr(cg, a[0]);
+                    fputs(".insert(", cg->out);
+                    emit_expr(cg, a[0]);
+                    fputs(".begin()+(", cg->out);
+                    emit_expr(cg, a[1]);
+                    fputs("), ", cg->out);
+                    emit_expr(cg, a[2]);
+                    fputc(')', cg->out);
+                }
             } else {
                 emit_builtin_stmt(cg, node);
             }
@@ -652,8 +704,7 @@ static void emit_expr(Codegen *cg, AstNode *node)
                      is_struct_name(cg, node->field.target->ident.name))
                 fprintf(cg->out, "%s::%s",
                         node->field.target->ident.name, node->field.name);
-            /* .len property — i64 length of str / arrays ('len' is a
-               reserved field name, enforced in sema) */
+            /* .len property — i64 length of str / arrays */
             else if (strcmp(node->field.name, "len") == 0) {
                 fputs("(int64_t)", cg->out);
                 if (node->field.target->kind == NODE_STR_LIT) {
@@ -663,6 +714,12 @@ static void emit_expr(Codegen *cg, AstNode *node)
                 } else
                     emit_expr(cg, node->field.target);
                 fputs(".size()", cg->out);
+            }
+            /* .cap property — i64 capacity of @ls lists */
+            else if (strcmp(node->field.name, "cap") == 0) {
+                fputs("(int64_t)", cg->out);
+                emit_expr(cg, node->field.target);
+                fputs(".capacity()", cg->out);
             }
             else {
                 emit_expr(cg, node->field.target);

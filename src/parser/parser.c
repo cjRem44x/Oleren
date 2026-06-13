@@ -63,6 +63,7 @@ static AstNode *parse_when(Parser *p);
 static AstNode *parse_brace_literal(Parser *p);
 static AstNode *parse_err_decl(Parser *p);
 static AstNode *parse_fn_decl(Parser *p);
+static int tok_text_is(Token t, const char *s);
 
 /* Consume zero or more implicit newlines / explicit semicolons. */
 static void skip_newlines(Parser *p)
@@ -117,6 +118,13 @@ static AstNode *parse_type(Parser *p)
     } else if (check(p, TOK_VOID)) {
         n->type_ref.name = strdup("void");
         next_tok(p);
+    } else if (check(p, TOK_BUILTIN) && tok_text_is(p->cur, "ls")) {
+        /* @ls(T) — growable list */
+        next_tok(p); /* consume 'ls' */
+        expect(p, TOK_LPAREN);
+        n->type_ref.name = tok_dup(expect(p, TOK_IDENT));
+        expect(p, TOK_RPAREN);
+        n->type_ref.is_list = 1;
     } else if (check(p, TOK_BUILTIN)) {
         /* @self — instance method marker; stored as "@self" */
         Token bt = next_tok(p);
@@ -259,6 +267,20 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
         left = ast_node_new(NODE_BOOL_LIT, line);
         left->bool_lit.value = check(p, TOK_TRUE) ? 1 : 0;
         next_tok(p);
+    }
+    else if (check(p, TOK_BUILTIN) && tok_text_is(p->cur, "ls")) {
+        /* @ls.method(args) — list operations */
+        next_tok(p); /* consume 'ls' */
+        expect(p, TOK_DOT);
+        Token mt = expect(p, TOK_IDENT);
+        char full[64];
+        int mlen = mt.len < 56 ? mt.len : 56;
+        memcpy(full, "ls.", 3);
+        memcpy(full + 3, mt.start, mlen);
+        full[3 + mlen] = '\0';
+        left = ast_node_new(NODE_BUILTIN_CALL, line);
+        left->call.name = strdup(full);
+        parse_arg_list(p, &left->call.args);
     }
     else if (check(p, TOK_BUILTIN)) {
         /* @name  or  @name(args) */

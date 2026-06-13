@@ -91,6 +91,7 @@ struct AstNode {
             int   is_smart;  /* ^ smart pointer */
             int   is_arr;    /* [] or [N] array */
             int   arr_size;  /* 0 = dynamic, N = fixed [N] */
+            int   is_list;   /* @ls(T) growable list */
             int   is_imu;    /* immutable elems */
             int   is_result; /* !T error union  */
             char *err_set;   /* ErrSet!T set name; NULL = generic !T */
