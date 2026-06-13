@@ -1793,6 +1793,15 @@ void codegen_emit(Codegen *cg, AstNode *program)
                 emit_method(cg, decl->struct_decl.methods.items[j]);
             cg->current_struct = NULL;
         }
+        for (int j = 0; j < decl->struct_decl.statics.count; j++) {
+            AstNode *sv = decl->struct_decl.statics.items[j];
+            fputs("    static inline ", cg->out);
+            if (sv->var_decl.is_imu) fputs("const ", cg->out);
+            emit_type(cg, sv->var_decl.type_ref);
+            fprintf(cg->out, " %s = ", sv->var_decl.name);
+            emit_expr(cg, sv->var_decl.init);
+            fputs(";\n", cg->out);
+        }
         fputs("};\n", cg->out);
     }
     if (has_structs) fputc('\n', cg->out);

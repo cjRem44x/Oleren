@@ -209,7 +209,7 @@ struct AstNode {
         struct { char *name; AstNode *value; } field_init;
 
         /* NODE_STRUCT_DECL — struct Foo { field: type, ... } */
-        struct { char *name; NodeList fields; NodeList methods; } struct_decl;
+        struct { char *name; NodeList fields; NodeList methods; NodeList statics; } struct_decl;
 
         /* NODE_ENUM_DECL — plain or typed (base_type NULL = plain) */
         struct {

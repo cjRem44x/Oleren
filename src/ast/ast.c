@@ -122,6 +122,8 @@ void ast_free(AstNode *node)
         case NODE_STRUCT_DECL:
             free(node->struct_decl.name);
             node_list_free(&node->struct_decl.fields);
+            node_list_free(&node->struct_decl.methods);
+            node_list_free(&node->struct_decl.statics);
             break;
         case NODE_ENUM_DECL:
             free(node->enum_decl.name);

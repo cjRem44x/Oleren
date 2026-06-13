@@ -750,10 +750,28 @@ static AstNode *parse_struct_decl(Parser *p)
     expect(p, TOK_LBRACE);
     skip_newlines(p);
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
-        if (check(p, TOK_PUB) || check(p, TOK_FN)) {
-            /* method declaration: [pub] fn name(params) -> ret { body } */
-            match(p, TOK_PUB);
+        if (check(p, TOK_FN)) {
             node_list_push(&n->struct_decl.methods, parse_fn_decl(p));
+        } else if (check(p, TOK_PUB)) {
+            next_tok(p); /* consume 'pub' */
+            if (check(p, TOK_FN)) {
+                /* pub fn — method */
+                node_list_push(&n->struct_decl.methods, parse_fn_decl(p));
+            } else {
+                /* pub NAME : type = expr  — static field */
+                AstNode *sv = ast_node_new(NODE_VAR_DECL, p->cur.line);
+                sv->var_decl.name = tok_dup(expect(p, TOK_IDENT));
+                expect(p, TOK_COLON);
+                sv->var_decl.type_ref = parse_type(p);
+                if (match(p, TOK_COLON)) {
+                    sv->var_decl.is_imu = 1;
+                } else {
+                    expect(p, TOK_EQ);
+                    sv->var_decl.is_imu = 0;
+                }
+                sv->var_decl.init = parse_expr(p);
+                node_list_push(&n->struct_decl.statics, sv);
+            }
         } else {
             /* field: name: type */
             AstNode *field = ast_node_new(NODE_PARAM, p->cur.line);
