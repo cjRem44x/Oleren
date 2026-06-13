@@ -454,16 +454,33 @@ struct Player {
     {
         self.x += dx
         self.y += dy
+        self.clamp_to_world()   # private helper called from inside
+    }
+
+    fn clamp_to_world(self: @self)  # no pub — private to struct
+    {
+        if self.x < 0.0 { self.x = 0.0 }
+        if self.y < 0.0 { self.y = 0.0 }
     }
 }
 
 p := Player.init(0.0, 0.0)
 p.move(1.0, 0.0)
-@pl(Player.MAX_HP)   # 100
-@pl(Player.TAG)      # player
+@pl(Player.MAX_HP)        # 100
+@pl(Player.TAG)           # player
+# p.clamp_to_world()      # ERROR — private
 ```
 
 `@self` in a param marks it as the instance receiver — no need to pass it at the call site.
+
+### Method visibility
+
+| Declaration | Access |
+|---|---|
+| `pub fn name(...)` | Public — callable from anywhere |
+| `fn name(...)` | Private — only callable from within the struct's own methods |
+
+Only methods need `pub` / no-`pub`. Data fields are always accessible (structs are transparent data containers). Static fields (`pub NAME : T`) are always public.
 
 ### Static fields
 
