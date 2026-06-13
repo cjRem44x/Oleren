@@ -23,6 +23,7 @@ olrn sac <file.olrn> -o=name  # compile to ./name
 | `08_generics.olrn` | `any` params, `@type` dispatch, generic structs |
 | `09_pointers.olrn` | Raw `*T` and smart `^T` pointers, `defer @free`, `->` |
 | `10_crypto.olrn` | `@std.pelentar`: hashing, AEAD, password hashing, signing |
+| `11_lists.olrn` | `@ls(T)` growable list: `add`, `pop`, `insert`, `remove`, `deinit` |
 
 ## System deps
 

@@ -598,38 +598,6 @@ static void emit_expr(Codegen *cg, AstNode *node)
                     fprintf(cg->out, "_olrn_ls_init<%s>(", map_type(a[0]->ident.name));
                     emit_expr(cg, a[1]);
                     fputc(')', cg->out);
-                } else if (strcmp(m, "push") == 0 && ac == 2) {
-                    /* @ls.push(list, val) → list.push_back(val) */
-                    emit_expr(cg, a[0]);
-                    fputs(".push_back(", cg->out);
-                    emit_expr(cg, a[1]);
-                    fputc(')', cg->out);
-                } else if (strcmp(m, "pop") == 0 && ac == 1) {
-                    /* @ls.pop(list) → _olrn_ls_pop(list) */
-                    fputs("_olrn_ls_pop(", cg->out);
-                    emit_expr(cg, a[0]);
-                    fputc(')', cg->out);
-                } else if (strcmp(m, "clear") == 0 && ac == 1) {
-                    emit_expr(cg, a[0]);
-                    fputs(".clear()", cg->out);
-                } else if (strcmp(m, "remove") == 0 && ac == 2) {
-                    /* @ls.remove(list, i) → list.erase(list.begin()+i) */
-                    emit_expr(cg, a[0]);
-                    fputs(".erase(", cg->out);
-                    emit_expr(cg, a[0]);
-                    fputs(".begin()+(", cg->out);
-                    emit_expr(cg, a[1]);
-                    fputs("))", cg->out);
-                } else if (strcmp(m, "insert") == 0 && ac == 3) {
-                    /* @ls.insert(list, i, val) → list.insert(list.begin()+i, val) */
-                    emit_expr(cg, a[0]);
-                    fputs(".insert(", cg->out);
-                    emit_expr(cg, a[0]);
-                    fputs(".begin()+(", cg->out);
-                    emit_expr(cg, a[1]);
-                    fputs("), ", cg->out);
-                    emit_expr(cg, a[2]);
-                    fputc(')', cg->out);
                 }
             } else {
                 emit_builtin_stmt(cg, node);

@@ -227,6 +227,50 @@ data :[]imu u8 = {1, 0, 1, 1}
 
 ---
 
+## Lists (`@ls`)
+
+`@ls(T)` is a growable list. The type is inferred from `@ls.init`.
+
+```rust
+nums := @ls.init(i32, 16)   # start cap 16; type is @ls(i32)
+defer nums.deinit()          # release memory when done
+
+nums.add(10)
+nums.add(20)
+nums.add(30)
+
+@pf("len={} cap={}\n", nums.len, nums.cap)
+
+v := nums[0]            # index read
+nums[1] = 99            # index write
+
+last := nums.pop()      # remove and return last element
+nums.remove(0)          # remove by index
+nums.insert(1, 42)      # insert before index
+
+nums.clear()            # empty the list
+
+for n => nums { @pf("{} ", n) }   # range-for works
+
+@pf("type={}\n", @type(nums))     # "@ls(i32)"
+```
+
+**Method summary:**
+
+| Method | Description |
+|---|---|
+| `ls.add(val)` | Append element |
+| `ls.pop()` | Remove and return last element |
+| `ls.remove(i)` | Erase element at index `i` |
+| `ls.insert(i, val)` | Insert before index `i` |
+| `ls.clear()` | Empty without releasing memory |
+| `ls.deinit()` | Empty and release backing memory |
+| `ls.len` | Current length (i64) |
+| `ls.cap` | Current capacity (i64) |
+| `ls[i]` | Index access (read/write) |
+
+---
+
 ## Functions
 
 ```rust

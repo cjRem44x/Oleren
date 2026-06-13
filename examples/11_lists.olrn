@@ -1,0 +1,51 @@
+# olrn sac 11_lists.olrn
+
+fn main() -> void
+{
+    # create a growable list — type inferred as @ls(i32)
+    nums := @ls.init(i32, 8)
+    defer nums.deinit()
+
+    nums.add(10)
+    nums.add(20)
+    nums.add(30)
+    nums.add(40)
+
+    @pf("len={} cap={}\n", nums.len, nums.cap)
+
+    # insert and remove by index
+    nums.insert(1, 99)
+    @pf("after insert(1, 99):")
+    for n => nums { @pf(" {}", n) }
+    @pf("\n")
+
+    nums.remove(2)
+    @pf("after remove(2):")
+    for n => nums { @pf(" {}", n) }
+    @pf("\n")
+
+    # pop returns the last element
+    last := nums.pop()
+    @pf("popped={} remaining:", last)
+    for n => nums { @pf(" {}", n) }
+    @pf("\n")
+
+    # index read and write
+    nums[0] = 999
+    @pf("nums[0]={}\n", nums[0])
+
+    # clear empties without releasing backing memory
+    nums.clear()
+    @pf("after clear len={}\n", nums.len)
+
+    # @type returns the Oleren type name
+    @pf("type={}\n", @type(nums))
+
+    # list of strings
+    tags := @ls.init(str, 4)
+    defer tags.deinit()
+    tags.add("fast")
+    tags.add("safe")
+    tags.add("fun")
+    for t => tags { @pf("  tag: {}\n", t) }
+}
