@@ -250,7 +250,7 @@ cwd := std.fs.cwd()
 
 **`std.time`** — timing (critical for game loops)
 
-**`@std.malkur` (Malkur)** — built-in gamedev library. See `docs/Malkur.md` for the full API surface. Raylib-inspired flat API on an SDL2 backend; importing auto-links `-lSDL2`. v0.3 shipped: window/loop, keyboard, mouse, gamepad (4 slots, hotplug), 2D shapes, `draw_rect_rot`, textures (BMP + PNG + JPG via SDL_image, subrect), camera 2D (pan/zoom, world↔screen), embedded 8×8 bitmap font (`draw_text`/`measure_text`), audio (sounds + streaming music via SDL_mixer), colors + `hex()`, Vec2 math, 2D collision.
+**`@std.malkur` (Malkur)** — built-in gamedev library. See `docs/Malkur.md` for the full API surface. Raylib-inspired flat API on an SDL2 backend; importing auto-links `-lSDL2`. v0.4 shipped: window/loop, keyboard, mouse, gamepad (4 slots, hotplug), 2D shapes, `draw_rect_rot`, textures (BMP + PNG + JPG via SDL_image, subrect), camera 2D (pan/zoom, world↔screen), embedded 8×8 bitmap font (`draw_text`/`measure_text`), TTF fonts (`load_font`/`draw_text_ex`/`measure_text_ex` via SDL_ttf), audio (sounds + streaming music via SDL_mixer), colors + `hex()`, Vec2 math, 2D collision.
 ```rust
 t0 := std.time.now()          # nanosecond timestamp
 dt := std.time.since(t0)      # elapsed as f64 seconds
@@ -322,9 +322,9 @@ See Language.md § Generics.
 
 ---
 
-## Compiler Status — v0.4.0
+## Compiler Status — v0.5.0
 
-All planned v0.4.0 features are implemented and passing the test suite.
+All planned v0.5.0 features are implemented and passing the test suite.
 
 - [x] Binary expressions + Pratt parser (full operator precedence)
 - [x] `if / elif / else`, `when` (switch/match)
@@ -340,31 +340,25 @@ All planned v0.4.0 features are implemented and passing the test suite.
 - [x] Heap allocation (`@alo`, `@free`), raw and smart pointers
 - [x] Standard library — `std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`, `std.thread`
 - [x] CLI — `build`, `run`, `build-src`, `build-out`, `check`, `emit`, `sac`, `init`
-- [x] Malkur gamedev library v0.4 — gamepad, camera 2D, rotated/subrect draws, embedded + TTF fonts (`load_font`/`draw_text_ex`/`measure_text_ex` via SDL_ttf), hex(), PNG/JPG textures (SDL_image), audio sounds + music (SDL_mixer) via `@std.malkur` (SDL2 backend)
-- [x] Sema pass — `ErrSet!T` enforcement (set membership, variant existence, try propagation), unused-import + alias-shadowing errors
-- [x] System deps — `olrn deps` + build-time resolution via pkg-config with Linux/macOS/Windows-MinGW fallbacks and per-OS install hints (SDL2 for malkur)
-- [x] Multi-return / tuples — `fn f() -> (T1, T2)`, `a, b := f()`, `_ ` discard; `when` as expression (`ret when x { A => val, _ => other }`)
+- [x] Malkur gamedev library v0.4 — gamepad, camera 2D, rotated/subrect draws, embedded + TTF fonts, hex(), PNG/JPG textures (SDL_image), audio sounds + music (SDL_mixer) via `@std.malkur` (SDL2 backend)
+- [x] Sema pass — `ErrSet!T` enforcement, unused-import + alias-shadowing errors
+- [x] System deps — `olrn deps` + build-time resolution via pkg-config with per-OS fallbacks
+- [x] Multi-return / tuples — `fn f() -> (T1, T2)`, `a, b := f()`, `_` discard
+- [x] **`@ls(T)`** — built-in growable list; method-style API (`add`, `pop`, `insert`, `remove`, `clear`, `deinit`, `len`, `cap`, `[i]`); `@type` aware
+- [x] **`@map(K, V)`** — built-in hash map; method-style API (`set`, `get`, `has`, `del`, `clear`, `deinit`, `keys()`, `vals()`, `len`); `for k, v => map` key-value iteration; `@type` aware
+- [x] **`@set(T)`** — built-in hash set; method-style API (`add`, `has`, `del`, `clear`, `deinit`, `len`); range-for; `@type` aware
+- [x] Struct static fields (`pub NAME : T : val` / `pub NAME : T = val`) and struct methods (`pub fn`)
+- [x] Smart pointer postfix deref (`p.^`) and pointer-to-pointer types (`**T`, `***T`)
+- [x] Integer literal formats — hex (`0xFF`) and binary (`0b1010`)
+- [x] `@hex(v)` builtin — integer to lowercase hex string
+- [x] **Pelentar** (`@std.pelentar`) — cryptography library (libsodium backend)
 
-## Next (v0.4.0 candidates)
+## Next (v0.6.0 candidates)
 
-- [x] Multi-return / tuple values — `fn f() -> (T1, T2)`, `a, b := f()`, `_` discard; `when` as expression bug fixed
-- [x] Malkur audio — `init_audio`, `play_sound`, `play_music`, `stop_music`, volume/pause/resume (SDL_mixer)
-- [x] PNG/JPG textures — `load_texture` now uses `IMG_Load` (SDL_image), supports BMP/PNG/JPG
-- [x] **Pelentar** (`@std.pelentar`) — cryptography library (libsodium backend); fully implemented.
-  Easy API: `hashpk`, `auth_hashpk`, `enc_file`, `dec_file` with FAST/DEFAULT/STRONG constants.
-  Low-level: hashing (SHA256/512/BLAKE2b), symmetric AEAD (XChaCha20-Poly1305), public-key box (X25519),
-  Ed25519 signing, KDF (Argon2id), CSPRNG, base64/hex. File encryption uses AES-256-GCM (FAST/DEFAULT,
-  with XChaCha20 fallback on non-AES-NI hardware) and XChaCha20-Poly1305 (STRONG).
 - [ ] Windows/macOS validation — dep layer and compiler are written portably
   (MinGW shims in place) but only Linux is exercised; needs CI + testing
 - [ ] `olrn_pkg.toml` — deferred; only needed for *outside* resources
   (vendored C/C++ deps, link flags). Builtin libs don't need it.
-- [x] TTF fonts via SDL_ttf — `load_font`, `unload_font`, `draw_text_ex`, `measure_text_ex`
-- [x] Struct methods — `pub fn` and `@self` inside struct bodies; static and instance dispatch
-- [x] Smart pointer postfix deref — `p.^` for `^T`, parallel to `p.*` for `*T`
-- [x] Pointer-to-pointer types — `**T`, `***T`, etc.; multi-level deref with `p.*.*`
-- [x] Integer literal formats — hex (`0xFF`) and binary (`0b1010`)
-- [x] `@hex(v)` builtin — integer to lowercase hex string
 - [ ] **Extended stdlib** — all tiers specced in `docs/StdLib.md`; Tier 1: `std.env`, `std.path`, `std.json`, `std.net`, `std.http`, `std.compress`, `std.regex`; Tier 2: `std.proc`, `std.bytes`, `std.date`, `std.uuid`, `std.toml`, `std.ws`; Tier 3: `std.csv`, `std.xml`, `std.test`, `std.rand`
 - [ ] **Glourang** (`@std.glourang`) — native UI library (Qt6 backend); designed, not yet implemented.
   See `docs/Glourang.md` for full API spec. Flat procedural API: windows, layouts, widgets, media
