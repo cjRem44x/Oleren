@@ -1945,8 +1945,16 @@ void codegen_emit(Codegen *cg, AstNode *program)
         if (decl->kind != NODE_VAR_DECL && decl->kind != NODE_VAR_DECL_GROUP) continue;
         has_globals = 1;
         if (decl->kind == NODE_VAR_DECL) {
-            if (decl->var_decl.is_imu) fputs("constexpr ", cg->out);
-            else                       fputs("static ", cg->out);
+            if (decl->var_decl.is_imu) {
+                /* std::string is not a literal type — use const, not constexpr */
+                int is_str = decl->var_decl.type_ref &&
+                             decl->var_decl.type_ref->kind == NODE_TYPE_REF &&
+                             (strcmp(decl->var_decl.type_ref->type_ref.name, "str") == 0 ||
+                              strcmp(decl->var_decl.type_ref->type_ref.name, "mstr") == 0);
+                fputs(is_str ? "const " : "constexpr ", cg->out);
+            } else {
+                fputs("static ", cg->out);
+            }
             if (decl->var_decl.type_ref) emit_type(cg, decl->var_decl.type_ref);
             else                         fputs("auto", cg->out);
             fprintf(cg->out, " %s", decl->var_decl.name);
