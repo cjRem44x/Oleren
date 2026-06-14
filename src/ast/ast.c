@@ -94,6 +94,9 @@ void ast_free(AstNode *node)
         case NODE_TUPLE_LIT:
             node_list_free(&node->array_lit.elems);
             break;
+        case NODE_MODULE:
+            node_list_free(&node->module.decls);
+            break;
         case NODE_MULTI_BIND:
             node_list_free(&node->multi_bind.names);
             ast_free(node->multi_bind.init);

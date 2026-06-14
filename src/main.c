@@ -170,15 +170,20 @@ static int merge_imports(AstNode *program, const char *host_path,
         AstNode *imported = parse_file(resolved, &src);
         free(resolved);
         if (!imported) return 0;
+        /* wrap the imported file as a namespace module node */
+        AstNode *mod = ast_node_new(NODE_MODULE, 0);
+        mod->module.name = imp->import_decl.alias;
+        mod->module.decls = imported->program.decls;
+        imported->program.decls.count = 0;
+        imported->program.decls.items = NULL;
+        ast_free(imported);
+        /* prepend module node so it appears before main file declarations */
         NodeList tmp = program->program.decls;
         memset(&program->program.decls, 0, sizeof(NodeList));
-        for (int j = 0; j < imported->program.decls.count; j++)
-            node_list_push(&program->program.decls, imported->program.decls.items[j]);
+        node_list_push(&program->program.decls, mod);
         for (int j = 0; j < tmp.count; j++)
             node_list_push(&program->program.decls, tmp.items[j]);
         free(tmp.items);
-        imported->program.decls.count = 0;
-        ast_free(imported);
         extra_srcs[(*extra_count)++] = src;
     }
     return 1;

@@ -3,6 +3,7 @@
 #include "malkur_impl.h"
 #include "pelentar_impl.h"
 #include "../lexer/lexer.h"
+#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -25,6 +26,8 @@ void codegen_init(Codegen *cg, FILE *out)
     cg->has_errdefer       = 0;
     cg->try_counter        = 0;
     cg->err_ret_cpp[0]     = '\0';
+    cg->in_module          = 0;
+    cg->known_module_count = 0;
 }
 
 static void codegen_reset_fn_state(Codegen *cg)
@@ -42,6 +45,15 @@ static int is_import_alias(Codegen *cg, const char *name)
 {
     for (int i = 0; i < cg->import_alias_count; i++)
         if (strcmp(cg->import_aliases[i], name) == 0) return 1;
+    return 0;
+}
+
+/* true if the alias is a local .olrn file module (not a @std lib) */
+static int is_module_alias(Codegen *cg, const char *name)
+{
+    for (int i = 0; i < cg->import_alias_count; i++)
+        if (!cg->import_is_lib[i] && strcmp(cg->import_aliases[i], name) == 0)
+            return 1;
     return 0;
 }
 
@@ -81,6 +93,30 @@ static void emit_qualified_fn(Codegen *cg, AstNode *node)
         if (mod) { fputs(mod, cg->out); fputc('_', cg->out); }
     }
     fputs(node->field.name, cg->out);
+}
+
+/* error if func_name is not pub in the named module; returns 1 if ok */
+static int check_module_access(Codegen *cg, const char *alias, const char *func_name, int line)
+{
+    for (int i = 0; i < cg->known_module_count; i++) {
+        AstNode *mod = cg->known_modules[i];
+        if (strcmp(mod->module.name, alias) != 0) continue;
+        for (int j = 0; j < mod->module.decls.count; j++) {
+            AstNode *d = mod->module.decls.items[j];
+            if (d->kind == NODE_FN_DECL &&
+                strcmp(d->fn_decl.name, func_name) == 0) {
+                if (!d->fn_decl.is_pub) {
+                    fprintf(stderr,
+                            "error:%d: '%s' is private to module '%s'\n",
+                            line, func_name, alias);
+                    exit(1);
+                }
+                return 1;
+            }
+        }
+        return 1; /* not a fn (struct, var, etc.) — allow */
+    }
+    return 1; /* module not found — let g++ catch it */
 }
 
 /* true if the root of a field chain is a known import alias */
@@ -514,10 +550,17 @@ static void emit_expr(Codegen *cg, AstNode *node)
                 emit_expr(cg, ce);
                 break;
             }
-            /* strip import alias prefix: utils.square(x) → square(x),
-               std.io.open(f) → io_open(f) */
-            if (callee_is_import_qualified(cg, ce) &&
-                (ce->kind == NODE_FIELD || ce->kind == NODE_FIELD_PTR)) {
+            /* local file module: util.ask(x) → util::ask(x) */
+            if (ce->kind == NODE_FIELD &&
+                ce->field.target->kind == NODE_IDENT &&
+                is_module_alias(cg, ce->field.target->ident.name)) {
+                check_module_access(cg, ce->field.target->ident.name,
+                                    ce->field.name, node->line);
+                fprintf(cg->out, "%s::%s",
+                        ce->field.target->ident.name, ce->field.name);
+            /* strip stdlib alias prefix: std.io.open(f) → io_open(f) */
+            } else if (callee_is_import_qualified(cg, ce) &&
+                       (ce->kind == NODE_FIELD || ce->kind == NODE_FIELD_PTR)) {
                 emit_qualified_fn(cg, ce);
             } else {
                 emit_expr(cg, ce);
@@ -678,9 +721,15 @@ static void emit_expr(Codegen *cg, AstNode *node)
             emit_expr(cg, node->unary.operand);
             break;
         case NODE_FIELD:
-            /* strip import alias prefix: std.math.PI → PI;
+            /* local module alias: sc.scene_wake_up() → sc::scene_wake_up() */
+            if (node->field.target->kind == NODE_IDENT &&
+                is_module_alias(cg, node->field.target->ident.name)) {
+                fprintf(cg->out, "%s::%s",
+                        node->field.target->ident.name, node->field.name);
+            }
+            /* strip stdlib import alias prefix: std.math.PI → PI;
                enums/err sets keep their namespace: mk.keys.SPACE → keys::SPACE */
-            if (callee_is_import_qualified(cg, node)) {
+            else if (callee_is_import_qualified(cg, node)) {
                 AstNode *t = node->field.target;
                 if (t->kind == NODE_FIELD && is_enum_name(cg, t->field.name))
                     fprintf(cg->out, "%s::%s", t->field.name, node->field.name);
@@ -1549,6 +1598,7 @@ static void emit_fn_fwd(Codegen *cg, AstNode *fn)
         fputs(">\n", cg->out);
     }
 
+    if (cg->in_module && !fn->fn_decl.is_pub) fputs("static ", cg->out);
     emit_type(cg, fn->fn_decl.ret_type);
     fprintf(cg->out, " %s(", fn->fn_decl.name);
     for (int i = 0; i < fn->fn_decl.params.count; i++) {
@@ -1639,6 +1689,7 @@ static void emit_fn(Codegen *cg, AstNode *fn)
     }
 
     /* C++ main always returns int; error-returning fns get _OlrnResult<T> */
+    if (cg->in_module && !fn->fn_decl.is_pub && !is_main) fputs("static ", cg->out);
     if (is_main) fputs("int", cg->out);
     else         emit_type(cg, fn->fn_decl.ret_type);
 
@@ -1693,6 +1744,128 @@ static void emit_fn(Codegen *cg, AstNode *fn)
     fputs("}\n", cg->out);
 }
 
+/* Emit one imported file as a C++ namespace.
+   pub fn  → normal (accessible as ns::fn)
+   bare fn → static (internal linkage, private to this module) */
+static void emit_module(Codegen *cg, AstNode *mod)
+{
+    const char *ns = mod->module.name;
+    NodeList   *dl = &mod->module.decls;
+    fprintf(cg->out, "namespace %s {\n", ns);
+    cg->in_module = 1;
+
+    /* pre-register names so :: dispatch works from the main file */
+    for (int i = 0; i < dl->count; i++) {
+        AstNode *d = dl->items[i];
+        if (d->kind == NODE_STRUCT_DECL && cg->struct_count < MAX_STRUCT_NAMES)
+            cg->struct_names[cg->struct_count++] = d->struct_decl.name;
+        if (d->kind == NODE_ENUM_DECL && cg->enum_count < MAX_ENUM_NAMES)
+            cg->enum_names[cg->enum_count++] = d->enum_decl.name;
+        if (d->kind == NODE_ERR_DECL && cg->err_count < MAX_ERR_NAMES)
+            cg->err_names[cg->err_count++] = d->err_decl.name;
+    }
+
+    for (int i = 0; i < dl->count; i++) {
+        AstNode *d = dl->items[i];
+        if (d->kind == NODE_ERR_DECL) {
+            fprintf(cg->out, "namespace _olrn_err_%s {\n", d->err_decl.name);
+            for (int j = 0; j < d->err_decl.variants.count; j++) {
+                AstNode *v = d->err_decl.variants.items[j];
+                fprintf(cg->out, "  static constexpr _OlrnError %s{%d, \"%s\"};\n",
+                        v->ident.name, j, v->ident.name);
+            }
+            fputs("}\n", cg->out);
+        }
+    }
+    for (int i = 0; i < dl->count; i++) {
+        AstNode *d = dl->items[i];
+        if (d->kind == NODE_TYPE_ALIAS) {
+            fputs("using ", cg->out);
+            fputs(d->type_alias.name, cg->out);
+            fputs(" = ", cg->out);
+            emit_type(cg, d->type_alias.target);
+            fputs(";\n", cg->out);
+        }
+    }
+    for (int i = 0; i < dl->count; i++) {
+        AstNode *d = dl->items[i];
+        if (d->kind == NODE_STRUCT_DECL) {
+            fprintf(cg->out, "struct %s {\n", d->struct_decl.name);
+            for (int j = 0; j < d->struct_decl.fields.count; j++) {
+                AstNode *f = d->struct_decl.fields.items[j];
+                fputs("  mutable ", cg->out);
+                emit_type(cg, f->param.type);
+                fprintf(cg->out, " %s;\n", f->param.name);
+            }
+            if (d->struct_decl.methods.count > 0) {
+                fputc('\n', cg->out);
+                cg->current_struct = d->struct_decl.name;
+                for (int j = 0; j < d->struct_decl.methods.count; j++) {
+                    AstNode *m = d->struct_decl.methods.items[j];
+                    if (m->fn_decl.is_pub) emit_method(cg, m);
+                }
+                int has_priv = 0;
+                for (int j = 0; j < d->struct_decl.methods.count; j++) {
+                    AstNode *m = d->struct_decl.methods.items[j];
+                    if (!m->fn_decl.is_pub) {
+                        if (!has_priv) { fputs("  private:\n", cg->out); has_priv = 1; }
+                        emit_method(cg, m);
+                    }
+                }
+                cg->current_struct = NULL;
+            }
+            for (int j = 0; j < d->struct_decl.statics.count; j++) {
+                AstNode *sv = d->struct_decl.statics.items[j];
+                fputs("  static ", cg->out);
+                if (sv->var_decl.is_imu) fputs("const ", cg->out);
+                emit_type(cg, sv->var_decl.type_ref);
+                fprintf(cg->out, " %s;\n", sv->var_decl.name);
+            }
+            fputs("};\n", cg->out);
+            for (int j = 0; j < d->struct_decl.statics.count; j++) {
+                AstNode *sv = d->struct_decl.statics.items[j];
+                fputs("inline ", cg->out);
+                if (sv->var_decl.is_imu) fputs("const ", cg->out);
+                emit_type(cg, sv->var_decl.type_ref);
+                fprintf(cg->out, " %s::%s = ", d->struct_decl.name, sv->var_decl.name);
+                emit_expr(cg, sv->var_decl.init);
+                fputs(";\n", cg->out);
+            }
+        }
+    }
+    for (int i = 0; i < dl->count; i++) {
+        AstNode *d = dl->items[i];
+        if (d->kind == NODE_VAR_DECL) {
+            if (d->var_decl.is_imu) {
+                int is_str = d->var_decl.type_ref &&
+                             d->var_decl.type_ref->kind == NODE_TYPE_REF &&
+                             (strcmp(d->var_decl.type_ref->type_ref.name, "str") == 0 ||
+                              strcmp(d->var_decl.type_ref->type_ref.name, "mstr") == 0);
+                fputs(is_str ? "const " : "constexpr ", cg->out);
+            } else {
+                fputs("static ", cg->out);
+            }
+            if (d->var_decl.type_ref) emit_type(cg, d->var_decl.type_ref);
+            else                      fputs("auto", cg->out);
+            fprintf(cg->out, " %s", d->var_decl.name);
+            if (d->var_decl.init) { fputs(" = ", cg->out); emit_expr(cg, d->var_decl.init); }
+            fputs(";\n", cg->out);
+        }
+    }
+    for (int i = 0; i < dl->count; i++) {
+        AstNode *d = dl->items[i];
+        if (d->kind == NODE_FN_DECL) emit_fn_fwd(cg, d);
+    }
+    fputc('\n', cg->out);
+    for (int i = 0; i < dl->count; i++) {
+        AstNode *d = dl->items[i];
+        if (d->kind == NODE_FN_DECL) { emit_fn(cg, d); fputc('\n', cg->out); }
+    }
+
+    cg->in_module = 0;
+    fprintf(cg->out, "} /* namespace %s */\n\n", ns);
+}
+
 void codegen_emit(Codegen *cg, AstNode *program)
 {
     /* standard headers every Oleren program needs */
@@ -1731,6 +1904,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
         if (cg->import_alias_count < MAX_IMPORT_ALIAS) {
             cg->import_aliases[cg->import_alias_count] = imp->import_decl.alias;
             cg->import_modules[cg->import_alias_count] = imp->import_decl.module;
+            cg->import_is_lib[cg->import_alias_count] = imp->import_decl.is_lib;
             cg->import_alias_count++;
         }
         if (imp->import_decl.is_lib && strcmp(imp->import_decl.source, "std") == 0) {
@@ -1755,10 +1929,20 @@ void codegen_emit(Codegen *cg, AstNode *program)
     if (!cg->has_stdlib && program->program.imports.count)
         fputc('\n', cg->out);
 
+    /* imported file modules — each becomes a namespace block */
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind != NODE_MODULE) continue;
+        if (cg->known_module_count < MAX_IMPORT_ALIAS)
+            cg->known_modules[cg->known_module_count++] = decl;
+        emit_module(cg, decl);
+    }
+
     /* error set declarations */
     int has_err_sets = 0;
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE)   continue;
         if (decl->kind != NODE_ERR_DECL) continue;
         has_err_sets = 1;
         /* register name so codegen knows ErrSet.X is an error, not a struct field */
@@ -1778,6 +1962,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     int has_types = 0;
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE)     continue;
         if (decl->kind != NODE_TYPE_ALIAS) continue;
         has_types = 1;
         fputs("using ", cg->out);
@@ -1792,6 +1977,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     int has_enums = 0;
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE)    continue;
         if (decl->kind != NODE_ENUM_DECL) continue;
         has_enums = 1;
         /* register name for :: access in emit_expr */
@@ -1839,6 +2025,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     /* register struct names first (needed for :: dispatch in method calls) */
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE) continue;
         if (decl->kind == NODE_STRUCT_DECL && cg->struct_count < MAX_STRUCT_NAMES)
             cg->struct_names[cg->struct_count++] = decl->struct_decl.name;
     }
@@ -1847,6 +2034,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     int has_structs = 0;
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE)     continue;
         if (decl->kind != NODE_STRUCT_DECL) continue;
         has_structs = 1;
         fprintf(cg->out, "struct %s {\n", decl->struct_decl.name);
@@ -1901,6 +2089,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     int has_unions = 0;
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE)   continue;
         if (decl->kind != NODE_UNN_DECL) continue;
         has_unions = 1;
         fprintf(cg->out, "union %s {\n", decl->unn_decl.name);
@@ -1918,6 +2107,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     int has_extern = 0;
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE)    continue;
         if (decl->kind != NODE_EXTERN_FN) continue;
         has_extern = 1;
         fputs("extern \"C\" ", cg->out);
@@ -1942,6 +2132,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     int has_globals = 0;
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE) continue;
         if (decl->kind != NODE_VAR_DECL && decl->kind != NODE_VAR_DECL_GROUP) continue;
         has_globals = 1;
         if (decl->kind == NODE_VAR_DECL) {
@@ -1971,6 +2162,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     int has_fwd = 0;
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE)  continue;
         if (decl->kind != NODE_FN_DECL) continue;
         emit_fn_fwd(cg, decl);
         has_fwd = 1;
@@ -1980,6 +2172,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     /* regular function definitions */
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE)       continue;
         if (decl->kind == NODE_EXTERN_FN)    continue;
         if (decl->kind == NODE_VAR_DECL || decl->kind == NODE_VAR_DECL_GROUP) continue;
         if (decl->kind == NODE_TYPE_ALIAS)   continue;

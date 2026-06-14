@@ -18,6 +18,7 @@ typedef struct {
     int   type_var_count;
     const char *import_aliases[MAX_IMPORT_ALIAS]; /* import alias names */
     const char *import_modules[MAX_IMPORT_ALIAS]; /* submodule per alias, NULL = whole lib */
+    int         import_is_lib[MAX_IMPORT_ALIAS];  /* 1 = @std/system, 0 = local file module */
     int   import_alias_count;
     int   has_stdlib;    /* @std was imported */
     int   has_malkur;    /* @std.malkur was bound */
@@ -35,6 +36,10 @@ typedef struct {
     char  err_ret_cpp[128]; /* C++ success type for current !T fn (e.g. "int32_t") */
     int   has_errdefer;     /* 1 if current function has errdefer stmts */
     int   try_counter;      /* unique ID for _r_N try/catch temporaries */
+    int   in_module;        /* 1 while emitting inside a namespace module block */
+    /* registered module nodes for access checking */
+    struct AstNode *known_modules[MAX_IMPORT_ALIAS];
+    int             known_module_count;
 } Codegen;
 
 void codegen_init(Codegen *cg, FILE *out);

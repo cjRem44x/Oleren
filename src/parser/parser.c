@@ -1183,8 +1183,11 @@ AstNode *parser_parse_program(Parser *p)
         if (check(p, TOK_EXTERN)) {
             node_list_push(&prog->program.decls, parse_extern_fn(p));
         } else if (check(p, TOK_FN) || check(p, TOK_PUB)) {
+            int had_pub = check(p, TOK_PUB);
             match(p, TOK_PUB);
-            node_list_push(&prog->program.decls, parse_fn_decl(p));
+            AstNode *fn = parse_fn_decl(p);
+            fn->fn_decl.is_pub = had_pub;
+            node_list_push(&prog->program.decls, fn);
         } else if (check(p, TOK_STRUCT)) {
             node_list_push(&prog->program.decls, parse_struct_decl(p));
         } else if (check(p, TOK_ENUM)) {

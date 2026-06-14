@@ -53,6 +53,8 @@ typedef enum {
     /* tuples / multi-return */
     NODE_TUPLE_LIT,     /* (a, b, ...) — uses .array_lit    */
     NODE_MULTI_BIND,    /* a, b := expr  (destructuring)    */
+    /* file-as-module */
+    NODE_MODULE,        /* namespace wrapper for an imported .olrn file */
 } NodeKind;
 
 typedef struct AstNode AstNode;
@@ -255,6 +257,9 @@ struct AstNode {
 
         /* NODE_MULTI_BIND — a, b := expr (names are NODE_IDENT) */
         struct { NodeList names; int is_imu; AstNode *init; } multi_bind;
+
+        /* NODE_MODULE — namespace wrapper for an imported .olrn file */
+        struct { char *name; NodeList decls; } module;
     };
 };
 
