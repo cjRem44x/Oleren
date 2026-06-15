@@ -1,4 +1,4 @@
-# Oleren `0.3.0`
+# Oleren `0.5.1`
 
 A thin, sugared frontend that compiles to C++ and then to a native binary.
 Designed for fast media applications — games, audio/video pipelines, asset tools.
@@ -66,7 +66,10 @@ fn main() -> !void
 | Error cleanup | `errdefer s.free()` |
 | Pointers | `p :*T = &v` / `p :*T = @alo(T)` raw, `s :^T = @alo(T)` smart |
 | Structs/enums | `struct P { x: i32 }` / `enum Dir { North }` / `unn U { ... }` |
-| Length | `s.len` / `arr.len` — i64, on `str` and arrays |
+| Struct privacy | `pub fn` = public method; bare `fn` = private to struct |
+| Modules | each `.olrn` file is a namespace; `pub fn` = accessible, bare `fn` = private |
+| Multiline strings | `s :mstr = """..."""` — preserves newlines and backslashes |
+| Length | `s.len` / `arr.len` — i64, on `str`/`mstr` and arrays |
 | Loops | `for e => arr {}` / `while cond {}` / `loop i:=0, i<N, i+=1 {}` |
 | Generics | `fn f(x: any)` + `when @type(x) { i64 => ... }` |
 | Extern FFI | `extern fn SDL_Init(flags: u32) -> i32` |
@@ -88,6 +91,7 @@ fn main() -> !void
 | `olrn check <file.olrn>` | Parse + semantic checks, no output |
 | `olrn deps [file.olrn]` | Check system libs (SDL2, …) with per-OS install hints |
 | `olrn sac <files> -o=<name>` | Stand-alone compiler — no project required |
+| `olrn view <file>` | Open image, GIF, or video in SDL2 viewer (zoom, pan, enhance) |
 | `olrn version` | Print compiler version |
 | `olrn help` | Print usage |
 
@@ -167,17 +171,17 @@ fn main() -> !void
             mk.begin_camera2d(cam)
                 mk.draw_texture(tex, pos.x, pos.y, mk.WHITE)
             mk.end_camera2d()
-            mk.draw_text("Oleren v0.3", 10.0, 10.0, 16.0, mk.WHITE)
+            mk.draw_text("Oleren v0.5.1", 10.0, 10.0, 16.0, mk.WHITE)
         mk.end_draw()
     }
 }
 ```
 
-**v0.3 features:** window/loop, keyboard, mouse, gamepad (4 slots, hotplug),
+**v0.4 features:** window/loop, keyboard, mouse, gamepad (4 slots, hotplug),
 2D shapes, `draw_rect_rot`, textures (BMP + PNG + JPG via SDL_image, subrect),
 camera 2D (`begin_camera2d`/`end_camera2d`, world↔screen), embedded 8×8 bitmap
-font (`draw_text`/`measure_text`), audio sounds + streaming music (SDL_mixer),
-colors + `hex()`, Vec2 math, 2D collision.
+font (`draw_text`/`measure_text`), TTF fonts (`load_font`/`draw_text_ex` via SDL_ttf),
+audio sounds + streaming music (SDL_mixer), colors + `hex()`, Vec2 math, 2D collision.
 
 ---
 
