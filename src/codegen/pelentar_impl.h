@@ -83,7 +83,7 @@ static const char *PELENTAR_IMPL =
     "/* Returns: -1 = init failed, 0 = no match, 1 = match.\n"
     "   stren is accepted as a hint but ignored — cost params are\n"
     "   embedded in the hash string by hashpk. */\n"
-    "static int32_t _olrn_pe_auth_hashpk(int32_t /*s*/, const std::string &plain,\n"
+    "static int32_t _olrn_pe_auth_hashpk(const std::string &plain,\n"
     "                                     const std::string &hashed) {\n"
     "    if (!_pe_init()) return -1;\n"
     "    return crypto_pwhash_str_verify(hashed.c_str(),\n"

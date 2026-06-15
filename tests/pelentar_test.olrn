@@ -21,7 +21,7 @@ fn main() -> !void
 
     # password hash + verify
     hashed :: try crypt.hashpk(crypt.FAST, "mypassword")
-    ok     :: crypt.auth_hashpk("mypassword", hashed)
+    ok     :: try crypt.auth_hashpk("mypassword", hashed)
     if ok  { @pl("pw verify: ok") }
     if !ok { @pl("pw verify: FAIL") }
 
