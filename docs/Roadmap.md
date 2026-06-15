@@ -322,9 +322,9 @@ See Language.md § Generics.
 
 ---
 
-## Compiler Status — v0.5.0
+## Compiler Status — v0.5.1
 
-All planned v0.5.0 features are implemented and passing the test suite.
+All planned v0.5.1 features are implemented and passing the test suite.
 
 - [x] Binary expressions + Pratt parser (full operator precedence)
 - [x] `if / elif / else`, `when` (switch/match)
@@ -352,6 +352,10 @@ All planned v0.5.0 features are implemented and passing the test suite.
 - [x] Integer literal formats — hex (`0xFF`) and binary (`0b1010`)
 - [x] `@hex(v)` builtin — integer to lowercase hex string
 - [x] **Pelentar** (`@std.pelentar`) — cryptography library (libsodium backend)
+- [x] **File-as-module** — each imported `.olrn` file is a namespace; `pub fn` is accessible as `alias.func()`, bare `fn` is private with compile-time enforcement
+- [x] `mstr` multiline string type (`"""..."""` triple-quote literals, shared `str` methods)
+- [x] `olrn view <file>` — SDL2 viewer for images, animated GIFs, and video (zoom, pan, enhance)
+- [x] Struct method privacy — bare `fn` in a struct is `private:` in C++; `pub fn` is public
 
 ## Next (v0.6.0 candidates)
 

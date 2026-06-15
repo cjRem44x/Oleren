@@ -128,6 +128,33 @@ Rules:
 - Unused imports are a compile error.
 - The alias is how you call in: `mk.init_window(...)`, `std.io.open(...)`
 
+### File-as-module
+
+Every `.olrn` file other than the main driver is a **module** — a self-contained namespace. Members follow the same `pub` / bare rule as struct methods:
+
+| Declaration | Access |
+|---|---|
+| `pub fn name(...)` | Public — callable as `alias.name()` from any file |
+| `fn name(...)` | Private — only callable from within the same file |
+
+```rust
+# util.olrn
+pub fn ask(text: mstr) -> str { ... }   # accessible as util.ask()
+fn internal_helper() { ... }            # private — util.internal_helper() errors
+```
+
+```rust
+# main.olrn
+@import( util = "util.olrn" )
+
+fn main() -> void {
+    util.ask("...")          # ok — pub
+    util.internal_helper()   # ERROR: 'internal_helper' is private to module 'util'
+}
+```
+
+The main driver (the file containing `fn main`) is exempt — its functions live in the global namespace and are not subject to module access rules.
+
 ---
 
 ## Variables & Types
