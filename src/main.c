@@ -37,7 +37,20 @@ static char *read_file(const char *path)
 
 static char *resolve_path(const char *base_path, const char *rel)
 {
-    if (rel[0] == '/') return strdup(rel);
+    if (rel[0] == '/') {
+        fprintf(stderr, "error: import path must be relative: '%s'\n", rel);
+        return NULL;
+    }
+    /* reject ".." components anywhere in the path */
+    const char *p = rel;
+    while (p) {
+        if (p[0] == '.' && p[1] == '.' && (p[2] == '/' || p[2] == '\0')) {
+            fprintf(stderr, "error: import path may not contain '..': '%s'\n", rel);
+            return NULL;
+        }
+        p = strchr(p, '/');
+        if (p) p++;
+    }
     const char *last_slash = strrchr(base_path, '/');
     if (!last_slash) return strdup(rel);
     size_t dir_len = (size_t)(last_slash - base_path) + 1;
@@ -113,8 +126,12 @@ static int imports_use_pelentar(AstNode *program)
 
 static void load_stdlib_module(AstNode *prog, const char *stdlib_path,
                                const char *lib, const char *mod,
-                               char **srcs, int *count)
+                               char **srcs, int *count, int max)
 {
+    if (*count >= max) {
+        fprintf(stderr, "error: too many imports (limit %d)\n", max);
+        return;
+    }
     char path[4096];
     snprintf(path, sizeof(path), "%s/%s/%s.olrn", stdlib_path, lib, mod);
     char *src = NULL;
@@ -133,7 +150,7 @@ static void load_stdlib_module(AstNode *prog, const char *stdlib_path,
 }
 
 static int merge_imports(AstNode *program, const char *host_path,
-                         char **extra_srcs, int *extra_count)
+                         char **extra_srcs, int *extra_count, int max)
 {
     /* any @std entry (whole-lib import or module bind) loads the stdlib once.
        malkur only loads when explicitly bound (mk = @std.malkur), since it
@@ -153,13 +170,13 @@ static int merge_imports(AstNode *program, const char *host_path,
         } else {
             if (imports_use_malkur(program))
                 load_stdlib_module(program, stdlib_path, "std",
-                                   "malkur", extra_srcs, extra_count);
+                                   "malkur", extra_srcs, extra_count, max);
             if (imports_use_pelentar(program))
                 load_stdlib_module(program, stdlib_path, "std",
-                                   "pelentar", extra_srcs, extra_count);
+                                   "pelentar", extra_srcs, extra_count, max);
             for (int m = 0; STD_MODULES[m]; m++)
                 load_stdlib_module(program, stdlib_path, "std",
-                                   STD_MODULES[m], extra_srcs, extra_count);
+                                   STD_MODULES[m], extra_srcs, extra_count, max);
             free(stdlib_path);
         }
     }
@@ -167,6 +184,11 @@ static int merge_imports(AstNode *program, const char *host_path,
         AstNode *imp = program->program.imports.items[i];
         if (imp->import_decl.is_lib) continue;
         char *resolved = resolve_path(host_path, imp->import_decl.source);
+        if (!resolved) return 0;
+        if (*extra_count >= max) {
+            fprintf(stderr, "error: too many imports (limit %d)\n", max);
+            free(resolved); return 0;
+        }
         char *src = NULL;
         AstNode *imported = parse_file(resolved, &src);
         free(resolved);
@@ -264,7 +286,7 @@ static int compile_to_out(const char *olrn_path, FILE *out)
     tree_step(0, "parse", olrn_path);
 
     char *extra_srcs[64]; int extra_count = 0;
-    if (!merge_imports(program, olrn_path, extra_srcs, &extra_count)) {
+    if (!merge_imports(program, olrn_path, extra_srcs, &extra_count, 64)) {
         ast_free(program); free(src); return 1;
     }
     if (g_tree) {
@@ -309,7 +331,7 @@ static int compile_to_binary(const char **inputs, int input_count,
     tree_step(0, "parse", inputs[0]);
 
     char *extra_srcs[128]; int extra_count = 0;
-    if (!merge_imports(program, inputs[0], extra_srcs, &extra_count)) {
+    if (!merge_imports(program, inputs[0], extra_srcs, &extra_count, 128)) {
         ast_free(program); free(main_src);
         fclose(cpp_file); remove(tmp_cpp); return 1;
     }
@@ -338,6 +360,13 @@ static int compile_to_binary(const char **inputs, int input_count,
         free(tmp.items);
         imported->program.decls.count = 0;
         ast_free(imported);
+        if (extra_count >= 128) {
+            fprintf(stderr, "error: too many imports (limit 128)\n");
+            free(fsrc);
+            ast_free(program); free(main_src);
+            for (int j = 0; j < extra_count; j++) free(extra_srcs[j]);
+            fclose(cpp_file); remove(tmp_cpp); return 1;
+        }
         extra_srcs[extra_count++] = fsrc;
     }
 
@@ -858,7 +887,7 @@ static int cmd_check(int argc, char **argv)
 
     /* also resolve imports to surface import-level errors */
     char *extra_srcs[64]; int extra_count = 0;
-    int ok = merge_imports(program, path, extra_srcs, &extra_count);
+    int ok = merge_imports(program, path, extra_srcs, &extra_count, 64);
     if (ok && check_program(program)) ok = 0;
 
     ast_free(program); free(src);

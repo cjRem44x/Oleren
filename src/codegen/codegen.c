@@ -498,9 +498,21 @@ static void emit_expr(Codegen *cg, AstNode *node)
     if (!node) return;
     switch (node->kind) {
         case NODE_STR_LIT:
-            if (node->str_lit.is_mstr)
-                fprintf(cg->out, "R\"OLRN(%s)OLRN\"", node->str_lit.value);
-            else
+            if (node->str_lit.is_mstr) {
+                /* find a raw-string delimiter that doesn't appear in the value */
+                const char *val = node->str_lit.value;
+                char delim[8] = "OLRN";
+                char term[16];
+                snprintf(term, sizeof(term), ")%s\"", delim);
+                for (int _i = 0; strstr(val, term) && _i < 9; _i++) {
+                    snprintf(delim, sizeof(delim), "OLRN%d", _i);
+                    snprintf(term, sizeof(term), ")%s\"", delim);
+                }
+                if (strstr(val, term))
+                    fprintf(stderr, "error: mstr literal contains all tried raw-string delimiters\n");
+                else
+                    fprintf(cg->out, "R\"%s(%s)%s\"", delim, val, delim);
+            } else
                 fprintf(cg->out, "\"%s\"", node->str_lit.value);
             break;
         case NODE_INT_LIT:
