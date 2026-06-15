@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "ast/ast.h"
@@ -204,6 +205,21 @@ static void tree_step(int last, const char *label, const char *detail)
 
 /* ── core compilation pipeline ────────────────────────────────── */
 
+/* fork + exec argv[0] with argv, wait for exit; 0 = success */
+static int exec_wait(char *const argv[])
+{
+    pid_t pid = fork();
+    if (pid < 0) { perror("fork"); return 1; }
+    if (pid == 0) {
+        execvp(argv[0], argv);
+        perror(argv[0]);
+        _exit(127);
+    }
+    int status;
+    waitpid(pid, &status, 0);
+    return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : 1;
+}
+
 /* compile a generated .cpp to a binary; system-library deps (e.g.
    SDL2 for malkur) are detected from the file and resolved via
    pkg-config or platform fallbacks. Returns 0 on success. */
@@ -215,11 +231,28 @@ static int gxx_compile(const char *cpp_path, const char *output)
         return 1;
     }
 
-    char cmd[2048];
-    snprintf(cmd, sizeof(cmd),
-             "g++ -std=c++17 -O2 \"%s\" -o \"%s\"%s 2>&1", cpp_path, output,
-             dep_flags);
-    return (system(cmd) == 0) ? 0 : 1;
+    /* tokenise dep_flags (space-separated "-lFoo" style flags) */
+    char dep_copy[sizeof(dep_flags)];
+    memcpy(dep_copy, dep_flags, sizeof(dep_flags));
+    char *dep_toks[64];
+    int dep_argc = 0;
+    for (char *tok = strtok(dep_copy, " \t"); tok && dep_argc < 62;
+         tok = strtok(NULL, " \t"))
+        dep_toks[dep_argc++] = tok;
+
+    /* build argv without involving a shell */
+    char *argv[72];
+    int i = 0;
+    argv[i++] = "g++";
+    argv[i++] = "-std=c++17";
+    argv[i++] = "-O2";
+    argv[i++] = (char *)cpp_path;
+    argv[i++] = "-o";
+    argv[i++] = (char *)output;
+    for (int j = 0; j < dep_argc; j++) argv[i++] = dep_toks[j];
+    argv[i] = NULL;
+
+    return exec_wait(argv);
 }
 
 /* Parse olrn_path, merge imports, emit C++ to out. Returns 0 on success. */
@@ -1016,18 +1049,19 @@ static int cmd_run(void)
     const char *name = project_name();
     if (!name) return 1;
 
-    char cmd[768];
+    char bin_path[768];
     if (access(PROJECT_MAIN, F_OK) == 0)
-        snprintf(cmd, sizeof(cmd), "./bin/%s", name);
+        snprintf(bin_path, sizeof(bin_path), "./bin/%s", name);
     else
-        snprintf(cmd, sizeof(cmd), "./%s", name);
+        snprintf(bin_path, sizeof(bin_path), "./%s", name);
 
-    if (access(cmd + 2, F_OK) != 0) {
+    if (access(bin_path + 2, F_OK) != 0) {
         fprintf(stderr, "error: '%s' not found — run 'olrn build' first\n",
-                cmd + 2);
+                bin_path + 2);
         return 1;
     }
-    return system(cmd);
+    char *argv[] = { bin_path, NULL };
+    return exec_wait(argv);
 }
 
 /* ── entry point ──────────────────────────────────────────────── */
