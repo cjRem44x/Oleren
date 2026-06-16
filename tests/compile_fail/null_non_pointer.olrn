@@ -1,0 +1,7 @@
+fn main() -> void
+{
+    inferred := null
+    y :i64 = null
+    x := 1
+    x = null
+}

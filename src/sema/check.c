@@ -251,7 +251,19 @@ static void walk(Check *c, AstNode *n)
                 pop_scope(c);
             }
             break;
-        case NODE_ASSIGN:    walk(c, n->assign.lhs); walk(c, n->assign.rhs); break;
+        case NODE_ASSIGN:
+            if (n->assign.rhs && n->assign.rhs->kind == NODE_NULL_LIT &&
+                n->assign.lhs && n->assign.lhs->kind == NODE_IDENT &&
+                is_local(c, n->assign.lhs->ident.name) &&
+                sym_ptr_kind(c, n->assign.lhs->ident.name) == 0) {
+                fprintf(stderr,
+                        "error: line %d: cannot assign null to non-pointer '%s'\n",
+                        n->line, n->assign.lhs->ident.name);
+                c->errors++;
+            }
+            walk(c, n->assign.lhs);
+            walk(c, n->assign.rhs);
+            break;
         case NODE_WHILE:     walk(c, n->while_loop.cond); walk(c, n->while_loop.body); break;
         case NODE_LOOP:
             push_scope(c); /* loop init declares into the loop's scope */
@@ -270,6 +282,13 @@ static void walk(Check *c, AstNode *n)
             break;
         case NODE_VAR_DECL: {
             walk(c, n->var_decl.init);   /* init may reference outer names */
+            if (n->var_decl.init && n->var_decl.init->kind == NODE_NULL_LIT &&
+                var_decl_ptr_kind(n) == 0) {
+                fprintf(stderr,
+                        "error: line %d: null requires an explicit pointer type (*T or ^T)\n",
+                        n->line);
+                c->errors++;
+            }
             declare(c, n->var_decl.name, n->line, var_decl_ptr_kind(n));
             break;
         }
