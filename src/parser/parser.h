@@ -15,6 +15,7 @@ typedef struct {
 } Parser;
 
 void     parser_init(Parser *p, Lexer *l);
+AstNode *parser_parse_expr(Parser *p);
 AstNode *parser_parse_program(Parser *p);
 
 #endif /* OLRN_PARSER_H */

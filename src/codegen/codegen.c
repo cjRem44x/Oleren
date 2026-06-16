@@ -3,9 +3,11 @@
 #include "malkur_impl.h"
 #include "pelentar_impl.h"
 #include "../lexer/lexer.h"
+#include "../parser/parser.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h>
 
 void codegen_init(Codegen *cg, FILE *out)
 {
@@ -342,6 +344,39 @@ static void emit_pl_chain(Codegen *cg, AstNode *node)
     }
 }
 
+static void emit_pf_literal(Codegen *cg, const char *start, size_t len)
+{
+    if (len == 0) return;
+    fputs(" << \"", cg->out);
+    fwrite(start, 1, len, cg->out);
+    fputc('"', cg->out);
+}
+
+static void emit_pf_interp_expr(Codegen *cg, const char *start, size_t len, int line)
+{
+    while (len > 0 && isspace((unsigned char)*start)) { start++; len--; }
+    while (len > 0 && isspace((unsigned char)start[len - 1])) len--;
+
+    char *src = malloc(len + 1);
+    memcpy(src, start, len);
+    src[len] = '\0';
+
+    Lexer lex; lexer_init(&lex, src);
+    Parser p; parser_init(&p, &lex);
+    AstNode *expr = parser_parse_expr(&p);
+    if (p.had_error || !expr || p.cur.type != TOK_EOF) {
+        fprintf(stderr, "error: line %d: invalid @pf interpolation expression '{%s}'\n",
+                line, src);
+        ast_free(expr);
+        free(src);
+        exit(1);
+    }
+
+    emit_expr(cg, expr);
+    ast_free(expr);
+    free(src);
+}
+
 /* emit a single builtin call as a statement */
 static void emit_builtin_stmt(Codegen *cg, AstNode *node)
 {
@@ -359,7 +394,7 @@ static void emit_builtin_stmt(Codegen *cg, AstNode *node)
     }
 
     /* @pf("Hello {name}, age {}\n", expr)
-       {name}  — emit named variable verbatim (must be a simple in-scope name)
+       {expr}  — parse and emit an Oleren expression
        {}      — emit next positional argument through emit_expr (supports
                  any Oleren expression: p.*, p->field, fn(), etc.)
        Both forms can be mixed in one format string. */
@@ -371,16 +406,19 @@ static void emit_builtin_stmt(Codegen *cg, AstNode *node)
         int next_arg = 1; /* index into call.args for positional {} slots */
         while (*p) {
             if (*p == '{') {
+                if (p[1] == '{') {
+                    emit_pf_literal(cg, seg, (size_t)(p - seg));
+                    emit_pf_literal(cg, "{", 1);
+                    p += 2;
+                    seg = p;
+                    continue;
+                }
                 const char *id = p + 1;
                 const char *e  = id;
                 while (*e && *e != '}') e++;
                 if (*e == '}') {
                     /* emit literal segment before { */
-                    if (p > seg) {
-                        fputs(" << \"", cg->out);
-                        fwrite(seg, 1, (size_t)(p - seg), cg->out);
-                        fputc('"', cg->out);
-                    }
+                    emit_pf_literal(cg, seg, (size_t)(p - seg));
                     fputs(" << ", cg->out);
                     if (e == id) {
                         /* {} — positional: emit next arg through emit_expr */
@@ -389,30 +427,23 @@ static void emit_builtin_stmt(Codegen *cg, AstNode *node)
                         else
                             fputs("/* missing arg */", cg->out);
                     } else {
-                        size_t ilen = (size_t)(e - id);
-                        /* {foo.*} / {foo.^} — Oleren deref syntax; emit as (*foo) */
-                        if (ilen > 2 && (e[-1] == '*' || e[-1] == '^') && e[-2] == '.') {
-                            fputs("(*", cg->out);
-                            fwrite(id, 1, ilen - 2, cg->out);
-                            fputc(')', cg->out);
-                        } else {
-                            /* {name} or {ptr->field} — emit verbatim (valid C++) */
-                            fwrite(id, 1, ilen, cg->out);
-                        }
+                        emit_pf_interp_expr(cg, id, (size_t)(e - id), node->line);
                     }
                     p   = e + 1;
                     seg = p;
                     continue;
                 }
+            } else if (*p == '}' && p[1] == '}') {
+                emit_pf_literal(cg, seg, (size_t)(p - seg));
+                emit_pf_literal(cg, "}", 1);
+                p += 2;
+                seg = p;
+                continue;
             }
             p++;
         }
         /* emit any trailing literal */
-        if (p > seg) {
-            fputs(" << \"", cg->out);
-            fwrite(seg, 1, (size_t)(p - seg), cg->out);
-            fputc('"', cg->out);
-        }
+        emit_pf_literal(cg, seg, (size_t)(p - seg));
         fputs(";\n", cg->out);
         return;
     }

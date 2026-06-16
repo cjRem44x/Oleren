@@ -73,7 +73,9 @@ static void skip_newlines(Parser *p)
         next_tok(p);
 }
 
-static AstNode *parse_expr(Parser *p) { return parse_expr_bp(p, 0); }
+AstNode *parser_parse_expr(Parser *p) { return parse_expr_bp(p, 0); }
+
+static AstNode *parse_expr(Parser *p) { return parser_parse_expr(p); }
 
 static AstNode *parse_type(Parser *p)
 {

@@ -1,0 +1,4 @@
+fn main() -> void
+{
+    @pf("bad {1 +}\n")
+}

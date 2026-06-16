@@ -865,7 +865,7 @@ fn print_val(x: any)
     T :: @type(x)
     when T {
         i64  => @pf("{}\n", x),
-        f64  => @pf("{:.4}\n", x),
+        f64  => @pf("{}\n", x),
         str  => @pf("{}\n", x),
         bool => @pf("{}\n", x),
         _    => @pl("unsupported type"),
@@ -932,7 +932,9 @@ All builtins use the `@` prefix and are resolved at compile time.
 ```rust
 # ── Output ──────────────────────────────────────────
 @pl(val)                    # print line — multiple args: @pl("x = ", x)
-@pf("x = %.3f\n", x)        # printf-style format
+@pf("x = {}\n", x)          # positional stream format
+@pf("sum = {a + b}\n")      # interpolation parses Oleren expressions
+@pf("{{literal braces}}\n") # escape braces with {{ and }}
 @cout << val << @endl       # C++ stream style
 
 # ── Input ───────────────────────────────────────────
