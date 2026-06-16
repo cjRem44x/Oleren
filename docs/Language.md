@@ -464,6 +464,15 @@ fn greet(name: str)
 
 Functions are top-level only — no lambdas or nested functions.
 
+Function names must be unique at top level. Calls are checked against the
+declared parameter count, so `add(1)` and `add(1, 2, 3)` fail when `add` takes
+two parameters.
+
+Return form must match the declared return:
+- `fn f() -> T` requires `ret value`; bare `ret` is invalid.
+- `fn f()` / `fn f() -> void` uses bare `ret` or falls through.
+- `fn f() -> !void` may use bare `ret` for success or `ret err.Name` for error.
+
 ---
 
 ## Structs
@@ -680,6 +689,10 @@ when key {
 
 Oleren has two pointer kinds: raw (`*T`) and smart (`^T`).
 
+`null` is only valid for explicit pointer types (`*T` or `^T`). `x := null`,
+`x :i64 = null`, and assigning `null` into a non-pointer local are compile
+errors.
+
 ### Raw pointers — `*T`
 
 Raw pointers work like C. You manage the lifetime manually.
@@ -723,7 +736,7 @@ bump(&v)
 
 ### Smart pointers — `^T`
 
-`^T` is reference-counted (`std::shared_ptr` under the hood) — frees itself when the last handle goes out of scope. No `@free` needed or allowed.
+`^T` is reference-counted (`std::shared_ptr` under the hood) — frees itself when the last handle goes out of scope. No `@free` needed or allowed; calling `@free` on a smart pointer is a compile error.
 
 ```rust
 p :^Point = @alo(Point)   # make_shared; no @free

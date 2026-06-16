@@ -29,12 +29,38 @@ No runtime, no GC, no OOP. Close to the metal; readable by default.
 - [x] Structs (data fields, static vars, `pub fn`, instance `@self` fns)
 - [x] Expression rules (no `;` by default, `;` for multi-expr lines)
 - [x] Console I/O (`@pl`, `@pf`, `@cout`, `@cin`)
+- [x] `@pf` expression interpolation for literal formats and positional
+      formatting for stored `str` formats
 - [x] Resolver layer for direct imports: canonical local paths, duplicate-file
       import rejection, and self-import diagnostics
+- [x] Focused sema hardening: call arity, bare return misuse, duplicate top-level
+      functions, `null` restricted to pointer locals, and `@free` restricted to
+      raw pointers
 
 ---
 
 ## Remaining Language Design
+
+### Current Next Steps
+
+Recommended implementation order:
+
+1. **Build a real expression type model in sema.**
+   Track local/parameter types, infer simple literal and call result types, and use
+   that for assignment compatibility, return type compatibility, array element
+   checks, pointer deref checks, and better diagnostics before C++ emission.
+2. **Recursive module graph.**
+   Extend the resolver from direct imports to a full graph with module-scoped
+   alias tables, parsed-module caching, transitive import checks, and multi-file
+   cycle diagnostics.
+3. **Diagnostics with source spans.**
+   Add file/line/column ranges and source excerpts so parser/sema errors do not
+   feel like C compiler fallout.
+4. **Stdlib depth.**
+   Prioritize `std.str.fmt`/builder, fallible buffered file I/O, `std.path`, and
+   process/env helpers before adding new large domains.
+
+---
 
 ### 1. Expressions & Evaluation
 
