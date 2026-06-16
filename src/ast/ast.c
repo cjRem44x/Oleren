@@ -377,6 +377,7 @@ void ast_print(AstNode *node, int indent)
         case NODE_FLOAT_LIT: printf("FloatLit(%g)\n",   node->float_lit.value);break;
         case NODE_CHAR_LIT:  printf("CharLit('%c')\n",  node->char_lit.value); break;
         case NODE_BOOL_LIT:  printf("BoolLit(%s)\n",    node->bool_lit.value ? "true" : "false"); break;
+        case NODE_NULL_LIT:  printf("NullLit\n"); break;
         case NODE_IDENT:     printf("Ident(%s)\n",      node->ident.name);     break;
         case NODE_ERR_DECL:
             printf("ErrDecl(%s)\n", node->err_decl.name);

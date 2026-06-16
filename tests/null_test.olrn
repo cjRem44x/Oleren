@@ -1,0 +1,34 @@
+struct Node {
+    dat: i64,
+    next: ^Node,
+
+    pub fn init(dat: i64) -> Node
+    {
+        ret .{.dat=dat, .next=null}
+    }
+}
+
+fn main() -> void
+{
+    raw :*i32 = null
+    @assert(raw == null, "raw pointer should start null")
+
+    raw = @alo(i32)
+    defer @free(raw)
+    raw.* = 7
+    @assert(raw != null, "raw pointer should no longer be null")
+    @assert(raw.* == 7, "raw pointer deref should work")
+
+    head :^Node = @alo(Node)
+    head.^ = Node.init(10)
+
+    tmp :^Node = head
+    count := 0
+    while tmp != null {
+        count = count + 1
+        tmp = tmp->next
+    }
+
+    @assert(count == 1, "null should terminate the list")
+    @pl("null test ok")
+}

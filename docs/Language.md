@@ -199,6 +199,14 @@ bin := 0b11111111   # binary      — 255
 ```
 
 `undef` requires an explicit type — `x := undef` is always a compile error.
+It means uninitialized storage, not an empty pointer value. Use `null` for raw
+or smart pointers that intentionally point nowhere:
+
+```rust
+buf :[1024]u8 = undef   # uninitialized bytes
+p   :*Node    = null    # initialized empty raw pointer
+sp  :^Node    = null    # initialized empty smart pointer
+```
 
 ### Primitive types
 
@@ -869,10 +877,11 @@ fn eq(a: any, b: any) -> bool
 }
 ```
 
-`any` in structs fixes the type per instance at init:
+`any` in struct fields is planned, but not implemented yet. Use a concrete
+field type for now:
 
 ```rust
-struct Pair { first: any, second: any }
+struct Pair { first: i64, second: str }
 
 p := Pair{.first=42, .second="hello"}
 T :: @type(p.first)   # i64
@@ -1280,7 +1289,7 @@ fn main() -> void
     n :*Node = @alo(Node)
     defer @free(n)
     n->val = 99
-    n->next = 0   # null
+    n->next = null
     @pl(n->val)   # 99
 
     # smart pointer — reference-counted, no @free

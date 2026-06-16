@@ -1,0 +1,9 @@
+fn bad()
+{
+    ret 42
+}
+
+fn main() -> void
+{
+    bad()
+}

@@ -25,6 +25,7 @@ typedef struct {
     int         scope_depth;
     const char *fn_name; /* fn being walked */
     const char *fn_set;  /* its declared err set; NULL = generic !T or no result */
+    AstNode    *fn_ret_type;
     int         errors;
 } Check;
 
@@ -122,6 +123,12 @@ static const char *fn_err_set(AstNode *fn)
     return rt->type_ref.err_set;
 }
 
+static int type_is_any(AstNode *type)
+{
+    return type && type->kind == NODE_TYPE_REF && type->type_ref.name &&
+           strcmp(type->type_ref.name, "any") == 0;
+}
+
 static void walk(Check *c, AstNode *n);
 
 static void walk_list(Check *c, NodeList *l)
@@ -173,6 +180,13 @@ static void walk(Check *c, AstNode *n)
             break;
         case NODE_RET:
             if (n->ret.value) {
+                if (!c->fn_ret_type) {
+                    fprintf(stderr,
+                            "error: line %d: fn '%s' returns void; add an "
+                            "explicit return type or use bare 'ret'\n",
+                            n->line, c->fn_name);
+                    c->errors++;
+                }
                 check_ret_value(c, n->ret.value, n->line);
                 walk(c, n->ret.value);
             }
@@ -266,6 +280,22 @@ static void walk(Check *c, AstNode *n)
     }
 }
 
+static void check_fn_body(Check *c, AstNode *fn)
+{
+    c->fn_name = fn->fn_decl.name;
+    c->fn_set  = fn_err_set(fn);
+    c->fn_ret_type = fn->fn_decl.ret_type;
+    push_scope(c);
+    for (int j = 0; j < fn->fn_decl.params.count; j++) {
+        AstNode *pm = fn->fn_decl.params.items[j];
+        int smart = pm->param.type && pm->param.type->type_ref.is_smart;
+        declare(c, pm->param.name, pm->line, smart);
+    }
+    walk(c, fn->fn_decl.body);
+    pop_scope(c);
+    c->fn_ret_type = NULL;
+}
+
 int check_program(AstNode *program)
 {
     Check c = {0};
@@ -292,6 +322,14 @@ int check_program(AstNode *program)
                             f->line, d->struct_decl.name);
                     c.errors++;
                 }
+                if (type_is_any(f->param.type)) {
+                    fprintf(stderr,
+                            "error: line %d: struct '%s': field '%s' uses "
+                            "'any', but generic struct fields are not "
+                            "implemented yet; use a concrete type\n",
+                            f->line, d->struct_decl.name, f->param.name);
+                    c.errors++;
+                }
             }
         }
     }
@@ -299,6 +337,7 @@ int check_program(AstNode *program)
     /* top-level constants/vars can reference import aliases too */
     c.fn_name = "<top-level>";
     c.fn_set  = NULL;
+    c.fn_ret_type = NULL;
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *d = program->program.decls.items[i];
         if (d->kind == NODE_VAR_DECL || d->kind == NODE_VAR_DECL_GROUP)
@@ -306,17 +345,15 @@ int check_program(AstNode *program)
     }
 
     for (int i = 0; i < c.fn_count; i++) {
-        AstNode *fn = c.fns[i];
-        c.fn_name = fn->fn_decl.name;
-        c.fn_set  = fn_err_set(fn);
-        push_scope(&c);
-        for (int j = 0; j < fn->fn_decl.params.count; j++) {
-            AstNode *pm = fn->fn_decl.params.items[j];
-            int smart = pm->param.type && pm->param.type->type_ref.is_smart;
-            declare(&c, pm->param.name, pm->line, smart);
+        check_fn_body(&c, c.fns[i]);
+    }
+
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *d = program->program.decls.items[i];
+        if (d->kind != NODE_STRUCT_DECL) continue;
+        for (int j = 0; j < d->struct_decl.methods.count; j++) {
+            check_fn_body(&c, d->struct_decl.methods.items[j]);
         }
-        walk(&c, fn->fn_decl.body);
-        pop_scope(&c);
     }
 
     for (int i = 0; i < c.import_count; i++) {

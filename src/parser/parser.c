@@ -293,6 +293,10 @@ static AstNode *parse_expr_bp(Parser *p, int min_bp)
         left->bool_lit.value = check(p, TOK_TRUE) ? 1 : 0;
         next_tok(p);
     }
+    else if (check(p, TOK_NULL)) {
+        left = ast_node_new(NODE_NULL_LIT, line);
+        next_tok(p);
+    }
     else if (check(p, TOK_BUILTIN) && tok_text_is(p->cur, "ls")) {
         next_tok(p);
         expect(p, TOK_DOT);

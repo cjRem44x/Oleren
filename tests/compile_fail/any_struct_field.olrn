@@ -1,0 +1,10 @@
+struct Box {
+    value: any,
+}
+
+fn main() -> void
+{
+    b := Box{.value=42}
+    @pl(b.value)
+}
+

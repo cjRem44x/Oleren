@@ -10,7 +10,7 @@ typedef enum {
     TOK_FOR, TOK_WHILE, TOK_LOOP, TOK_WHEN,
     TOK_STRUCT, TOK_ENUM, TOK_UNN, TOK_DEFER,
     TOK_PUB, TOK_VOID, TOK_TRUE, TOK_FALSE,
-    TOK_UNDEF, TOK_MUT, TOK_IMU, TOK_STATIC,
+    TOK_UNDEF, TOK_NULL, TOK_MUT, TOK_IMU, TOK_STATIC,
     TOK_AND_KW, TOK_OR_KW,          /* and  or  — compile to && || */
     TOK_IMPORT,                     /* import */
     TOK_EXTERN,                     /* extern */

@@ -47,7 +47,8 @@ static struct { const char *w; TokenType t; } kw_table[] = {
     {"struct", TOK_STRUCT},{"enum",   TOK_ENUM},  {"unn",    TOK_UNN},
     {"defer",  TOK_DEFER}, {"pub",    TOK_PUB},   {"void",   TOK_VOID},
     {"true",   TOK_TRUE},  {"false",  TOK_FALSE}, {"undef",  TOK_UNDEF},
-    {"mut",    TOK_MUT},   {"imu",    TOK_IMU},   {"static", TOK_STATIC},
+    {"null",   TOK_NULL},  {"mut",    TOK_MUT},   {"imu",    TOK_IMU},
+    {"static", TOK_STATIC},
     {"and",    TOK_AND_KW},{"or",     TOK_OR_KW},
     {"import",   TOK_IMPORT},
     {"extern",   TOK_EXTERN},
@@ -78,7 +79,7 @@ static int can_end_stmt(TokenType t)
         case TOK_IDENT:
         case TOK_INT_LIT: case TOK_FLOAT_LIT:
         case TOK_STR_LIT: case TOK_MSTR_LIT: case TOK_CHAR_LIT:
-        case TOK_TRUE:    case TOK_FALSE:
+        case TOK_TRUE:    case TOK_FALSE: case TOK_NULL:
         case TOK_RPAREN:  case TOK_RBRACKET: case TOK_RBRACE:
         case TOK_DOTDEREF:
             return 1;
@@ -265,6 +266,7 @@ const char *tok_type_name(TokenType t)
         case TOK_TRUE:      return "true";
         case TOK_FALSE:     return "false";
         case TOK_UNDEF:     return "undef";
+        case TOK_NULL:      return "null";
         case TOK_MUT:       return "mut";
         case TOK_IMU:       return "imu";
         case TOK_STATIC:    return "static";

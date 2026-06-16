@@ -1,7 +1,7 @@
 CC      = gcc
 CFLAGS  = -Wall -Wextra -std=c11 -g
 TARGET  = olrn
-VERSION = 0.5.1
+VERSION = 0.1.5
 
 SRCS = \
     src/main.c          \

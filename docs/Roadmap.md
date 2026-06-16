@@ -322,9 +322,9 @@ See Language.md § Generics.
 
 ---
 
-## Compiler Status — v0.5.1
+## Compiler Status — v0.1.5
 
-All planned v0.5.1 features are implemented and passing the test suite.
+All planned v0.1.5 features are implemented and passing the test suite.
 
 - [x] Binary expressions + Pratt parser (full operator precedence)
 - [x] `if / elif / else`, `when` (switch/match)

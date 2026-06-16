@@ -1,4 +1,4 @@
-# Oleren `0.5.1`
+# Oleren `0.1.5`
 
 A thin, sugared frontend that compiles to C++ and then to a native binary.
 Designed for fast media applications — games, audio/video pipelines, asset tools.
@@ -64,7 +64,7 @@ fn main() -> !void
 | Propagate error | `val := try expr` |
 | Handle error | `expr catch fallback` / `catch { }` / `catch \|e\| { }` |
 | Error cleanup | `errdefer s.free()` |
-| Pointers | `p :*T = &v` / `p :*T = @alo(T)` raw, `s :^T = @alo(T)` smart |
+| Pointers | `p :*T = &v` / `p :*T = @alo(T)` raw, `s :^T = @alo(T)` smart, `null` sentinel |
 | Structs/enums | `struct P { x: i32 }` / `enum Dir { North }` / `unn U { ... }` |
 | Struct privacy | `pub fn` = public method; bare `fn` = private to struct |
 | Modules | each `.olrn` file is a namespace; `pub fn` = accessible, bare `fn` = private |
@@ -171,7 +171,7 @@ fn main() -> !void
             mk.begin_camera2d(cam)
                 mk.draw_texture(tex, pos.x, pos.y, mk.WHITE)
             mk.end_camera2d()
-            mk.draw_text("Oleren v0.5.1", 10.0, 10.0, 16.0, mk.WHITE)
+            mk.draw_text("Oleren v0.1.5", 10.0, 10.0, 16.0, mk.WHITE)
         mk.end_draw()
     }
 }

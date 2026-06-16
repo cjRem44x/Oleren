@@ -34,6 +34,7 @@ typedef enum {
     NODE_FLOAT_LIT,
     NODE_CHAR_LIT,
     NODE_BOOL_LIT,
+    NODE_NULL_LIT,
     NODE_IDENT,
     NODE_DEFER,         /* defer expr | defer { }           */
     NODE_ARRAY_LIT,     /* {e0, e1, ...}                    */

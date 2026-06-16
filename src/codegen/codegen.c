@@ -543,6 +543,9 @@ static void emit_expr(Codegen *cg, AstNode *node)
         case NODE_BOOL_LIT:
             fputs(node->bool_lit.value ? "true" : "false", cg->out);
             break;
+        case NODE_NULL_LIT:
+            fputs("nullptr", cg->out);
+            break;
         case NODE_IDENT:
             fputs(node->ident.name, cg->out);
             break;
