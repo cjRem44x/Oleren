@@ -1,0 +1,5 @@
+fn main() -> void
+{
+    x := 42
+    @free(x)
+}

@@ -19,7 +19,7 @@ typedef struct {
     /* symbol table — a stack of local names (vars, params, bindings),
        so a local that shadows an import alias doesn't count as a use */
     const char *syms[MAX_SYMS];
-    int         sym_is_smart[MAX_SYMS]; /* 1 if declared as ^T */
+    int         sym_ptr_kind[MAX_SYMS]; /* 0 = non-pointer, 1 = *T, 2 = ^T */
     int         sym_count;
     int         scope_start[MAX_SCOPES];
     int         scope_depth;
@@ -43,7 +43,7 @@ static void pop_scope(Check *c)
         c->sym_count = c->scope_start[c->scope_depth];
 }
 
-static void declare(Check *c, const char *name, int line, int is_smart)
+static void declare(Check *c, const char *name, int line, int ptr_kind)
 {
     if (!name || strcmp(name, "_") == 0) return;
     /* shadowing an import alias is banned: codegen treats alias-rooted
@@ -61,16 +61,35 @@ static void declare(Check *c, const char *name, int line, int is_smart)
     }
     if (c->sym_count < MAX_SYMS) {
         c->syms[c->sym_count]          = name;
-        c->sym_is_smart[c->sym_count]  = is_smart;
+        c->sym_ptr_kind[c->sym_count]  = ptr_kind;
         c->sym_count++;
     }
 }
 
-static int sym_is_smart(Check *c, const char *name)
+static int sym_ptr_kind(Check *c, const char *name)
 {
     for (int i = c->sym_count - 1; i >= 0; i--)
         if (strcmp(c->syms[i], name) == 0)
-            return c->sym_is_smart[i];
+            return c->sym_ptr_kind[i];
+    return 0;
+}
+
+static int type_ptr_kind(AstNode *type)
+{
+    if (!type || type->kind != NODE_TYPE_REF) return 0;
+    if (type->type_ref.is_smart) return 2;
+    if (type->type_ref.is_ptr)   return 1;
+    return 0;
+}
+
+static int var_decl_ptr_kind(AstNode *var)
+{
+    int pk = type_ptr_kind(var->var_decl.type_ref);
+    if (pk) return pk;
+    AstNode *init = var->var_decl.init;
+    if (init && init->kind == NODE_BUILTIN_CALL &&
+        strcmp(init->call.name, "alo") == 0)
+        return 1;
     return 0;
 }
 
@@ -237,11 +256,16 @@ static void walk(Check *c, AstNode *n)
             break;
         case NODE_VAR_DECL: {
             walk(c, n->var_decl.init);   /* init may reference outer names */
-            int smart = n->var_decl.type_ref && n->var_decl.type_ref->type_ref.is_smart;
-            declare(c, n->var_decl.name, n->line, smart);
+            declare(c, n->var_decl.name, n->line, var_decl_ptr_kind(n));
             break;
         }
-        case NODE_VAR_DECL_GROUP: walk_list(c, &n->var_decl_group.entries); break;
+        case NODE_VAR_DECL_GROUP:
+            for (int i = 0; i < n->var_decl_group.entries.count; i++) {
+                AstNode *e = n->var_decl_group.entries.items[i];
+                walk(c, e->var_decl.init);
+                declare(c, e->var_decl.name, e->line, type_ptr_kind(n->var_decl_group.type_ref));
+            }
+            break;
         case NODE_IF:
             walk(c, n->if_expr.cond); walk(c, n->if_expr.then_block);
             walk(c, n->if_expr.else_block);
@@ -259,13 +283,22 @@ static void walk(Check *c, AstNode *n)
         case NODE_BUILTIN_CALL:
             if (strcmp(n->call.name, "free") == 0 && n->call.args.count == 1) {
                 AstNode *arg = n->call.args.items[0];
-                if (arg->kind == NODE_IDENT && sym_is_smart(c, arg->ident.name)) {
-                    fprintf(stderr,
-                            "error: line %d: '@free' called on '%s' which is a "
-                            "smart pointer (^T) — smart pointers free themselves; "
-                            "remove the @free call\n",
-                            n->line, arg->ident.name);
-                    c->errors++;
+                if (arg->kind == NODE_IDENT && is_local(c, arg->ident.name)) {
+                    int pk = sym_ptr_kind(c, arg->ident.name);
+                    if (pk == 2) {
+                        fprintf(stderr,
+                                "error: line %d: '@free' called on '%s' which is a "
+                                "smart pointer (^T) — smart pointers free themselves; "
+                                "remove the @free call\n",
+                                n->line, arg->ident.name);
+                        c->errors++;
+                    } else if (pk == 0) {
+                        fprintf(stderr,
+                                "error: line %d: '@free' expects a raw pointer (*T), "
+                                "but '%s' is not a pointer\n",
+                                n->line, arg->ident.name);
+                        c->errors++;
+                    }
                 }
             }
             walk_list(c, &n->call.args);
@@ -288,8 +321,7 @@ static void check_fn_body(Check *c, AstNode *fn)
     push_scope(c);
     for (int j = 0; j < fn->fn_decl.params.count; j++) {
         AstNode *pm = fn->fn_decl.params.items[j];
-        int smart = pm->param.type && pm->param.type->type_ref.is_smart;
-        declare(c, pm->param.name, pm->line, smart);
+        declare(c, pm->param.name, pm->line, type_ptr_kind(pm->param.type));
     }
     walk(c, fn->fn_decl.body);
     pop_scope(c);

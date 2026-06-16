@@ -54,4 +54,10 @@ fn main() -> void
     n :^i64 = @alo(i64)
     n.^ = 99
     @pf("something {n.^}\n")
+
+    # inferred raw pointer remains manually freeable
+    inferred := @alo(i32)
+    defer @free(inferred)
+    inferred.* = 5
+    @pl(inferred.*)
 }
