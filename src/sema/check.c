@@ -386,8 +386,17 @@ int check_program(AstNode *program)
         AstNode *d = program->program.decls.items[i];
         if (d->kind == NODE_ERR_DECL && c.err_decl_count < MAX_ERR_SETS)
             c.err_decls[c.err_decl_count++] = d;
-        else if (d->kind == NODE_FN_DECL && c.fn_count < MAX_FNS)
-            c.fns[c.fn_count++] = d;
+        else if (d->kind == NODE_FN_DECL && c.fn_count < MAX_FNS) {
+            AstNode *prev = find_fn(&c, d->fn_decl.name);
+            if (prev) {
+                fprintf(stderr,
+                        "error: line %d: duplicate fn '%s' (first declared on line %d)\n",
+                        d->line, d->fn_decl.name, prev->line);
+                c.errors++;
+            } else {
+                c.fns[c.fn_count++] = d;
+            }
+        }
         else if (d->kind == NODE_STRUCT_DECL) {
             /* 'len' is reserved — it's the length property on str/arrays */
             for (int j = 0; j < d->struct_decl.fields.count; j++) {

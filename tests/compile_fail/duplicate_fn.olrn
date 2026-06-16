@@ -1,0 +1,14 @@
+fn same() -> i64
+{
+    ret 1
+}
+
+fn same() -> i64
+{
+    ret 2
+}
+
+fn main() -> void
+{
+    @pl(same())
+}
