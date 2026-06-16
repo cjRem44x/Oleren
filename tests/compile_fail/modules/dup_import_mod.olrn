@@ -1,0 +1,4 @@
+pub fn value() -> i64
+{
+    ret 1
+}

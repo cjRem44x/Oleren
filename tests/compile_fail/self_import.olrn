@@ -1,0 +1,8 @@
+@import (
+    self = "self_import.olrn",
+)
+
+fn main() -> void
+{
+    @pl("should not compile")
+}

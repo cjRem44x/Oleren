@@ -390,8 +390,8 @@ static void emit_builtin_stmt(Codegen *cg, AstNode *node)
                             fputs("/* missing arg */", cg->out);
                     } else {
                         size_t ilen = (size_t)(e - id);
-                        /* {foo.*} — Oleren deref syntax; emit as (*foo) */
-                        if (ilen > 2 && e[-1] == '*' && e[-2] == '.') {
+                        /* {foo.*} / {foo.^} — Oleren deref syntax; emit as (*foo) */
+                        if (ilen > 2 && (e[-1] == '*' || e[-1] == '^') && e[-2] == '.') {
                             fputs("(*", cg->out);
                             fwrite(id, 1, ilen - 2, cg->out);
                             fputc(')', cg->out);

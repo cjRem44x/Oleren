@@ -49,4 +49,9 @@ fn main() -> void
     # smart: whole-struct deref read
     cs :Point = s.*
     @pl(cs.y)           # 24
+
+    # smart: deref inside @pf interpolation
+    n :^i64 = @alo(i64)
+    n.^ = 99
+    @pf("something {n.^}\n")
 }

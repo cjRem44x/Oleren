@@ -107,8 +107,8 @@ All imports live in a single `@import` block at the top of the file. Every impor
 
 ```rust
 @import (
-    x   = "file.olrn",       # local file, relative to current file
-    y   = "../path/to/file", # relative path (no extension needed)
+    x   = "file.olrn",          # local file, relative to current file
+    y   = "subdir/file.olrn",   # same-tree relative path
 
     std = @std,              # full standard library
     mk  = @std.malkur,       # one stdlib submodule
@@ -127,6 +127,16 @@ Rules:
 - Only one `@import` block per file; it must appear before any declarations.
 - Unused imports are a compile error.
 - The alias is how you call in: `mk.init_window(...)`, `std.io.open(...)`
+- Local file imports are resolved relative to the importing file and canonicalized.
+  Importing the same file twice through different spellings, such as
+  `"util.olrn"` and `"./util.olrn"`, is a compile error.
+- A file may not import itself. Import paths must be relative and may not contain
+  `..` components.
+
+Current implementation note: imported files are namespaced modules, but import
+resolution is still direct-import based. Transitive module graph resolution and
+module-scoped alias lookup are planned so imports inside imported modules can be
+checked and emitted without alias leakage.
 
 ### File-as-module
 

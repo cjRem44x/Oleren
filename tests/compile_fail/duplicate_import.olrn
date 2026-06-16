@@ -1,0 +1,10 @@
+@import (
+    a = "modules/dup_import_mod.olrn",
+    b = "./modules/dup_import_mod.olrn",
+)
+
+fn main() -> void
+{
+    @pl(a.value())
+    @pl(b.value())
+}

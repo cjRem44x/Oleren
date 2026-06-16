@@ -29,6 +29,8 @@ No runtime, no GC, no OOP. Close to the metal; readable by default.
 - [x] Structs (data fields, static vars, `pub fn`, instance `@self` fns)
 - [x] Expression rules (no `;` by default, `;` for multi-expr lines)
 - [x] Console I/O (`@pl`, `@pf`, `@cout`, `@cin`)
+- [x] Resolver layer for direct imports: canonical local paths, duplicate-file
+      import rejection, and self-import diagnostics
 
 ---
 
@@ -108,12 +110,25 @@ Submodules can also be bound top-level: `io :: @std.io`. See Language.md § Impo
 
 ```rust
 @import (
-    x   = "file.olrn",       # local file by path
-    y   = "../other/file",    # relative path
+    x   = "file.olrn",          # local file by path
+    y   = "subdir/file.olrn",   # same-tree relative path
     std = @std,          # full stdlib — access as std.file, std.enc, std.hash ...
     mk  = @std.malkur,       # Malkur gamedev library
 )
 ```
+
+Implemented resolver behavior:
+- Local file imports are relative to the importing file.
+- Absolute imports and `..` path components are rejected.
+- Direct self-imports are rejected with an import-cycle diagnostic.
+- Re-importing the same canonical file under multiple aliases is rejected.
+
+Still planned:
+- Full recursive module graph construction.
+- Module-scoped alias tables, so imports inside imported modules do not leak into
+  the main file or collide with other modules.
+- Parse/check caching across the full graph.
+- Public/private export checks for non-function module members.
 
 ---
 

@@ -10,6 +10,7 @@
 #include "ast/ast.h"
 #include "sema/check.h"
 #include "deps/deps.h"
+#include "module/resolver.h"
 #include "codegen/codegen.h"
 
 #ifdef _WIN32
@@ -18,199 +19,6 @@
 #else
 #define olrn_mkdir(p) mkdir((p), 0755)
 #endif
-
-/* ── file helpers ─────────────────────────────────────────────── */
-
-static char *read_file(const char *path)
-{
-    FILE *f = fopen(path, "r");
-    if (!f) { perror(path); return NULL; }
-    fseek(f, 0, SEEK_END);
-    long sz = ftell(f);
-    rewind(f);
-    char *buf = malloc(sz + 1);
-    fread(buf, 1, sz, f);
-    buf[sz] = '\0';
-    fclose(f);
-    return buf;
-}
-
-static char *resolve_path(const char *base_path, const char *rel)
-{
-    if (rel[0] == '/') {
-        fprintf(stderr, "error: import path must be relative: '%s'\n", rel);
-        return NULL;
-    }
-    /* reject ".." components anywhere in the path */
-    const char *p = rel;
-    while (p) {
-        if (p[0] == '.' && p[1] == '.' && (p[2] == '/' || p[2] == '\0')) {
-            fprintf(stderr, "error: import path may not contain '..': '%s'\n", rel);
-            return NULL;
-        }
-        p = strchr(p, '/');
-        if (p) p++;
-    }
-    const char *last_slash = strrchr(base_path, '/');
-    if (!last_slash) return strdup(rel);
-    size_t dir_len = (size_t)(last_slash - base_path) + 1;
-    char *out = malloc(dir_len + strlen(rel) + 1);
-    memcpy(out, base_path, dir_len);
-    strcpy(out + dir_len, rel);
-    return out;
-}
-
-static AstNode *parse_file(const char *path, char **src_out)
-{
-    char *src = read_file(path);
-    if (!src) return NULL;
-    *src_out = src;
-    Lexer lex; lexer_init(&lex, src);
-    Parser p;  parser_init(&p, &lex);
-    AstNode *prog = parser_parse_program(&p);
-    if (p.had_error) {
-        fprintf(stderr, "error in file: %s\n", path);
-        ast_free(prog); free(src); *src_out = NULL;
-        return NULL;
-    }
-    return prog;
-}
-
-/* ── stdlib loading ───────────────────────────────────────────── */
-
-static char *find_stdlib(void)
-{
-    char exe[4096];
-    ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
-    if (n > 0) {
-        exe[n] = '\0';
-        char *slash = strrchr(exe, '/');
-        if (slash) {
-            *slash = '\0';
-            char *path = malloc(strlen(exe) + 16);
-            sprintf(path, "%s/stdlib", exe);
-            if (access(path, F_OK) == 0) return path;
-            free(path);
-        }
-    }
-    if (access("stdlib", F_OK) == 0) return strdup("stdlib");
-    return NULL;
-}
-
-static const char *STD_MODULES[] = {
-    "io", "fs", "time", "math", "mem", "str", "log", "thread", NULL
-};
-
-/* true if any import binds the malkur module (mk = @std.malkur) */
-static int imports_use_malkur(AstNode *program)
-{
-    for (int i = 0; i < program->program.imports.count; i++) {
-        AstNode *imp = program->program.imports.items[i];
-        if (imp->import_decl.is_lib && imp->import_decl.module &&
-            strcmp(imp->import_decl.module, "malkur") == 0)
-            return 1;
-    }
-    return 0;
-}
-
-static int imports_use_pelentar(AstNode *program)
-{
-    for (int i = 0; i < program->program.imports.count; i++) {
-        AstNode *imp = program->program.imports.items[i];
-        if (imp->import_decl.is_lib && imp->import_decl.module &&
-            strcmp(imp->import_decl.module, "pelentar") == 0)
-            return 1;
-    }
-    return 0;
-}
-
-static void load_stdlib_module(AstNode *prog, const char *stdlib_path,
-                               const char *lib, const char *mod,
-                               char **srcs, int *count, int max)
-{
-    if (*count >= max) {
-        fprintf(stderr, "error: too many imports (limit %d)\n", max);
-        return;
-    }
-    char path[4096];
-    snprintf(path, sizeof(path), "%s/%s/%s.olrn", stdlib_path, lib, mod);
-    char *src = NULL;
-    AstNode *imported = parse_file(path, &src);
-    if (!imported) return;
-    NodeList tmp = prog->program.decls;
-    memset(&prog->program.decls, 0, sizeof(NodeList));
-    for (int j = 0; j < imported->program.decls.count; j++)
-        node_list_push(&prog->program.decls, imported->program.decls.items[j]);
-    for (int j = 0; j < tmp.count; j++)
-        node_list_push(&prog->program.decls, tmp.items[j]);
-    free(tmp.items);
-    imported->program.decls.count = 0;
-    ast_free(imported);
-    srcs[(*count)++] = src;
-}
-
-static int merge_imports(AstNode *program, const char *host_path,
-                         char **extra_srcs, int *extra_count, int max)
-{
-    /* any @std entry (whole-lib import or module bind) loads the stdlib once.
-       malkur only loads when explicitly bound (mk = @std.malkur), since it
-       drags in SDL2; it loads first so it lands after std.math in decl order
-       (no fn prototypes are emitted — callees must precede callers). */
-    int wants_std = 0;
-    for (int i = 0; i < program->program.imports.count; i++) {
-        AstNode *imp = program->program.imports.items[i];
-        if (imp->import_decl.is_lib &&
-            strcmp(imp->import_decl.source, "std") == 0)
-            wants_std = 1;
-    }
-    if (wants_std) {
-        char *stdlib_path = find_stdlib();
-        if (!stdlib_path) {
-            fprintf(stderr, "warning: stdlib not found — @std unavailable\n");
-        } else {
-            if (imports_use_malkur(program))
-                load_stdlib_module(program, stdlib_path, "std",
-                                   "malkur", extra_srcs, extra_count, max);
-            if (imports_use_pelentar(program))
-                load_stdlib_module(program, stdlib_path, "std",
-                                   "pelentar", extra_srcs, extra_count, max);
-            for (int m = 0; STD_MODULES[m]; m++)
-                load_stdlib_module(program, stdlib_path, "std",
-                                   STD_MODULES[m], extra_srcs, extra_count, max);
-            free(stdlib_path);
-        }
-    }
-    for (int i = 0; i < program->program.imports.count; i++) {
-        AstNode *imp = program->program.imports.items[i];
-        if (imp->import_decl.is_lib) continue;
-        char *resolved = resolve_path(host_path, imp->import_decl.source);
-        if (!resolved) return 0;
-        if (*extra_count >= max) {
-            fprintf(stderr, "error: too many imports (limit %d)\n", max);
-            free(resolved); return 0;
-        }
-        char *src = NULL;
-        AstNode *imported = parse_file(resolved, &src);
-        free(resolved);
-        if (!imported) return 0;
-        /* wrap the imported file as a namespace module node */
-        AstNode *mod = ast_node_new(NODE_MODULE, 0);
-        mod->module.name = imp->import_decl.alias;
-        mod->module.decls = imported->program.decls;
-        imported->program.decls.count = 0;
-        imported->program.decls.items = NULL;
-        ast_free(imported);
-        /* prepend module node so it appears before main file declarations */
-        NodeList tmp = program->program.decls;
-        memset(&program->program.decls, 0, sizeof(NodeList));
-        node_list_push(&program->program.decls, mod);
-        for (int j = 0; j < tmp.count; j++)
-            node_list_push(&program->program.decls, tmp.items[j]);
-        free(tmp.items);
-        extra_srcs[(*extra_count)++] = src;
-    }
-    return 1;
-}
 
 /* ── build progress tree ──────────────────────────────────────── */
 
@@ -281,12 +89,12 @@ static int gxx_compile(const char *cpp_path, const char *output)
 static int compile_to_out(const char *olrn_path, FILE *out)
 {
     char *src = NULL;
-    AstNode *program = parse_file(olrn_path, &src);
+    AstNode *program = resolver_parse_file(olrn_path, &src);
     if (!program) return 1;
     tree_step(0, "parse", olrn_path);
 
     char *extra_srcs[64]; int extra_count = 0;
-    if (!merge_imports(program, olrn_path, extra_srcs, &extra_count, 64)) {
+    if (!resolver_merge_imports(program, olrn_path, extra_srcs, &extra_count, 64)) {
         ast_free(program); free(src); return 1;
     }
     if (g_tree) {
@@ -326,12 +134,12 @@ static int compile_to_binary(const char **inputs, int input_count,
     if (!cpp_file) { perror(tmp_cpp); return 1; }
 
     char *main_src = NULL;
-    AstNode *program = parse_file(inputs[0], &main_src);
+    AstNode *program = resolver_parse_file(inputs[0], &main_src);
     if (!program) { fclose(cpp_file); remove(tmp_cpp); return 1; }
     tree_step(0, "parse", inputs[0]);
 
     char *extra_srcs[128]; int extra_count = 0;
-    if (!merge_imports(program, inputs[0], extra_srcs, &extra_count, 128)) {
+    if (!resolver_merge_imports(program, inputs[0], extra_srcs, &extra_count, 128)) {
         ast_free(program); free(main_src);
         fclose(cpp_file); remove(tmp_cpp); return 1;
     }
@@ -345,7 +153,7 @@ static int compile_to_binary(const char **inputs, int input_count,
     /* prepend any additional .olrn files as implicit imports */
     for (int i = 1; i < input_count; i++) {
         char *fsrc = NULL;
-        AstNode *imported = parse_file(inputs[i], &fsrc);
+        AstNode *imported = resolver_parse_file(inputs[i], &fsrc);
         if (!imported) {
             ast_free(program); free(main_src);
             for (int j = 0; j < extra_count; j++) free(extra_srcs[j]);
@@ -836,7 +644,7 @@ static int cmd_deps(int argc, char **argv)
     int n = 0;
     if (entry) {
         char *src = NULL;
-        AstNode *program = parse_file(entry, &src);
+        AstNode *program = resolver_parse_file(entry, &src);
         if (!program) return 1;
         for (int i = 0; i < program->program.imports.count; i++) {
             AstNode *imp = program->program.imports.items[i];
@@ -882,12 +690,12 @@ static int cmd_check(int argc, char **argv)
     }
     const char *path = argv[2];
     char *src = NULL;
-    AstNode *program = parse_file(path, &src);
+    AstNode *program = resolver_parse_file(path, &src);
     if (!program) return 1;
 
     /* also resolve imports to surface import-level errors */
     char *extra_srcs[64]; int extra_count = 0;
-    int ok = merge_imports(program, path, extra_srcs, &extra_count, 64);
+    int ok = resolver_merge_imports(program, path, extra_srcs, &extra_count, 64);
     if (ok && check_program(program)) ok = 0;
 
     ast_free(program); free(src);
