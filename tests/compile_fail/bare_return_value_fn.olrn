@@ -1,0 +1,10 @@
+fn bad(flag: bool) -> i64
+{
+    if flag { ret }
+    ret 1
+}
+
+fn main() -> void
+{
+    @pl(bad(true))
+}

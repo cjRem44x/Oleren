@@ -80,8 +80,15 @@ fn do_work() -> !void
     @pl(size)
 }
 
+fn ok_void_result() -> !void
+{
+    ret
+}
+
 fn main() -> !void
 {
+    try ok_void_result()
+
     # capture-less catch block in statement position
     connect("") catch {
         @pl("connect failed, ignoring")

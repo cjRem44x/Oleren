@@ -142,6 +142,14 @@ static const char *fn_err_set(AstNode *fn)
     return rt->type_ref.err_set;
 }
 
+static int type_is_void_result(AstNode *type)
+{
+    return type && type->kind == NODE_TYPE_REF &&
+           type->type_ref.is_result &&
+           type->type_ref.name &&
+           strcmp(type->type_ref.name, "void") == 0;
+}
+
 static int type_is_any(AstNode *type)
 {
     return type && type->kind == NODE_TYPE_REF && type->type_ref.name &&
@@ -208,6 +216,12 @@ static void walk(Check *c, AstNode *n)
                 }
                 check_ret_value(c, n->ret.value, n->line);
                 walk(c, n->ret.value);
+            } else if (c->fn_ret_type && !type_is_void_result(c->fn_ret_type)) {
+                fprintf(stderr,
+                        "error: line %d: fn '%s' returns a value; bare 'ret' "
+                        "is only valid for void returns\n",
+                        n->line, c->fn_name);
+                c->errors++;
             }
             break;
         case NODE_TRY_EXPR: {
@@ -303,7 +317,19 @@ static void walk(Check *c, AstNode *n)
             }
             walk_list(c, &n->call.args);
             break;
-        case NODE_CALL:      walk_list(c, &n->call.args); break;
+        case NODE_CALL: {
+            AstNode *callee = find_fn(c, n->call.name);
+            if (callee && n->call.args.count != callee->fn_decl.params.count) {
+                fprintf(stderr,
+                        "error: line %d: fn '%s' expects %d argument%s, got %d\n",
+                        n->line, n->call.name, callee->fn_decl.params.count,
+                        callee->fn_decl.params.count == 1 ? "" : "s",
+                        n->call.args.count);
+                c->errors++;
+            }
+            walk_list(c, &n->call.args);
+            break;
+        }
         case NODE_CALL_EXPR: walk(c, n->call_expr.callee); walk_list(c, &n->call_expr.args); break;
         case NODE_ARRAY_LIT: walk_list(c, &n->array_lit.elems); break;
         case NODE_STRUCT_LIT: walk_list(c, &n->struct_lit.fields); break;
