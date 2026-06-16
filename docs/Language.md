@@ -935,6 +935,8 @@ All builtins use the `@` prefix and are resolved at compile time.
 @pf("x = {}\n", x)          # positional stream format
 @pf("sum = {a + b}\n")      # interpolation parses Oleren expressions
 @pf("{{literal braces}}\n") # escape braces with {{ and }}
+fmt := "x = {}\n"
+@pf(fmt, x)                 # stored formats support positional {} only
 @cout << val << @endl       # C++ stream style
 
 # ── Input ───────────────────────────────────────────

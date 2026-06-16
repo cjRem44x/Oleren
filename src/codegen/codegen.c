@@ -377,6 +377,28 @@ static void emit_pf_interp_expr(Codegen *cg, const char *start, size_t len, int 
     free(src);
 }
 
+static void emit_pf_runtime_stmt(Codegen *cg, AstNode *node)
+{
+    int n = cg->try_counter++;
+    fprintf(cg->out, "{ auto _pf_fmt_%d = ", n);
+    emit_expr(cg, node->call.args.items[0]);
+    fputs(";\n", cg->out);
+    cg->indent++;
+    emit_indent(cg);
+    fprintf(cg->out, "std::vector<std::string> _pf_args_%d;\n", n);
+    for (int i = 1; i < node->call.args.count; i++) {
+        emit_indent(cg);
+        fprintf(cg->out, "_pf_args_%d.push_back(_olrn_fmt_arg(", n);
+        emit_expr(cg, node->call.args.items[i]);
+        fputs("));\n", cg->out);
+    }
+    emit_indent(cg);
+    fprintf(cg->out, "_olrn_pf_runtime(std::cout, _pf_fmt_%d, _pf_args_%d);\n", n, n);
+    cg->indent--;
+    emit_indent(cg);
+    fputs("}\n", cg->out);
+}
+
 /* emit a single builtin call as a statement */
 static void emit_builtin_stmt(Codegen *cg, AstNode *node)
 {
@@ -445,6 +467,10 @@ static void emit_builtin_stmt(Codegen *cg, AstNode *node)
         /* emit any trailing literal */
         emit_pf_literal(cg, seg, (size_t)(p - seg));
         fputs(";\n", cg->out);
+        return;
+    }
+    if (strcmp(name, "pf") == 0 && node->call.args.count >= 1) {
+        emit_pf_runtime_stmt(cg, node);
         return;
     }
 
@@ -1917,6 +1943,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     /* standard headers every Oleren program needs */
     fputs("#include <iostream>\n", cg->out);
     fputs("#include <string>\n", cg->out);
+    fputs("#include <sstream>\n", cg->out);
     fputs("#include <vector>\n", cg->out);
     fputs("#include <array>\n", cg->out);
     fputs("#include <memory>\n", cg->out);

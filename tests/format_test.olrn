@@ -15,4 +15,10 @@ fn main() -> void
     @pf("expr {p.x + p.y} call {add(4, 5)} index {nums[1]} ptr {n.^}\n")
     @pf("pos {} {}\n", p.x, add(6, 7))
     @pf("braces {{ok}}\n")
+
+    fmt := "stored {} {}\n"
+    @pf(fmt, p.y, add(1, 2))
+
+    named := "stored named {p.x}\n"
+    @pf(named)
 }
