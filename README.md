@@ -177,7 +177,7 @@ fn main() -> !void
 }
 ```
 
-**v0.4 features:** window/loop, keyboard, mouse, gamepad (4 slots, hotplug),
+**v0.4 features:** window/loop, keyboard, mouse, gamepad (4 slots, hotplug, `pad_btn_released`, `pad_count`, `pad_name`, `pad_rumble`),
 2D shapes, `draw_rect_rot`, textures (BMP + PNG + JPG via SDL_image, subrect),
 camera 2D (`begin_camera2d`/`end_camera2d`, world↔screen), embedded 8×8 bitmap
 font (`draw_text`/`measure_text`), TTF fonts (`load_font`/`draw_text_ex` via SDL_ttf),

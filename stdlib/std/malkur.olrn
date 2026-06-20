@@ -392,9 +392,29 @@ fn malkur_pad_btn_pressed(id: i32, btn: i32) -> bool
     ret _olrn_mk_pad_btn_pressed(id, btn)
 }
 
+fn malkur_pad_btn_released(id: i32, btn: i32) -> bool
+{
+    ret _olrn_mk_pad_btn_released(id, btn)
+}
+
 fn malkur_pad_axis(id: i32, axis: i32) -> f32
 {
     ret _olrn_mk_pad_axis(id, axis)
+}
+
+fn malkur_pad_count() -> i32
+{
+    ret _olrn_mk_pad_count()
+}
+
+fn malkur_pad_name(id: i32) -> str
+{
+    ret _olrn_mk_pad_name(id)
+}
+
+fn malkur_pad_rumble(id: i32, low: f32, high: f32, ms: i32)
+{
+    _olrn_mk_pad_rumble(id, low, high, ms)
 }
 
 # ── camera 2D ───────────────────────────────────────────────────

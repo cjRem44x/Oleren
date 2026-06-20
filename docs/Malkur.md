@@ -163,10 +163,14 @@ Supports up to 4 SDL GameController-compatible pads (XInput, PS, etc.).
 Hotplug is handled automatically inside `mk.should_close()`.
 
 ```rust
-mk.pad_connected(id: i32)           -> bool
-mk.pad_btn(id: i32, btn: i32)       -> bool   # held
-mk.pad_btn_pressed(id: i32, btn: i32) -> bool  # first frame
-mk.pad_axis(id: i32, axis: i32)     -> f32    # -1.0 to 1.0
+mk.pad_count()                              -> i32    # connected pad count (0-4)
+mk.pad_connected(id: i32)                   -> bool
+mk.pad_name(id: i32)                        -> str    # controller name string
+mk.pad_btn(id: i32, btn: i32)               -> bool   # held
+mk.pad_btn_pressed(id: i32, btn: i32)       -> bool   # first frame
+mk.pad_btn_released(id: i32, btn: i32)      -> bool   # release frame
+mk.pad_axis(id: i32, axis: i32)             -> f32    # -1.0 to 1.0
+mk.pad_rumble(id: i32, low: f32, high: f32, ms: i32)  # low/high 0.0-1.0, ms duration
 
 # Button constants (mk.pad_btn.NAME)
 mk.pad_btn.A  .B  .X  .Y

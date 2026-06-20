@@ -291,7 +291,7 @@ cwd := std.fs.cwd()
 
 **`std.time`** — timing (critical for game loops)
 
-**`@std.malkur` (Malkur)** — built-in gamedev library. See `docs/Malkur.md` for the full API surface. Raylib-inspired flat API on an SDL2 backend; importing auto-links `-lSDL2`. v0.4 shipped: window/loop, keyboard, mouse, gamepad (4 slots, hotplug), 2D shapes, `draw_rect_rot`, textures (BMP + PNG + JPG via SDL_image, subrect), camera 2D (pan/zoom, world↔screen), embedded 8×8 bitmap font (`draw_text`/`measure_text`), TTF fonts (`load_font`/`draw_text_ex`/`measure_text_ex` via SDL_ttf), audio (sounds + streaming music via SDL_mixer), colors + `hex()`, Vec2 math, 2D collision.
+**`@std.malkur` (Malkur)** — built-in gamedev library. See `docs/Malkur.md` for the full API surface. Raylib-inspired flat API on an SDL2 backend; importing auto-links `-lSDL2`. v0.4 shipped: window/loop, keyboard, mouse, gamepad (4 slots, hotplug, `pad_btn_released`, `pad_count`, `pad_name`, `pad_rumble`), 2D shapes, `draw_rect_rot`, textures (BMP + PNG + JPG via SDL_image, subrect), camera 2D (pan/zoom, world↔screen), embedded 8×8 bitmap font (`draw_text`/`measure_text`), TTF fonts (`load_font`/`draw_text_ex`/`measure_text_ex` via SDL_ttf), audio (sounds + streaming music via SDL_mixer), colors + `hex()`, Vec2 math, 2D collision.
 ```rust
 t0 := std.time.now()          # nanosecond timestamp
 dt := std.time.since(t0)      # elapsed as f64 seconds
