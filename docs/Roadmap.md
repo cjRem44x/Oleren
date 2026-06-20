@@ -337,6 +337,12 @@ module will be added.
 
 ### 10. Syntax Gaps to Resolve
 
+**`else` / `elif` must appear on the same line as the closing `}` of the preceding block.**
+The parser consumes newlines as statement terminators, so a bare `}` followed by a newline
+ends the if-statement before `else` is seen. Workaround: keep `} else {` or `} elif cond {`
+on one line. Fix: carry a "just closed a block" flag in the parser so `else`/`elif` are
+still valid on the next line.
+
 **Multi-declaration — RESOLVED.**
 Both forms are intentional and serve different purposes:
 - `:T=` / `:=` — single variable declaration
