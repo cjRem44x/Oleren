@@ -26,10 +26,11 @@ olrn sac <file.olrn> -o=name  # compile to ./name
 | `11_lists.olrn` | `@ls(T)` growable list: `add`, `pop`, `insert`, `remove`, `deinit` |
 | `12_collections.olrn` | `@map(K, V)` hash map and `@set(T)` hash set |
 | `13_mstr.olrn`        | `mstr` multiline strings, `"""..."""` literal syntax |
+| `14_gamepad.olrn`     | Gamepad: `pad_connected`, `pad_name`, `btn_hit/press/release`, axes, deadzone, rumble |
 
 ## System deps
 
-`10_crypto.olrn` requires libsodium:
+`10_crypto.olrn` requires libsodium. `14_gamepad.olrn` requires SDL2, SDL2_image, SDL2_mixer, SDL2_ttf (run `olrn deps` for status).
 
 ```sh
 sudo pacman -S libsodium        # Arch / CachyOS

@@ -1,0 +1,121 @@
+# olrn sac 14_gamepad.olrn -o=gamepad
+# Requires SDL2 + a connected gamepad.
+
+@import ( mk = @std.malkur )
+
+fn main() -> !void
+{
+    try mk.init_window(640, 400, "Gamepad")
+    defer mk.close_window()
+    mk.set_fps(60)
+
+    # player box position
+    px :f32 = 300.0
+    py :f32 = 180.0
+
+    # track A-release to show the message for a few frames
+    a_release_frames :i32 = 0
+
+    while !mk.should_close() {
+        dt :: mk.dt()
+
+        # ── input ───────────────────────────────────────────────────
+        if mk.pad_connected(0) {
+            # movement — left stick with 0.15 deadzone
+            lx :: mk.pad_axis_dz(0, mk.pad_axis.LEFTX, 0.15)
+            ly :: mk.pad_axis_dz(0, mk.pad_axis.LEFTY, 0.15)
+            px = px + lx * 200.0 * dt
+            py = py + ly * 200.0 * dt
+
+            # A: quick hit → rumble once
+            if mk.pad_btn_hit(0, mk.pad_btn.A) {
+                mk.pad_rumble(0, 0.3, 0.6, 120)
+            }
+
+            # X: release → note the event
+            if mk.pad_btn_release(0, mk.pad_btn.X) {
+                a_release_frames = 60
+            }
+
+            # START or keyboard ESCAPE → quit
+            if mk.pad_btn_hit(0, mk.pad_btn.START) or mk.key_pressed(mk.keys.ESCAPE) {
+                break
+            }
+        } else {
+            if mk.key_pressed(mk.keys.ESCAPE) { break }
+        }
+
+        if a_release_frames > 0 { a_release_frames = a_release_frames - 1 }
+
+        # clamp player to window
+        if px <   8.0 { px =   8.0 }
+        if px > 600.0 { px = 600.0 }
+        if py <   8.0 { py =   8.0 }
+        if py > 360.0 { py = 360.0 }
+
+        # ── draw ────────────────────────────────────────────────────
+        mk.begin_draw()
+        mk.clear_bg(mk.DARKGRAY)
+
+        # connection status
+        count :: mk.pad_count()
+        if count == 0 {
+            mk.draw_text("No gamepad connected", 20.0, 20.0, 16.0, mk.GRAY)
+        } else {
+            name :: mk.pad_name(0)
+            mk.draw_text("Pad 0: " + name, 20.0, 20.0, 16.0, mk.GREEN)
+        }
+
+        if mk.pad_connected(0) {
+            # button state indicators
+            a_col :: if mk.pad_btn_press(0, mk.pad_btn.A) { mk.GREEN } else { mk.GRAY }
+            b_col :: if mk.pad_btn_press(0, mk.pad_btn.B) { mk.RED   } else { mk.GRAY }
+            x_col :: if mk.pad_btn_press(0, mk.pad_btn.X) { mk.BLUE  } else { mk.GRAY }
+            y_col :: if mk.pad_btn_press(0, mk.pad_btn.Y) { mk.YELLOW } else { mk.GRAY }
+
+            mk.draw_circle(540.0, 80.0, 14.0, a_col)   # A
+            mk.draw_circle(570.0, 60.0, 14.0, b_col)   # B
+            mk.draw_circle(510.0, 60.0, 14.0, x_col)   # X
+            mk.draw_circle(540.0, 40.0, 14.0, y_col)   # Y
+
+            mk.draw_text("A", 535.0, 75.0, 10.0, mk.WHITE)
+            mk.draw_text("B", 565.0, 55.0, 10.0, mk.WHITE)
+            mk.draw_text("X", 505.0, 55.0, 10.0, mk.WHITE)
+            mk.draw_text("Y", 535.0, 35.0, 10.0, mk.WHITE)
+
+            # axis bars
+            lx_raw :: mk.pad_axis(0, mk.pad_axis.LEFTX)
+            ly_raw :: mk.pad_axis(0, mk.pad_axis.LEFTY)
+            rx_raw :: mk.pad_axis(0, mk.pad_axis.RIGHTX)
+            ry_raw :: mk.pad_axis(0, mk.pad_axis.RIGHTY)
+            lt_raw :: mk.pad_axis(0, mk.pad_axis.LT)
+            rt_raw :: mk.pad_axis(0, mk.pad_axis.RT)
+
+            mk.draw_text("L", 20.0, 340.0, 10.0, mk.WHITE)
+            mk.draw_rect(34.0, 342.0, 80.0 * ((lx_raw + 1.0) / 2.0), 8.0, mk.BLUE)
+            mk.draw_rect(34.0, 354.0, 80.0 * ((ly_raw + 1.0) / 2.0), 8.0, mk.BLUE)
+
+            mk.draw_text("R", 130.0, 340.0, 10.0, mk.WHITE)
+            mk.draw_rect(144.0, 342.0, 80.0 * ((rx_raw + 1.0) / 2.0), 8.0, mk.PURPLE)
+            mk.draw_rect(144.0, 354.0, 80.0 * ((ry_raw + 1.0) / 2.0), 8.0, mk.PURPLE)
+
+            mk.draw_text("LT", 240.0, 340.0, 10.0, mk.WHITE)
+            mk.draw_rect(264.0, 342.0, 60.0 * lt_raw, 8.0, mk.ORANGE)
+            mk.draw_text("RT", 340.0, 340.0, 10.0, mk.WHITE)
+            mk.draw_rect(364.0, 342.0, 60.0 * rt_raw, 8.0, mk.ORANGE)
+
+            # A-hit event flash
+            if a_release_frames > 0 {
+                mk.draw_text("X released!", 20.0, 310.0, 14.0, mk.YELLOW)
+            }
+
+            mk.draw_text("Left stick moves box  |  A = rumble  |  X = release event  |  START = quit",
+                         20.0, 375.0, 8.0, mk.GRAY)
+        }
+
+        # player box
+        mk.draw_rect(px - 16.0, py - 16.0, 32.0, 32.0, mk.WHITE)
+
+        mk.end_draw()
+    }
+}
