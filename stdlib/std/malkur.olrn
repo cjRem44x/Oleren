@@ -382,17 +382,17 @@ fn malkur_pad_connected(id: i32) -> bool
     ret _olrn_mk_pad_connected(id)
 }
 
-fn malkur_pad_btn(id: i32, btn: i32) -> bool
+fn malkur_pad_btn_press(id: i32, btn: i32) -> bool
 {
     ret _olrn_mk_pad_btn(id, btn)
 }
 
-fn malkur_pad_btn_pressed(id: i32, btn: i32) -> bool
+fn malkur_pad_btn_hit(id: i32, btn: i32) -> bool
 {
     ret _olrn_mk_pad_btn_pressed(id, btn)
 }
 
-fn malkur_pad_btn_released(id: i32, btn: i32) -> bool
+fn malkur_pad_btn_release(id: i32, btn: i32) -> bool
 {
     ret _olrn_mk_pad_btn_released(id, btn)
 }
@@ -400,6 +400,13 @@ fn malkur_pad_btn_released(id: i32, btn: i32) -> bool
 fn malkur_pad_axis(id: i32, axis: i32) -> f32
 {
     ret _olrn_mk_pad_axis(id, axis)
+}
+
+fn malkur_pad_axis_dz(id: i32, axis: i32, dz: f32) -> f32
+{
+    v :: _olrn_mk_pad_axis(id, axis)
+    if v > -dz and v < dz { ret 0.0 }
+    ret v
 }
 
 fn malkur_pad_count() -> i32
