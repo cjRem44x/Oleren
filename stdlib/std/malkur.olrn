@@ -377,6 +377,11 @@ enum pad_axis => i32 {
     LT=4, RT=5,
 }
 
+fn malkur_draw_orb(cx: f32, cy: f32, r: f32, fill: f32, col_full: Color, col_empty: Color)
+{
+    _olrn_mk_draw_orb(cx, cy, r, fill, col_full, col_empty)
+}
+
 fn malkur_pad_connected(id: i32) -> bool
 {
     ret _olrn_mk_pad_connected(id)
