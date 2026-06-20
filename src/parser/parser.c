@@ -986,6 +986,7 @@ static AstNode *parse_if_chain(Parser *p)
     next_tok(p);                                  /* consume if or elif */
     n->if_expr.cond       = parse_expr_bp(p, 0);
     n->if_expr.then_block = parse_block(p);
+    skip_newlines(p);   /* allow else/elif on the next line after } */
 
     if (check(p, TOK_ELIF)) {
         n->if_expr.else_block = parse_if_chain(p); /* recurse for elif chain */
