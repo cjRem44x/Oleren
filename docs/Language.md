@@ -227,6 +227,7 @@ i8   u8   (byte)      f32
 i16  u16              f64
 i32  u32
 i64  u64
+usize                           # pointer-sized unsigned (size_t); type of .len / .cap
 ```
 
 ### Type aliases
@@ -253,7 +254,7 @@ same := word == "hello world"   # comparison
 c := word[0]       # read a character
 word[0] = 'H'      # write a character
 
-n := word.len      # length (i64)
+n := word.len      # length (usize)
 ```
 
 `istr` — immutable contents, mutable binding:
@@ -311,7 +312,7 @@ num  := @i32("42") catch 0    # with fallback
 
 ```rust
 nums :[]i32 = {1, 2, 3, 4, 5}
-n    := nums.len        # i64 length
+n    := nums.len        # usize length
 
 nums[0] = 99            # index write
 v := nums[2]            # index read
@@ -366,8 +367,8 @@ for n => nums { @pf("{} ", n) }   # range-for works
 | `ls.insert(i, val)` | Insert before index `i` |
 | `ls.clear()` | Empty without releasing memory |
 | `ls.deinit()` | Empty and release backing memory |
-| `ls.len` | Current length (i64) |
-| `ls.cap` | Current capacity (i64) |
+| `ls.len` | Current length (usize) |
+| `ls.cap` | Current capacity (usize) |
 | `ls[i]` | Index access (read/write) |
 
 ---
@@ -409,7 +410,7 @@ vs := scores.vals()                 # @ls(i32)
 | `m.del(k)` | Remove key |
 | `m.clear()` | Empty without releasing |
 | `m.deinit()` | Empty and release |
-| `m.len` | Entry count (i64) |
+| `m.len` | Entry count (usize) |
 | `m.keys()` | All keys as `@ls(K)` |
 | `m.vals()` | All values as `@ls(V)` |
 
@@ -440,7 +441,7 @@ for t => tags { @pf("{}\n", t) }   # order unspecified
 | `s.del(v)` | Remove element |
 | `s.clear()` | Empty without releasing |
 | `s.deinit()` | Empty and release |
-| `s.len` | Element count (i64) |
+| `s.len` | Element count (usize) |
 
 ---
 

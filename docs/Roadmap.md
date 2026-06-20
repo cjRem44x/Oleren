@@ -17,7 +17,7 @@ No runtime, no GC, no OOP. Close to the metal; readable by default.
 - [x] Primitive types (`i8`–`i64`, `u8`–`u64`, `f32`, `f64`, `bool`)
 - [x] Arrays (`[]T`, `[N]T`, `[]imu T`, `undef`)
 - [x] Strings — `str` (managed, std::string-backed) and `istr` (immutable contents); `chr`/`[]chr` removed
-- [x] `.len` property on `str` and arrays (`len` is a reserved field name)
+- [x] `.len` property on `str` and arrays (`len` is a reserved field name); type is `usize` (pointer-sized unsigned, like Zig)
 - [x] Project layout — `init` scaffolds `src/main/olrn/`, `bin/`, `olrn_out/`; `build`/`run` use it (flat `main.olrn` still works)
 - [x] Loops (`for`, `loop`, `while`)
 - [x] `if / elif / else`

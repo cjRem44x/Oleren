@@ -200,7 +200,7 @@ static void emit_indent(Codegen *cg)
 static int is_cast_builtin(const char *name)
 {
     static const char *tnames[] = {
-        "i8","u8","i16","u16","i32","u32","i64","u64",
+        "i8","u8","i16","u16","i32","u32","i64","u64","usize",
         "f32","f64","str","mstr","istr","bool",
         "byte","ubyte","short","ushort","int","uint","long","ulong",
         "float","double", NULL
@@ -233,6 +233,7 @@ static const char *map_type(const char *name)
     if (strcmp(name, "u32")  == 0 || strcmp(name, "uint")   == 0) return "uint32_t";
     if (strcmp(name, "i64")  == 0 || strcmp(name, "long")   == 0) return "int64_t";
     if (strcmp(name, "u64")  == 0 || strcmp(name, "ulong")  == 0) return "uint64_t";
+    if (strcmp(name, "usize") == 0) return "size_t";
     if (strcmp(name, "f32")  == 0 || strcmp(name, "float")  == 0) return "float";
     if (strcmp(name, "f64")  == 0 || strcmp(name, "double") == 0) return "double";
     if (strcmp(name, "str")  == 0) return "std::string";
@@ -826,9 +827,8 @@ static void emit_expr(Codegen *cg, AstNode *node)
                      is_struct_name(cg, node->field.target->ident.name))
                 fprintf(cg->out, "%s::%s",
                         node->field.target->ident.name, node->field.name);
-            /* .len property — i64 length of str / arrays */
+            /* .len property — usize (size_t) length of str / arrays */
             else if (strcmp(node->field.name, "len") == 0) {
-                fputs("(int64_t)", cg->out);
                 if (node->field.target->kind == NODE_STR_LIT) {
                     fputs("std::string(", cg->out);
                     emit_expr(cg, node->field.target);
@@ -837,9 +837,8 @@ static void emit_expr(Codegen *cg, AstNode *node)
                     emit_expr(cg, node->field.target);
                 fputs(".size()", cg->out);
             }
-            /* .cap property — i64 capacity of @ls lists */
+            /* .cap property — usize (size_t) capacity of @ls lists */
             else if (strcmp(node->field.name, "cap") == 0) {
-                fputs("(int64_t)", cg->out);
                 emit_expr(cg, node->field.target);
                 fputs(".capacity()", cg->out);
             }

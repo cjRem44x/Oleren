@@ -27,6 +27,7 @@ typedef struct {
     const char *fn_set;  /* its declared err set; NULL = generic !T or no result */
     AstNode    *fn_ret_type;
     int         errors;
+    int         warnings;
 } Check;
 
 static void push_scope(Check *c)
@@ -156,6 +157,24 @@ static int type_is_any(AstNode *type)
            strcmp(type->type_ref.name, "any") == 0;
 }
 
+static int is_signed_int_type(AstNode *type)
+{
+    if (!type || type->kind != NODE_TYPE_REF || !type->type_ref.name) return 0;
+    const char *n = type->type_ref.name;
+    return strcmp(n, "i8")    == 0 || strcmp(n, "i16")   == 0 ||
+           strcmp(n, "i32")   == 0 || strcmp(n, "i64")   == 0 ||
+           strcmp(n, "byte")  == 0 || strcmp(n, "short") == 0 ||
+           strcmp(n, "int")   == 0 || strcmp(n, "long")  == 0;
+}
+
+/* true when an expression is a .len or .cap field access */
+static int is_usize_expr(AstNode *n)
+{
+    return n && n->kind == NODE_FIELD &&
+           (strcmp(n->field.name, "len") == 0 ||
+            strcmp(n->field.name, "cap") == 0);
+}
+
 static void walk(Check *c, AstNode *n);
 
 static void walk_list(Check *c, NodeList *l)
@@ -282,6 +301,17 @@ static void walk(Check *c, AstNode *n)
             break;
         case NODE_VAR_DECL: {
             walk(c, n->var_decl.init);   /* init may reference outer names */
+            if (n->var_decl.init && is_usize_expr(n->var_decl.init) &&
+                is_signed_int_type(n->var_decl.type_ref)) {
+                fprintf(stderr,
+                        "warning: line %d: '%s' is declared as '%s' but '.%s' "
+                        "returns usize — use usize or cast with @%s(...)\n",
+                        n->line, n->var_decl.name,
+                        n->var_decl.type_ref->type_ref.name,
+                        n->var_decl.init->field.name,
+                        n->var_decl.type_ref->type_ref.name);
+                c->warnings++;
+            }
             if (n->var_decl.init && n->var_decl.init->kind == NODE_NULL_LIT &&
                 var_decl_ptr_kind(n) == 0) {
                 fprintf(stderr,
@@ -450,5 +480,7 @@ int check_program(AstNode *program)
             c.errors++;
         }
     }
+    if (c.warnings > 0)
+        fprintf(stderr, "%d warning%s\n", c.warnings, c.warnings == 1 ? "" : "s");
     return c.errors;
 }
