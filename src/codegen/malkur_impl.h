@@ -152,7 +152,7 @@ static const char *MALKUR_IMPL =
     "static inline bool _olrn_mk_init_window(int32_t w, int32_t h, const std::string& title) {\n"
     "    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) return false;\n"
     "    _mk.win = SDL_CreateWindow(title.c_str(), SDL_WINDOWPOS_CENTERED,\n"
-    "                               SDL_WINDOWPOS_CENTERED, w, h, 0);\n"
+    "                               SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_RESIZABLE);\n"
     "    if (!_mk.win) { SDL_Quit(); return false; }\n"
     "    _mk.ren = SDL_CreateRenderer(_mk.win, -1, 0);\n"
     "    if (!_mk.ren) { SDL_DestroyWindow(_mk.win); SDL_Quit(); return false; }\n"
