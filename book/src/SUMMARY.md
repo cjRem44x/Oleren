@@ -53,6 +53,7 @@
 - [std.time](stdlib/time.md)
 - [std.log](stdlib/log.md)
 - [std.thread](stdlib/thread.md)
+- [std.env](stdlib/env.md)
 
 ---
 
