@@ -69,6 +69,11 @@ AstNode *resolver_parse_file(const char *path, char **src_out)
 
 static char *find_stdlib(void)
 {
+    /* 1. explicit override */
+    const char *env = getenv("OLRN_STDLIB");
+    if (env && access(env, F_OK) == 0) return strdup(env);
+
+    /* 2. next to the running binary (dev build: olrn/stdlib/) */
     char exe[4096];
     ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
     if (n > 0) {
@@ -82,6 +87,17 @@ static char *find_stdlib(void)
             free(path);
         }
     }
+
+    /* 3. PREFIX/lib/olrn/stdlib (deploy install: /usr/local/lib/olrn/stdlib) */
+    static const char *install_paths[] = {
+        "/usr/local/lib/olrn/stdlib",
+        "/usr/lib/olrn/stdlib",
+        NULL,
+    };
+    for (int i = 0; install_paths[i]; i++)
+        if (access(install_paths[i], F_OK) == 0) return strdup(install_paths[i]);
+
+    /* 4. cwd fallback */
     if (access("stdlib", F_OK) == 0) return strdup("stdlib");
     return NULL;
 }

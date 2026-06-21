@@ -49,3 +49,8 @@ fn io_writeln(f: File, s: str)
 {
     _olrn_io_writeln(f, s)
 }
+
+fn io_file_rd(path: str) -> !FileRd
+{
+    ret _olrn_io_file_rd(path)
+}
