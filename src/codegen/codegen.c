@@ -538,6 +538,28 @@ static void emit_builtin_stmt(Codegen *cg, AstNode *node)
         return;
     }
 
+    if (strcmp(name, "exit") == 0) {
+        fputs("std::exit(", cg->out);
+        if (node->call.args.count > 0) emit_expr(cg, node->call.args.items[0]);
+        else fputs("0", cg->out);
+        fputs(");\n", cg->out);
+        return;
+    }
+
+    if (strcmp(name, "sleep") == 0 && node->call.args.count == 1) {
+        fputs("std::this_thread::sleep_for(std::chrono::milliseconds(", cg->out);
+        emit_expr(cg, node->call.args.items[0]);
+        fputs("));\n", cg->out);
+        return;
+    }
+
+    if (strcmp(name, "cmd") == 0 && node->call.args.count == 1) {
+        fputs("::system(", cg->out);
+        emit_expr(cg, node->call.args.items[0]);
+        fputs(");\n", cg->out);
+        return;
+    }
+
     /* @ls.* / @map.* / @set.* — delegate to expression emitter */
     if (strncmp(name, "ls.", 3) == 0 ||
         strncmp(name, "map.", 4) == 0 ||
@@ -654,10 +676,28 @@ static void emit_expr(Codegen *cg, AstNode *node)
         case NODE_BUILTIN_CALL: {
             const char *bname = node->call.name;
             if (node->call.args.count == 0) {
-                if      (strcmp(bname, "cout") == 0)       fputs("std::cout", cg->out);
-                else if (strcmp(bname, "endl") == 0)       fputs("std::endl", cg->out);
+                if      (strcmp(bname, "cout") == 0)        fputs("std::cout", cg->out);
+                else if (strcmp(bname, "endl") == 0)        fputs("std::endl", cg->out);
                 else if (strcmp(bname, "unreachable") == 0) fputs("(__builtin_unreachable(), 0)", cg->out);
+                else if (strcmp(bname, "args") == 0)        fputs("_olrn_args", cg->out);
+                else if (strcmp(bname, "pid") == 0)         fputs("(int32_t)::getpid()", cg->out);
                 else    fprintf(cg->out, "/* @%s */", bname);
+            } else if (strcmp(bname, "exit") == 0 && node->call.args.count == 1) {
+                fputs("(std::exit(", cg->out);
+                emit_expr(cg, node->call.args.items[0]);
+                fputs("), 0)", cg->out);
+            } else if (strcmp(bname, "sleep") == 0 && node->call.args.count == 1) {
+                fputs("(std::this_thread::sleep_for(std::chrono::milliseconds(", cg->out);
+                emit_expr(cg, node->call.args.items[0]);
+                fputs(")), 0)", cg->out);
+            } else if (strcmp(bname, "cmd") == 0 && node->call.args.count == 1) {
+                fputs("(int32_t)::system(", cg->out);
+                emit_expr(cg, node->call.args.items[0]);
+                fputc(')', cg->out);
+            } else if (strcmp(bname, "getenv") == 0 && node->call.args.count == 1) {
+                fputs("[&]{ auto _e = ::getenv(std::string(", cg->out);
+                emit_expr(cg, node->call.args.items[0]);
+                fputs(").c_str()); return _e ? std::string(_e) : std::string(); }()", cg->out);
             } else if (is_cast_builtin(bname) && node->call.args.count == 1) {
                 AstNode *arg = node->call.args.items[0];
                 if (strcmp(bname, "str") == 0 || strcmp(bname, "istr") == 0) {
@@ -1743,7 +1783,8 @@ static void emit_fn(Codegen *cg, AstNode *fn)
         }
         cg->indent--;
         fputs("}\n\n", cg->out);
-        fputs("int main()\n{\n", cg->out);
+        fputs("int main(int _olrn_argc, char** _olrn_argv)\n{\n", cg->out);
+        fputs("    for (int _i = 1; _i < _olrn_argc; _i++) _olrn_args.push_back(_olrn_argv[_i]);\n", cg->out);
         fputs("    auto _r = _olrn_main();\n", cg->out);
         fputs("    if (!_r.is_ok()) {\n", cg->out);
         fputs("        std::cerr << \"error: \" << _r.error().msg << std::endl;\n", cg->out);
@@ -1779,24 +1820,26 @@ static void emit_fn(Codegen *cg, AstNode *fn)
     if (is_main) fputs("int", cg->out);
     else         emit_type(cg, fn->fn_decl.ret_type);
 
-    fprintf(cg->out, " %s(", fn->fn_decl.name);
-
-    for (int i = 0; i < fn->fn_decl.params.count; i++) {
-        AstNode *param = fn->fn_decl.params.items[i];
-        if (i > 0) fputs(", ", cg->out);
-        if (param_is_any(param))
-            fprintf(cg->out, "T_%s", param->param.name);
-        else {
-            emit_type(cg, param->param.type);
-            if (param->param.type && (param->param.type->type_ref.is_list ||
-                param->param.type->type_ref.is_map ||
-                param->param.type->type_ref.is_set))
-                fputc('&', cg->out);
+    if (is_main) {
+        fputs(" main(int _olrn_argc, char** _olrn_argv)\n{\n", cg->out);
+    } else {
+        fprintf(cg->out, " %s(", fn->fn_decl.name);
+        for (int i = 0; i < fn->fn_decl.params.count; i++) {
+            AstNode *param = fn->fn_decl.params.items[i];
+            if (i > 0) fputs(", ", cg->out);
+            if (param_is_any(param))
+                fprintf(cg->out, "T_%s", param->param.name);
+            else {
+                emit_type(cg, param->param.type);
+                if (param->param.type && (param->param.type->type_ref.is_list ||
+                    param->param.type->type_ref.is_map ||
+                    param->param.type->type_ref.is_set))
+                    fputc('&', cg->out);
+            }
+            fprintf(cg->out, " %s", param->param.name);
         }
-        fprintf(cg->out, " %s", param->param.name);
+        fputs(")\n{\n", cg->out);
     }
-
-    fputs(")\n{\n", cg->out);
     cg->indent++;
 
     /* emit _fn_ok flag if function has errdefer */
@@ -1804,6 +1847,12 @@ static void emit_fn(Codegen *cg, AstNode *fn)
         cg->has_errdefer = 1;
         emit_indent(cg);
         fputs("bool _fn_ok = false;\n", cg->out);
+    }
+
+    /* populate _olrn_args from argv (skip argv[0]) */
+    if (is_main) {
+        emit_indent(cg);
+        fputs("for (int _i = 1; _i < _olrn_argc; _i++) _olrn_args.push_back(_olrn_argv[_i]);\n", cg->out);
     }
 
     AstNode *body = fn->fn_decl.body;
@@ -1983,6 +2032,9 @@ void codegen_emit(Codegen *cg, AstNode *program)
     fputs("#include <cstdlib>\n", cg->out);
     fputs("#include <cstdio>\n", cg->out);
     fputs("#include <typeinfo>\n", cg->out);
+    fputs("#include <unistd.h>\n", cg->out);
+    fputs("#include <thread>\n", cg->out);
+    fputs("#include <chrono>\n", cg->out);
     fputs("#include <cxxabi.h>\n", cg->out);
     /* RAII guard used by 'defer' — always emitted so defer is zero-cost when unused */
     fputs("template<typename F>\n", cg->out);
@@ -1994,6 +2046,7 @@ void codegen_emit(Codegen *cg, AstNode *program)
     fputs("    _OlrnDeferGuard& operator=(const _OlrnDeferGuard&) = delete;\n", cg->out);
     fputs("};\n", cg->out);
     fputs(BUILTINS_IMPL, cg->out);
+    fputs("static std::vector<std::string> _olrn_args;\n\n", cg->out);
 
     /* register import aliases; detect stdlib */
     for (int i = 0; i < program->program.imports.count; i++) {
