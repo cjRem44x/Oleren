@@ -43,22 +43,47 @@ No runtime, no GC, no OOP. Close to the metal; readable by default.
 
 ### Current Next Steps
 
-Recommended implementation order:
-
-1. **Build a real expression type model in sema.**
-   Track local/parameter types, infer simple literal and call result types, and use
-   that for assignment compatibility, return type compatibility, array element
-   checks, pointer deref checks, and better diagnostics before C++ emission.
-2. **Recursive module graph.**
-   Extend the resolver from direct imports to a full graph with module-scoped
-   alias tables, parsed-module caching, transitive import checks, and multi-file
-   cycle diagnostics.
-3. **Diagnostics with source spans.**
-   Add file/line/column ranges and source excerpts so parser/sema errors do not
-   feel like C compiler fallout.
+1. **Struct field type registry.** — NEXT
+   `type_of_expr` returns `TY_UNKNOWN` for any field access (`p.x`, `obj.count`).
+   A struct name → field → type table would let sema check field reads/writes,
+   catch struct literal field mismatches, and complete the narrowing story for
+   brace-init.
+2. **Sema for imported module functions.**
+   The current `check_program` only walks top-level `NODE_FN_DECL` nodes;
+   functions inside `NODE_MODULE` wrappers are skipped. Extend the walk to recurse
+   into module decls so every function in the import graph is type-checked.
+3. **Generic collection element types.**
+   `@ls(T)`, `@map(K,V)`, `@set(T)` carry element types in the AST but `type_of_expr`
+   returns `TY_UNKNOWN` for them. Representing `@ls(i32)` as a typed slot would catch
+   element-type mismatches on `add`, `get`, and `for e => list`.
 4. **Stdlib depth.**
    Prioritize `std.str.fmt`/builder, fallible buffered file I/O, `std.path`, and
    process/env helpers before adding new large domains.
+
+### Completed
+
+- ~~**Build a real expression type model in sema.**~~ **DONE (v0.1.6)**
+  `OlrnType` (TyKind + name) lives in every symbol table slot. `type_of_expr()`
+  infers types for literals, idents, direct calls, builtin casts (`@i32`, `@f64`, …),
+  binary ops, and unary ops. `check_compat()` enforces compatibility at var decl,
+  assignment, return, and call arguments. Int literals out of range → error; in-range
+  narrowing → silent. Computed expression narrowing (e.g., i64 → i32) → warning.
+  Float literals into `:f32` → silent; f64 expression into f32 → warning.
+  `-Wno-narrowing` added to g++ flags; sema owns narrowing diagnostics now.
+
+- ~~**Recursive module graph.**~~ **DONE (v0.1.6)**
+  `ImportCtx` with a shared visited-set drives depth-first local import resolution.
+  Transitive dependencies are emitted before their dependents (correct namespace
+  ordering in C++). Diamond dependencies (same file imported by two modules)
+  are deduplicated silently. Import cycles are silently broken via the visited-set.
+  Codegen pre-registers all `NODE_MODULE` names before the emission pass so
+  `is_module_alias()` recognizes transitive aliases inside namespace blocks.
+
+- ~~**Diagnostics with source spans.**~~ **DONE (v0.1.6)**
+  `Token` and `AstNode` now carry a `col` field. The lexer tracks the column via
+  `adv()`. Parser errors report `error:line:col:` and print a source excerpt with a
+  caret. Sema errors use the same `error:line:col:` format. All 68
+  `ast_node_new()` call sites updated; resolver passes `(0, 0)` for synthetic nodes.
 
 ---
 
@@ -146,15 +171,16 @@ Submodules can also be bound top-level: `io :: @std.io`. See Language.md § Impo
 Implemented resolver behavior:
 - Local file imports are relative to the importing file.
 - Absolute imports and `..` path components are rejected.
-- Direct self-imports are rejected with an import-cycle diagnostic.
-- Re-importing the same canonical file under multiple aliases is rejected.
+- Direct self-imports and import cycles are silently broken via the visited-set.
+- Transitive imports are resolved depth-first; dependencies are emitted before
+  dependents so the generated C++ namespace order is always correct.
+- Diamond dependencies (same file imported transitively by two modules) are
+  deduplicated — the file is parsed and emitted exactly once under the first alias seen.
 
 Still planned:
-- Full recursive module graph construction.
-- Module-scoped alias tables, so imports inside imported modules do not leak into
-  the main file or collide with other modules.
-- Parse/check caching across the full graph.
+- Parse/check caching across the full graph (currently each import is re-parsed).
 - Public/private export checks for non-function module members.
+- Sema walk into imported module functions (currently only top-level fns are checked).
 
 ---
 
@@ -368,9 +394,7 @@ See Language.md § Generics.
 
 ---
 
-## Compiler Status — v0.1.5
-
-All planned v0.1.5 features are implemented and passing the test suite.
+## Compiler Status — v0.1.6
 
 - [x] Binary expressions + Pratt parser (full operator precedence)
 - [x] `if / elif / else`, `when` (switch/match)
@@ -402,6 +426,9 @@ All planned v0.1.5 features are implemented and passing the test suite.
 - [x] `mstr` multiline string type (`"""..."""` triple-quote literals, shared `str` methods)
 - [x] `olrn view <file>` — SDL2 viewer for images, animated GIFs, and video (zoom, pan, enhance)
 - [x] Struct method privacy — bare `fn` in a struct is `private:` in C++; `pub fn` is public
+- [x] **Source spans in diagnostics** — `Token` and `AstNode` carry `col`; parser errors show `error:line:col:` with source excerpt + caret; sema errors use the same format
+- [x] **Recursive module graph** — transitive imports resolved depth-first; diamond deps deduplicated; import cycles silently broken; transitive module aliases recognized in codegen
+- [x] **Expression type model** — `OlrnType` in symbol table; `type_of_expr()` for literals/idents/calls/casts/binary; `check_compat()` at var decl, assignment, return, call args; int out-of-range → error; computed narrowing → warning; `-Wno-narrowing` on g++ (sema owns narrowing)
 
 ## Next (v0.6.0 candidates)
 

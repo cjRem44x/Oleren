@@ -39,7 +39,7 @@ The naming convention for stdlib: `mk.pad_btn(0, btn)` → codegen strips alias 
 
 ---
 
-## Current Version: 0.1.5
+## Current Version: 0.1.6
 
 ### What's implemented and passing
 
@@ -52,18 +52,17 @@ The naming convention for stdlib: `mk.pad_btn(0, btn)` → codegen strips alias 
 - `usize` type → `size_t`; `.len`/`.cap` return usize
 - Multi-return tuples, `mstr` multiline strings
 - `extern` FFI declarations
-- Module system — file-as-module, `pub fn` enforcement, import resolver
+- Module system — file-as-module, `pub fn` enforcement, recursive import resolver
 - CLI: build, run, check, emit, sac, init, deps, view
 - Malkur gamedev library v0.4 (SDL2 backend) — full feature list in Roadmap.md
 - Pelentar crypto library (libsodium backend)
 
-### Recently fixed / added
+### Recently fixed / added (v0.1.6)
 
-- `else`/`elif` now work on the next line after `}` (was a parser gap — fixed with `skip_newlines()` after then-block in `parse_if_chain`)
-- `draw_orb(cx, cy, r, fill, col_full, col_empty)` — scanline health orb with gloss highlight
-- `SDL_WINDOW_RESIZABLE` on all Malkur windows
-- Gamepad: `pad_btn_hit/press/release`, `pad_count`, `pad_name`, `pad_axis_dz`, `pad_rumble`
-- Sema warning when `.len`/`.cap` (usize) is assigned to an explicitly-signed integer variable
+- **Source spans** — `Token`/`AstNode` carry `col`; parser shows `error:line:col:` with source excerpt + caret
+- **Recursive module graph** — transitive imports resolved depth-first; diamond deps deduplicated; import cycles silently broken; transitive aliases recognized in codegen
+- **Expression type model** — `OlrnType` in symbol table; `type_of_expr()` for literals/idents/calls/casts/binary; `check_compat()` at var decl, assignment, return, call args; int out-of-range → error; computed narrowing → warning
+- `-Wno-narrowing` passed to g++ (sema now owns all narrowing diagnostics)
 
 ---
 
@@ -72,24 +71,18 @@ The naming convention for stdlib: `mk.pad_btn(0, btn)` → codegen strips alias 
 Current checks: call arity, bare `ret` misuse, duplicate top-level fns, `null` restricted
 to pointer locals, `@free` pointer kind, err set enforcement, unused imports,
 import alias shadowing, `any` in struct fields rejected, `len` as struct field name rejected,
-usize-to-signed assignment warning.
+usize-to-signed assignment warning, expression type compatibility (var decl, assign, ret, call args).
 
 The `Check` struct tracks: err sets, fn declarations, import aliases, a scoped symbol table
-with ptr_kind (0=non-ptr, 1=raw, 2=smart), and separate `errors`/`warnings` counts.
+with ptr_kind (0=non-ptr, 1=raw, 2=smart) + `OlrnType sym_otype[]`, and separate `errors`/`warnings` counts.
 
 ---
 
 ## Known Gaps (see docs/Roadmap.md for full list)
 
-1. **No expression type model** — sema doesn't track types of locals/params; can't catch
-   type mismatches, return type compatibility, or array element errors before C++ sees them.
-   This is the highest priority next step.
-2. **No recursive module graph** — imports are resolved one level deep; transitive imports,
-   module alias tables, and cycle detection are not implemented.
-3. **No source spans in diagnostics** — errors show line numbers but no column or source excerpt.
-4. **`g++ -O2` with C++17 brace-init** produces `-Wnarrowing` warnings when Oleren integer
-   literals (i64 by default) go into i32 struct fields, or when float arithmetic involves
-   double literals. Not errors, but noisy. Root fix is the type model.
+1. **No struct field type registry** — `type_of_expr` returns `TY_UNKNOWN` for field access (`p.x`); a struct name→field→type table would enable field-level checks.
+2. **Sema skips module functions** — only top-level `NODE_FN_DECL` nodes are checked; functions inside `NODE_MODULE` wrappers are not walked.
+3. **Generic collection element types** — `@ls(T)`, `@map(K,V)`, `@set(T)` element types not tracked in `type_of_expr`.
 
 ---
 

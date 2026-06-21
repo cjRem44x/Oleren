@@ -1,4 +1,4 @@
-# Oleren `0.1.5`
+# Oleren `0.1.6`
 
 A thin, sugared frontend that compiles to C++ and then to a native binary.
 Designed for fast media applications — games, audio/video pipelines, asset tools.
@@ -171,7 +171,7 @@ fn main() -> !void
             mk.begin_camera2d(cam)
                 mk.draw_texture(tex, pos.x, pos.y, mk.WHITE)
             mk.end_camera2d()
-            mk.draw_text("Oleren v0.1.5", 10.0, 10.0, 16.0, mk.WHITE)
+            mk.draw_text("Oleren v0.1.6", 10.0, 10.0, 16.0, mk.WHITE)
         mk.end_draw()
     }
 }
