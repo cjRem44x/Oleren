@@ -4,11 +4,13 @@
 #include <string.h>
 #include <limits.h>
 
-#define MAX_ERR_SETS 64
-#define MAX_FNS      1024
-#define MAX_IMPORTS  64
-#define MAX_SYMS     1024
-#define MAX_SCOPES   128
+#define MAX_ERR_SETS   64
+#define MAX_FNS        1024
+#define MAX_IMPORTS    64
+#define MAX_SYMS       1024
+#define MAX_SCOPES     128
+#define MAX_STRUCT_REG 128
+#define MAX_FIELD_REG  64
 
 /* -----------------------------------------------------------------------
    Simple type representation
@@ -29,6 +31,13 @@ typedef enum {
 } TyKind;
 
 typedef struct { TyKind kind; const char *name; } OlrnType;
+
+typedef struct { const char *fname; OlrnType ftype; } RegField;
+typedef struct {
+    const char *sname;
+    RegField    fields[MAX_FIELD_REG];
+    int         field_count;
+} RegStruct;
 
 #define OTY(k)       ((OlrnType){(k), NULL})
 #define OTY_NAMED(n) ((OlrnType){TY_NAMED, (n)})
@@ -121,7 +130,8 @@ static OlrnType type_from_name(const char *n)
     if (strcmp(n, "usize")  == 0) return OTY(TY_USIZE);
     if (strcmp(n, "f32")    == 0 || strcmp(n, "float")  == 0) return OTY(TY_F32);
     if (strcmp(n, "f64")    == 0 || strcmp(n, "double") == 0) return OTY(TY_F64);
-    if (strcmp(n, "str")    == 0 || strcmp(n, "mstr")   == 0) return OTY(TY_STR);
+    if (strcmp(n, "str")    == 0 || strcmp(n, "mstr")   == 0 ||
+        strcmp(n, "istr")   == 0) return OTY(TY_STR);
     return OTY_NAMED(n);
 }
 
@@ -161,6 +171,8 @@ typedef struct {
     AstNode    *fn_ret_type;
     int         errors;
     int         warnings;
+    RegStruct   struct_reg[MAX_STRUCT_REG];
+    int         struct_reg_count;
 } Check;
 
 static void push_scope(Check *c)
@@ -273,6 +285,24 @@ static AstNode *find_fn(Check *c, const char *name)
     return NULL;
 }
 
+static RegStruct *find_struct(Check *c, const char *name)
+{
+    for (int i = 0; i < c->struct_reg_count; i++)
+        if (strcmp(c->struct_reg[i].sname, name) == 0)
+            return &c->struct_reg[i];
+    return NULL;
+}
+
+static RegField *find_field(Check *c, const char *sname, const char *fname)
+{
+    RegStruct *s = find_struct(c, sname);
+    if (!s) return NULL;
+    for (int i = 0; i < s->field_count; i++)
+        if (strcmp(s->fields[i].fname, fname) == 0)
+            return &s->fields[i];
+    return NULL;
+}
+
 static const char *fn_err_set(AstNode *fn)
 {
     AstNode *rt = fn->fn_decl.ret_type;
@@ -316,9 +346,17 @@ static OlrnType type_of_expr(Check *c, AstNode *n)
             AstNode *fn = find_fn(c, n->call.name);
             return fn ? type_from_ref(fn->fn_decl.ret_type) : OTY_UNKNOWN;
         }
-        case NODE_BUILTIN_CALL:
-            /* @i32(x), @f64(x) etc. infer to the cast target type */
-            return type_from_name(n->call.name);
+        case NODE_BUILTIN_CALL: {
+            const char *bn = n->call.name;
+            if (strcmp(bn, "alo") == 0)                               return OTY_UNKNOWN;
+            if (strcmp(bn, "pid") == 0 || strcmp(bn, "cmd") == 0)    return OTY(TY_I32);
+            if (strcmp(bn, "getenv") == 0 || strcmp(bn, "hex") == 0 ||
+                strcmp(bn, "cin") == 0  || strcmp(bn, "type") == 0)  return OTY(TY_STR);
+            if (strcmp(bn, "sizeof") == 0 || strcmp(bn, "alignof") == 0) return OTY(TY_USIZE);
+            /* @i32(x), @f64(x) etc. — cast to target type; guard against unknown names */
+            OlrnType ct = type_from_name(bn);
+            return ct.kind == TY_NAMED ? OTY_UNKNOWN : ct;
+        }
         case NODE_BINARY:
             switch (n->binary.op) {
                 case TOK_EQEQ: case TOK_NEQ:
@@ -334,6 +372,22 @@ static OlrnType type_of_expr(Check *c, AstNode *n)
                 return OTY(TY_BOOL);
             if (n->unary.op == '-')
                 return type_of_expr(c, n->unary.operand);
+            return OTY_UNKNOWN;
+        case NODE_FIELD:
+        case NODE_FIELD_PTR: {
+            OlrnType tt = type_of_expr(c, n->field.target);
+            /* .len on str is always usize */
+            if (strcmp(n->field.name, "len") == 0 && tt.kind == TY_STR)
+                return OTY(TY_USIZE);
+            if (tt.kind == TY_NAMED && tt.name) {
+                RegField *rf = find_field(c, tt.name, n->field.name);
+                if (rf) return rf->ftype;
+            }
+            return OTY_UNKNOWN;
+        }
+        case NODE_STRUCT_LIT:
+            if (n->struct_lit.type_name)
+                return OTY_NAMED(n->struct_lit.type_name);
             return OTY_UNKNOWN;
         case NODE_TRY_EXPR:
         case NODE_CATCH_EXPR:
@@ -414,6 +468,8 @@ static int check_compat(Check *c, OlrnType from, OlrnType to,
     }
     /* int → float: implicit widening, always fine */
     if (ty_is_int(from.kind) && ty_is_float(to.kind)) return 1;
+    /* target is a named type (type alias, struct, enum) — can't verify without resolution */
+    if (to.kind == TY_NAMED) return 1;
     /* Everything else is a hard mismatch */
     fprintf(stderr,
             "error:%d:%d: type mismatch in %s: "
@@ -543,9 +599,8 @@ static void walk(Check *c, AstNode *n)
                         n->line, n->col, n->assign.lhs->ident.name);
                 c->errors++;
             }
-            if (n->assign.lhs && n->assign.lhs->kind == NODE_IDENT &&
-                n->assign.rhs) {
-                OlrnType lhs_t = sym_type_of(c, n->assign.lhs->ident.name);
+            if (n->assign.lhs && n->assign.rhs) {
+                OlrnType lhs_t = type_of_expr(c, n->assign.lhs);
                 OlrnType rhs_t = type_of_expr(c, n->assign.rhs);
                 check_compat(c, rhs_t, lhs_t,
                              n->line, n->col, "assignment", n->assign.rhs);
@@ -694,7 +749,28 @@ static void walk(Check *c, AstNode *n)
             break;
 
         case NODE_ARRAY_LIT:  walk_list(c, &n->array_lit.elems); break;
-        case NODE_STRUCT_LIT: walk_list(c, &n->struct_lit.fields); break;
+        case NODE_STRUCT_LIT: {
+            walk_list(c, &n->struct_lit.fields);
+            if (!n->struct_lit.type_name) break;
+            RegStruct *rs = find_struct(c, n->struct_lit.type_name);
+            if (!rs) break;
+            for (int i = 0; i < n->struct_lit.fields.count; i++) {
+                AstNode *fi = n->struct_lit.fields.items[i];
+                if (fi->kind != NODE_FIELD_INIT) continue;
+                RegField *rf = find_field(c, rs->sname, fi->field_init.name);
+                if (!rf) {
+                    fprintf(stderr,
+                            "error:%d:%d: struct '%s' has no field '%s'\n",
+                            fi->line, fi->col, rs->sname, fi->field_init.name);
+                    c->errors++;
+                } else {
+                    OlrnType vt = type_of_expr(c, fi->field_init.value);
+                    check_compat(c, vt, rf->ftype,
+                                 fi->line, fi->col, "struct field", fi->field_init.value);
+                }
+            }
+            break;
+        }
         case NODE_FIELD_INIT: walk(c, n->field_init.value); break;
         case NODE_IDENT:      mark_import_used(c, n->ident.name); break;
         default: break;
@@ -741,6 +817,19 @@ int check_program(AstNode *program)
                 c.fns[c.fn_count++] = d;
             }
         } else if (d->kind == NODE_STRUCT_DECL) {
+            /* register fields for type_of_expr resolution */
+            if (c.struct_reg_count < MAX_STRUCT_REG) {
+                RegStruct *rs = &c.struct_reg[c.struct_reg_count++];
+                rs->sname = d->struct_decl.name;
+                rs->field_count = 0;
+                for (int j = 0; j < d->struct_decl.fields.count &&
+                                rs->field_count < MAX_FIELD_REG; j++) {
+                    AstNode *f = d->struct_decl.fields.items[j];
+                    rs->fields[rs->field_count].fname = f->param.name;
+                    rs->fields[rs->field_count].ftype = type_from_ref(f->param.type);
+                    rs->field_count++;
+                }
+            }
             for (int j = 0; j < d->struct_decl.fields.count; j++) {
                 AstNode *f = d->struct_decl.fields.items[j];
                 if (strcmp(f->param.name, "len") == 0) {
