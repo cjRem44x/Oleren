@@ -793,6 +793,51 @@ static void check_fn_body(Check *c, AstNode *fn)
     c->fn_ret_type = NULL;
 }
 
+static int check_module(AstNode *mod)
+{
+    Check c = {0};
+
+    /* first pass — register err sets, fns, structs */
+    for (int i = 0; i < mod->module.decls.count; i++) {
+        AstNode *d = mod->module.decls.items[i];
+        if (d->kind == NODE_ERR_DECL && c.err_decl_count < MAX_ERR_SETS) {
+            c.err_decls[c.err_decl_count++] = d;
+        } else if (d->kind == NODE_FN_DECL && c.fn_count < MAX_FNS) {
+            c.fns[c.fn_count++] = d;
+        } else if (d->kind == NODE_STRUCT_DECL) {
+            if (c.struct_reg_count < MAX_STRUCT_REG) {
+                RegStruct *rs = &c.struct_reg[c.struct_reg_count++];
+                rs->sname = d->struct_decl.name;
+                rs->field_count = 0;
+                for (int j = 0; j < d->struct_decl.fields.count &&
+                                rs->field_count < MAX_FIELD_REG; j++) {
+                    AstNode *f = d->struct_decl.fields.items[j];
+                    rs->fields[rs->field_count].fname = f->param.name;
+                    rs->fields[rs->field_count].ftype = type_from_ref(f->param.type);
+                    rs->field_count++;
+                }
+            }
+        }
+    }
+
+    /* check fn bodies */
+    for (int i = 0; i < c.fn_count; i++)
+        check_fn_body(&c, c.fns[i]);
+
+    /* check struct methods */
+    for (int i = 0; i < mod->module.decls.count; i++) {
+        AstNode *d = mod->module.decls.items[i];
+        if (d->kind != NODE_STRUCT_DECL) continue;
+        for (int j = 0; j < d->struct_decl.methods.count; j++)
+            check_fn_body(&c, d->struct_decl.methods.items[j]);
+    }
+
+    if (c.warnings > 0)
+        fprintf(stderr, "%d warning%s in module '%s'\n",
+                c.warnings, c.warnings == 1 ? "" : "s", mod->module.name);
+    return c.errors;
+}
+
 int check_program(AstNode *program)
 {
     Check c = {0};
@@ -878,6 +923,12 @@ int check_program(AstNode *program)
             c.errors++;
         }
     }
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *d = program->program.decls.items[i];
+        if (d->kind == NODE_MODULE)
+            c.errors += check_module(d);
+    }
+
     if (c.warnings > 0)
         fprintf(stderr, "%d warning%s\n", c.warnings, c.warnings == 1 ? "" : "s");
     return c.errors;
