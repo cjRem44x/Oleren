@@ -54,3 +54,23 @@ fn io_file_rd(path: str) -> !FileRd
 {
     ret _olrn_io_file_rd(path)
 }
+
+fn io_file_wr(path: str) -> !FileWr
+{
+    ret _olrn_io_file_wr(path)
+}
+
+fn io_file_wr_append(path: str) -> !FileWr
+{
+    ret _olrn_io_file_wr_append(path)
+}
+
+fn io_read_all(path: str) -> !str
+{
+    ret _olrn_io_read_all(path)
+}
+
+fn io_write_all(path: str, data: str) -> !void
+{
+    try _olrn_io_write_all(path, data)
+}

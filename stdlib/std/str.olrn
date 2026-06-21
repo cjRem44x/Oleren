@@ -54,3 +54,38 @@ fn str_contains(s: str, sub: str) -> bool
 {
     ret _olrn_str_contains(s, sub)
 }
+
+fn str_index_of(s: str, sub: str) -> i64
+{
+    ret _olrn_str_index_of(s, sub)
+}
+
+fn str_substr(s: str, start: i64, len: i64) -> str
+{
+    ret _olrn_str_substr(s, start, len)
+}
+
+fn str_replace(s: str, from: str, to: str) -> str
+{
+    ret _olrn_str_replace(s, from, to)
+}
+
+fn str_split(s: str, delim: str) -> []str
+{
+    ret _olrn_str_split(s, delim)
+}
+
+fn str_join(parts: []str, sep: str) -> str
+{
+    ret _olrn_str_join(parts, sep)
+}
+
+fn str_char_at(s: str, i: i64) -> str
+{
+    ret _olrn_str_char_at(s, i)
+}
+
+fn str_repeat(s: str, n: i64) -> str
+{
+    ret _olrn_str_repeat(s, n)
+}
