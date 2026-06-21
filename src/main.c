@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <dirent.h>
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "ast/ast.h"
@@ -24,7 +25,8 @@
 
 /* Zig-style step tree, printed by 'olrn build' / 'olrn run' as each
    pipeline stage completes (sac/emit stay quiet). */
-static int g_tree = 0;
+static int g_tree    = 0;
+static int g_release = 0; /* --release: use -O2 instead of -O0 */
 
 static void tree_step(int last, const char *label, const char *detail)
 {
@@ -52,8 +54,10 @@ static int exec_wait(char *const argv[])
 
 /* compile a generated .cpp to a binary; system-library deps (e.g.
    SDL2 for malkur) are detected from the file and resolved via
-   pkg-config or platform fallbacks. Returns 0 on success. */
-static int gxx_compile(const char *cpp_path, const char *output)
+   pkg-config or platform fallbacks. pch_path: if non-NULL, pass
+   -include <pch_path> so g++ uses the precompiled header. */
+static int gxx_compile(const char *cpp_path, const char *output,
+                       const char *pch_path)
 {
     char dep_flags[768];
     if (deps_flags_for_cpp(cpp_path, dep_flags, sizeof(dep_flags))) {
@@ -66,16 +70,20 @@ static int gxx_compile(const char *cpp_path, const char *output)
     memcpy(dep_copy, dep_flags, sizeof(dep_flags));
     char *dep_toks[64];
     int dep_argc = 0;
-    for (char *tok = strtok(dep_copy, " \t"); tok && dep_argc < 62;
+    for (char *tok = strtok(dep_copy, " \t"); tok && dep_argc < 60;
          tok = strtok(NULL, " \t"))
         dep_toks[dep_argc++] = tok;
 
     /* build argv without involving a shell */
-    char *argv[72];
+    char *argv[80];
     int i = 0;
     argv[i++] = "g++";
     argv[i++] = "-std=c++17";
-    argv[i++] = "-O2";
+    argv[i++] = g_release ? "-O2" : "-O0";
+    if (pch_path) {
+        argv[i++] = "-include";
+        argv[i++] = (char *)pch_path;
+    }
     argv[i++] = (char *)cpp_path;
     argv[i++] = "-o";
     argv[i++] = (char *)output;
@@ -196,7 +204,7 @@ static int compile_to_binary(const char **inputs, int input_count,
     for (int i = 0; i < extra_count; i++) free(extra_srcs[i]);
 
     tree_step(1, "g++", output);
-    int rc = gxx_compile(tmp_cpp, output);
+    int rc = gxx_compile(tmp_cpp, output, NULL);
     remove(tmp_cpp);
     return rc;
 }
@@ -558,8 +566,8 @@ static void print_help(void)
     printf("  olrn build-out <file.cpp>      compile C++ to bin/<name> (project) or ./<name>\n");
     printf("  olrn check <file.olrn>         parse and check for errors\n");
     printf("  olrn sac <file(s)> [-o=name]   compile to native binary\n");
-    printf("  olrn build                     build project (main.olrn → binary)\n");
-    printf("  olrn run                       build and run project\n");
+    printf("  olrn build [--release]         build project (main.olrn → binary); default -O0, --release uses -O2\n");
+    printf("  olrn run [--release]           build and run project\n");
     printf("  olrn init                      scaffold a new project in cwd\n");
     printf("  olrn deps [file.olrn]          check system libs (SDL2, ...) + install hints\n");
     printf("  olrn view <file>               open image, GIF, or video in SDL2 viewer\n");
@@ -789,7 +797,7 @@ static int cmd_build_out(int argc, char **argv)
         output = derived;
     }
 
-    int rc = gxx_compile(cpp_path, output);
+    int rc = gxx_compile(cpp_path, output, NULL);
     if (rc == 0) printf("built: %s\n", output);
     return rc;
 }
@@ -834,6 +842,99 @@ static int cmd_sac(int argc, char **argv)
     return rc;
 }
 
+/* Return 1 if any *.olrn file in src_dir has mtime > ref, 0 otherwise. */
+static int sources_newer_than(const char *src_dir, time_t ref)
+{
+    DIR *d = opendir(src_dir);
+    if (!d) return 1;
+    struct dirent *ent;
+    char path[1024];
+    int newer = 0;
+    while (!newer && (ent = readdir(d)) != NULL) {
+        size_t nl = strlen(ent->d_name);
+        if (nl < 5 || strcmp(ent->d_name + nl - 5, ".olrn") != 0) continue;
+        snprintf(path, sizeof(path), "%s/%s", src_dir, ent->d_name);
+        struct stat st;
+        if (stat(path, &st) == 0 && st.st_mtime > ref) newer = 1;
+    }
+    closedir(d);
+    return newer;
+}
+
+/* Extract all #include lines from cpp_path, write them to pch_path,
+   and compile pch_path to pch_path.gch if stale. dep_flags covers
+   SDL2 cflags needed when compiling the PCH header itself. */
+static void maybe_build_pch(const char *cpp_path, const char *pch_path,
+                             const char *pch_gch_path)
+{
+    /* collect all #include lines from generated cpp */
+    FILE *cf = fopen(cpp_path, "r");
+    if (!cf) return;
+    char new_pch[32768]; int nc = 0;
+    char line[1024];
+    while (fgets(line, sizeof(line), cf)) {
+        if (strncmp(line, "#include", 8) != 0) continue;
+        size_t ll = strlen(line);
+        if (nc + (int)ll >= (int)sizeof(new_pch) - 1) continue;
+        memcpy(new_pch + nc, line, ll);
+        nc += (int)ll;
+    }
+    fclose(cf);
+    new_pch[nc] = '\0';
+    if (!nc) return;
+
+    /* only write pch.h if content changed (avoids spurious .gch rebuilds) */
+    int content_changed = 1;
+    FILE *ef = fopen(pch_path, "r");
+    if (ef) {
+        char existing[32768]; int ec = 0;
+        while (fgets(line, sizeof(line), ef) && ec < (int)sizeof(existing)-1) {
+            size_t ll = strlen(line);
+            memcpy(existing + ec, line, ll);
+            ec += (int)ll;
+        }
+        existing[ec] = '\0';
+        fclose(ef);
+        if (strcmp(new_pch, existing) == 0) content_changed = 0;
+    }
+    if (content_changed) {
+        FILE *pf = fopen(pch_path, "w");
+        if (!pf) return;
+        fputs(new_pch, pf);
+        fclose(pf);
+    }
+
+    /* rebuild .gch if missing or older than pch.h */
+    struct stat pst, gst;
+    if (stat(pch_path, &pst) != 0) return;
+    if (stat(pch_gch_path, &gst) == 0 && gst.st_mtime >= pst.st_mtime) return;
+
+    /* compile pch — pass only compile-time flags (-I/-D/-pthread), not -l */
+    char dep_flags[768] = "";
+    deps_flags_for_cpp(pch_path, dep_flags, sizeof(dep_flags));
+    char dep_copy[sizeof(dep_flags)];
+    memcpy(dep_copy, dep_flags, sizeof(dep_flags));
+    char *dep_toks[64]; int dep_argc = 0;
+    for (char *tok = strtok(dep_copy, " \t"); tok && dep_argc < 60;
+         tok = strtok(NULL, " \t")) {
+        if (tok[0] == '-' && tok[1] == 'l') continue; /* skip link flags */
+        dep_toks[dep_argc++] = tok;
+    }
+
+    char *argv[80]; int i = 0;
+    argv[i++] = "g++";
+    argv[i++] = "-std=c++17";
+    argv[i++] = "-O0"; /* PCH always at -O0 for fast incremental dev */
+    argv[i++] = "-x"; argv[i++] = "c++-header";
+    for (int j = 0; j < dep_argc; j++) argv[i++] = dep_toks[j];
+    argv[i++] = (char *)pch_path;
+    argv[i++] = "-o"; argv[i++] = (char *)pch_gch_path;
+    argv[i] = NULL;
+
+    tree_step(0, "pch", pch_gch_path);
+    exec_wait(argv);
+}
+
 /* olrn build — compile the project entry point.
    Project layout: src/main/olrn/main.olrn → olrn_out/<name>.cpp →
    bin/<name>. A bare main.olrn in cwd still works (flat mode) and
@@ -854,6 +955,14 @@ static int cmd_build(void)
         snprintf(cpp_path, sizeof(cpp_path), "olrn_out/%s.cpp", name);
         snprintf(bin_path, sizeof(bin_path), "bin/%s", name);
 
+        /* incremental: skip if binary is newer than all .olrn sources */
+        struct stat bin_st;
+        if (stat(bin_path, &bin_st) == 0 &&
+            !sources_newer_than("src/main/olrn", bin_st.st_mtime)) {
+            printf("up to date: %s\n", bin_path);
+            return 0;
+        }
+
         FILE *out = fopen(cpp_path, "w");
         if (!out) { perror(cpp_path); return 1; }
         int rc = compile_to_out(PROJECT_MAIN, out);
@@ -861,8 +970,20 @@ static int cmd_build(void)
         if (rc != 0) { remove(cpp_path); return 1; }
         tree_step(0, "codegen", cpp_path);
 
+        /* PCH: precompile heavy headers for faster dev builds */
+        const char *pch_path = NULL;
+        if (!g_release) {
+            char pch[620], pch_gch[640];
+            snprintf(pch,     sizeof(pch),     "olrn_out/%s.pch.h",     name);
+            snprintf(pch_gch, sizeof(pch_gch), "olrn_out/%s.pch.h.gch", name);
+            maybe_build_pch(cpp_path, pch, pch_gch);
+            static char pch_buf[620];
+            snprintf(pch_buf, sizeof(pch_buf), "olrn_out/%s.pch.h", name);
+            if (access(pch_gch, F_OK) == 0) pch_path = pch_buf;
+        }
+
         tree_step(1, "g++", bin_path);
-        rc = gxx_compile(cpp_path, bin_path);
+        rc = gxx_compile(cpp_path, bin_path, pch_path);
         if (rc == 0) { printf("built: %s\n", bin_path); fflush(stdout); }
         return rc;
     }
@@ -909,6 +1030,17 @@ int main(int argc, char **argv)
         print_help();
         return 1;
     }
+
+    /* strip --release from argv before subcommand dispatch */
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--release") == 0) {
+            g_release = 1;
+            for (int j = i; j < argc - 1; j++) argv[j] = argv[j + 1];
+            argv[--argc] = NULL;
+            i--;
+        }
+    }
+    if (argc < 2) { print_help(); return 1; }
 
     const char *sub = argv[1];
 
