@@ -207,21 +207,51 @@ Summary:
 
 All builtins documented in Language.md § Builtins.
 
+**Memory / safety**
 | Builtin | Purpose |
 |---|---|
-| `@rng(T, low, high)` | Random value of type T in [low, high] inclusive |
-| `@cast(T, val)` | Explicit type coercion |
+| `@alo(T)` | Heap-allocate T (raw `new T()`) |
+| `@free(p)` | Free raw pointer |
+| `@memcpy(dst,src,n)` | Raw memory copy |
+| `@memset(ptr,val,n)` | Raw memory set |
 | `@sizeof(T)` | Size of type in bytes |
 | `@alignof(T)` | Alignment of type |
-| `@assert(cond, msg)` | Debug assertion; no-op in release |
+
+**Assertions / control flow**
+| Builtin | Purpose |
+|---|---|
+| `@assert(cond, msg)` | Debug assertion; aborts on failure |
 | `@panic(msg)` | Immediate abort with message |
 | `@unreachable()` | Marks a path that must never be reached |
-| `@type(val)` | Compile-time type of val |
+| `@exit(code)` | `std::exit(code)` — terminate immediately |
+
+**I/O**
+| Builtin | Purpose |
+|---|---|
+| `@pl(vals...)` | Print values + newline (`cout <<`) |
+| `@pf("fmt {expr}", args...)` | Interpolated print |
+| `@cout` | Raw `std::cout` handle |
+| `@cin(prompt)` | Read line from stdin |
+
+**Type / math**
+| Builtin | Purpose |
+|---|---|
+| `@type(val)` | Demangled type name of val as `str` |
+| `@T(val)` | Numeric/string cast (`@i32`, `@f64`, `@str`, …) |
+| `@rng(T, low, high)` | Random value of type T in [low, high] |
 | `@min(a,b)` / `@max(a,b)` | Scalar min/max |
 | `@clamp(v,lo,hi)` | Clamp value to range |
 | `@sqrt(x)` / `@abs(x)` | Scalar math |
-| `@memcpy(dst,src,n)` | Raw memory copy |
-| `@memset(ptr,val,n)` | Raw memory set |
+| `@hex(v)` | Integer → lowercase hex string |
+
+**System / process**
+| Builtin | Purpose |
+|---|---|
+| `@args` | `[]str` — command-line args (argv\[1..\]); supports `.len`, `[i]`, `for` |
+| `@cmd("...")` `-> i32` | `system()` — run shell command, return exit code |
+| `@getenv("VAR")` `-> str` | Read env variable; `""` if unset |
+| `@pid()` `-> i32` | Current process ID |
+| `@sleep(ms)` | Sleep for N milliseconds |
 
 ---
 
@@ -429,6 +459,7 @@ See Language.md § Generics.
 - [x] **Source spans in diagnostics** — `Token` and `AstNode` carry `col`; parser errors show `error:line:col:` with source excerpt + caret; sema errors use the same format
 - [x] **Recursive module graph** — transitive imports resolved depth-first; diamond deps deduplicated; import cycles silently broken; transitive module aliases recognized in codegen
 - [x] **Expression type model** — `OlrnType` in symbol table; `type_of_expr()` for literals/idents/calls/casts/binary; `check_compat()` at var decl, assignment, return, call args; int out-of-range → error; computed narrowing → warning; `-Wno-narrowing` on g++ (sema owns narrowing)
+- [x] **System builtins** — `@exit(code)`, `@cmd("...") -> i32`, `@getenv("VAR") -> str`, `@pid() -> i32`, `@sleep(ms)`, `@args -> []str` (argv\[1..\] with `.len`/index/for)
 
 ## Next (v0.6.0 candidates)
 

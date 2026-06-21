@@ -63,6 +63,7 @@ The naming convention for stdlib: `mk.pad_btn(0, btn)` → codegen strips alias 
 - **Recursive module graph** — transitive imports resolved depth-first; diamond deps deduplicated; import cycles silently broken; transitive aliases recognized in codegen
 - **Expression type model** — `OlrnType` in symbol table; `type_of_expr()` for literals/idents/calls/casts/binary; `check_compat()` at var decl, assignment, return, call args; int out-of-range → error; computed narrowing → warning
 - `-Wno-narrowing` passed to g++ (sema now owns all narrowing diagnostics)
+- **System builtins** — `@exit(code)`, `@cmd("...") -> i32`, `@getenv("VAR") -> str`, `@pid() -> i32`, `@sleep(ms)`, `@args -> []str` (argv\[1..\]; supports `.len`, `[i]`, `for`)
 
 ---
 
