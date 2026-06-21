@@ -1,0 +1,46 @@
+fn main() -> void
+{
+    # --- @args ---
+    args := @args
+    argc :: args.len
+    @pf("argc={}\n", argc)
+
+    if argc > 0 {
+        @pf("argv[0]={}\n", args[0])
+    }
+
+    for a => args {
+        @pf("  arg: {a}\n")
+    }
+
+    # --- @getenv ---
+    home := @getenv("HOME")
+    @pf("HOME={}\n", home)
+
+    missing := @getenv("OLRN_NO_SUCH_VAR")
+    empty :: missing.len == 0
+    @pf("unset var empty={}\n", empty)
+
+    # --- @pid ---
+    pid := @pid()
+    alive :: pid > 0
+    @pf("pid={} alive={}\n", pid, alive)
+
+    # --- @cmd ---
+    rc := @cmd("echo cmd-ok")
+    @pf("cmd exit={}\n", rc)
+
+    rc2 := @cmd("false")
+    failed :: rc2 != 0
+    @pf("cmd false failed={}\n", failed)
+
+    # --- @sleep ---
+    @sleep(50)
+    @pl("slept 50ms")
+
+    # --- @exit ---
+    @pf("about to exit\n")
+    @exit(0)
+
+    @pl("UNREACHABLE")
+}
