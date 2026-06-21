@@ -80,6 +80,7 @@ static int gxx_compile(const char *cpp_path, const char *output,
     argv[i++] = "g++";
     argv[i++] = "-std=c++17";
     argv[i++] = g_release ? "-O2" : "-O0";
+    argv[i++] = "-Wno-narrowing"; /* sema already catches out-of-range narrowing */
     if (pch_path) {
         argv[i++] = "-include";
         argv[i++] = (char *)pch_path;

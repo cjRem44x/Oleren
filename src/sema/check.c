@@ -1,12 +1,145 @@
 #include "check.h"
+#include "../lexer/lexer.h"
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 
 #define MAX_ERR_SETS 64
 #define MAX_FNS      1024
 #define MAX_IMPORTS  64
 #define MAX_SYMS     1024
 #define MAX_SCOPES   128
+
+/* -----------------------------------------------------------------------
+   Simple type representation
+   ----------------------------------------------------------------------- */
+
+typedef enum {
+    TY_UNKNOWN = 0,  /* can't determine — skip checks involving this */
+    TY_VOID,
+    TY_BOOL,
+    TY_CHAR,
+    TY_I8, TY_I16, TY_I32, TY_I64,
+    TY_U8, TY_U16, TY_U32, TY_U64, TY_USIZE,
+    TY_F32, TY_F64,
+    TY_STR,
+    TY_PTR,    /* raw pointer *T  */
+    TY_SMART,  /* smart pointer ^T */
+    TY_NAMED,  /* struct / enum / union / err set — name stored separately */
+} TyKind;
+
+typedef struct { TyKind kind; const char *name; } OlrnType;
+
+#define OTY(k)       ((OlrnType){(k), NULL})
+#define OTY_NAMED(n) ((OlrnType){TY_NAMED, (n)})
+#define OTY_UNKNOWN  OTY(TY_UNKNOWN)
+
+static const char *ty_name(TyKind k)
+{
+    switch (k) {
+        case TY_UNKNOWN: return "unknown";
+        case TY_VOID:    return "void";
+        case TY_BOOL:    return "bool";
+        case TY_CHAR:    return "char";
+        case TY_I8:      return "i8";
+        case TY_I16:     return "i16";
+        case TY_I32:     return "i32";
+        case TY_I64:     return "i64";
+        case TY_U8:      return "u8";
+        case TY_U16:     return "u16";
+        case TY_U32:     return "u32";
+        case TY_U64:     return "u64";
+        case TY_USIZE:   return "usize";
+        case TY_F32:     return "f32";
+        case TY_F64:     return "f64";
+        case TY_STR:     return "str";
+        case TY_PTR:     return "*T";
+        case TY_SMART:   return "^T";
+        case TY_NAMED:   return "<named>";
+        default:         return "?";
+    }
+}
+
+static int ty_is_int(TyKind k)
+{
+    return k == TY_I8  || k == TY_I16 || k == TY_I32  || k == TY_I64  ||
+           k == TY_U8  || k == TY_U16 || k == TY_U32  || k == TY_U64  ||
+           k == TY_USIZE || k == TY_CHAR;
+}
+
+static int ty_is_float(TyKind k)
+{
+    return k == TY_F32 || k == TY_F64;
+}
+
+static int ty_int_bits(TyKind k)
+{
+    switch (k) {
+        case TY_I8:  case TY_U8:  case TY_CHAR:  return 8;
+        case TY_I16: case TY_U16:                return 16;
+        case TY_I32: case TY_U32:                return 32;
+        case TY_I64: case TY_U64: case TY_USIZE: return 64;
+        default: return 0;
+    }
+}
+
+/* 1 when the given i64 value fits in type k without data loss */
+static int val_fits(long long v, TyKind k)
+{
+    switch (k) {
+        case TY_I8:    return v >= -128LL              && v <= 127LL;
+        case TY_I16:   return v >= -32768LL            && v <= 32767LL;
+        case TY_I32:   return v >= -2147483648LL       && v <= 2147483647LL;
+        case TY_I64:   return 1;
+        case TY_U8:    return v >= 0 && v <= 255LL;
+        case TY_U16:   return v >= 0 && v <= 65535LL;
+        case TY_U32:   return v >= 0 && v <= 4294967295LL;
+        case TY_U64:   return v >= 0;
+        case TY_USIZE: return v >= 0;
+        case TY_CHAR:  return v >= 0 && v <= 127LL;
+        default:       return 1;
+    }
+}
+
+/* Convert a type-name string to OlrnType — shared by type_from_ref and cast inference */
+static OlrnType type_from_name(const char *n)
+{
+    if (!n) return OTY_UNKNOWN;
+    if (strcmp(n, "void")   == 0) return OTY(TY_VOID);
+    if (strcmp(n, "bool")   == 0) return OTY(TY_BOOL);
+    if (strcmp(n, "char")   == 0) return OTY(TY_CHAR);
+    if (strcmp(n, "i8")     == 0) return OTY(TY_I8);
+    if (strcmp(n, "i16")    == 0) return OTY(TY_I16);
+    if (strcmp(n, "i32")    == 0 || strcmp(n, "int")    == 0) return OTY(TY_I32);
+    if (strcmp(n, "i64")    == 0 || strcmp(n, "long")   == 0) return OTY(TY_I64);
+    if (strcmp(n, "u8")     == 0 || strcmp(n, "byte")   == 0 ||
+        strcmp(n, "ubyte")  == 0) return OTY(TY_U8);
+    if (strcmp(n, "u16")    == 0 || strcmp(n, "ushort") == 0 ||
+        strcmp(n, "short")  == 0) return OTY(TY_U16);
+    if (strcmp(n, "u32")    == 0 || strcmp(n, "uint")   == 0) return OTY(TY_U32);
+    if (strcmp(n, "u64")    == 0 || strcmp(n, "ulong")  == 0) return OTY(TY_U64);
+    if (strcmp(n, "usize")  == 0) return OTY(TY_USIZE);
+    if (strcmp(n, "f32")    == 0 || strcmp(n, "float")  == 0) return OTY(TY_F32);
+    if (strcmp(n, "f64")    == 0 || strcmp(n, "double") == 0) return OTY(TY_F64);
+    if (strcmp(n, "str")    == 0 || strcmp(n, "mstr")   == 0) return OTY(TY_STR);
+    return OTY_NAMED(n);
+}
+
+static OlrnType type_from_ref(AstNode *ref)
+{
+    if (!ref || ref->kind != NODE_TYPE_REF) return OTY_UNKNOWN;
+    if (ref->type_ref.is_result || ref->type_ref.is_list ||
+        ref->type_ref.is_map    || ref->type_ref.is_set  ||
+        ref->type_ref.tuple.count > 0)
+        return OTY_UNKNOWN;  /* complex generics — skip for now */
+    if (ref->type_ref.is_smart) return OTY(TY_SMART);
+    if (ref->type_ref.is_ptr)   return OTY(TY_PTR);
+    return type_from_name(ref->type_ref.name);
+}
+
+/* -----------------------------------------------------------------------
+   Check context
+   ----------------------------------------------------------------------- */
 
 typedef struct {
     AstNode    *err_decls[MAX_ERR_SETS];
@@ -16,15 +149,15 @@ typedef struct {
     AstNode    *imports[MAX_IMPORTS];
     int         import_used[MAX_IMPORTS];
     int         import_count;
-    /* symbol table — a stack of local names (vars, params, bindings),
-       so a local that shadows an import alias doesn't count as a use */
+    /* symbol table */
     const char *syms[MAX_SYMS];
-    int         sym_ptr_kind[MAX_SYMS]; /* 0 = non-pointer, 1 = *T, 2 = ^T */
+    int         sym_ptr_kind[MAX_SYMS]; /* 0=non-ptr, 1=*T, 2=^T */
+    OlrnType    sym_otype[MAX_SYMS];    /* full type for each symbol */
     int         sym_count;
     int         scope_start[MAX_SCOPES];
     int         scope_depth;
-    const char *fn_name; /* fn being walked */
-    const char *fn_set;  /* its declared err set; NULL = generic !T or no result */
+    const char *fn_name;
+    const char *fn_set;
     AstNode    *fn_ret_type;
     int         errors;
     int         warnings;
@@ -44,12 +177,10 @@ static void pop_scope(Check *c)
         c->sym_count = c->scope_start[c->scope_depth];
 }
 
-static void declare(Check *c, const char *name, int line, int col, int ptr_kind)
+static void declare(Check *c, const char *name, int line, int col,
+                    int ptr_kind, OlrnType otype)
 {
     if (!name || strcmp(name, "_") == 0) return;
-    /* shadowing an import alias is banned: codegen treats alias-rooted
-       field chains as module access, so a shadow would silently emit
-       wrong code (local.field would become a stripped module name) */
     for (int i = 0; i < c->import_count; i++) {
         if (strcmp(c->imports[i]->import_decl.alias, name) == 0) {
             fprintf(stderr,
@@ -63,6 +194,7 @@ static void declare(Check *c, const char *name, int line, int col, int ptr_kind)
     if (c->sym_count < MAX_SYMS) {
         c->syms[c->sym_count]          = name;
         c->sym_ptr_kind[c->sym_count]  = ptr_kind;
+        c->sym_otype[c->sym_count]     = otype;
         c->sym_count++;
     }
 }
@@ -73,6 +205,14 @@ static int sym_ptr_kind(Check *c, const char *name)
         if (strcmp(c->syms[i], name) == 0)
             return c->sym_ptr_kind[i];
     return 0;
+}
+
+static OlrnType sym_type_of(Check *c, const char *name)
+{
+    for (int i = c->sym_count - 1; i >= 0; i--)
+        if (strcmp(c->syms[i], name) == 0)
+            return c->sym_otype[i];
+    return OTY_UNKNOWN;
 }
 
 static int type_ptr_kind(AstNode *type)
@@ -101,8 +241,6 @@ static int is_local(Check *c, const char *name)
     return 0;
 }
 
-/* an alias ident appeared in an expression — the import is used,
-   unless a local binding shadows the alias */
 static void mark_import_used(Check *c, const char *name)
 {
     if (is_local(c, name)) return;
@@ -135,7 +273,6 @@ static AstNode *find_fn(Check *c, const char *name)
     return NULL;
 }
 
-/* declared err set of a fn's return type; NULL = generic !T or non-result */
 static const char *fn_err_set(AstNode *fn)
 {
     AstNode *rt = fn->fn_decl.ret_type;
@@ -157,32 +294,139 @@ static int type_is_any(AstNode *type)
            strcmp(type->type_ref.name, "any") == 0;
 }
 
-static int is_signed_int_type(AstNode *type)
+/* -----------------------------------------------------------------------
+   Type inference and compatibility
+   ----------------------------------------------------------------------- */
+
+/* Forward-declared — walk calls type_of_expr, type_of_expr uses Check */
+static OlrnType type_of_expr(Check *c, AstNode *n);
+
+static OlrnType type_of_expr(Check *c, AstNode *n)
 {
-    if (!type || type->kind != NODE_TYPE_REF || !type->type_ref.name) return 0;
-    const char *n = type->type_ref.name;
-    return strcmp(n, "i8")    == 0 || strcmp(n, "i16")   == 0 ||
-           strcmp(n, "i32")   == 0 || strcmp(n, "i64")   == 0 ||
-           strcmp(n, "byte")  == 0 || strcmp(n, "short") == 0 ||
-           strcmp(n, "int")   == 0 || strcmp(n, "long")  == 0;
+    if (!n) return OTY_UNKNOWN;
+    switch (n->kind) {
+        case NODE_INT_LIT:   return OTY(TY_I64);
+        case NODE_FLOAT_LIT: return OTY(TY_F64);
+        case NODE_STR_LIT:   return OTY(TY_STR);
+        case NODE_BOOL_LIT:  return OTY(TY_BOOL);
+        case NODE_CHAR_LIT:  return OTY(TY_CHAR);
+        case NODE_NULL_LIT:  return OTY(TY_PTR);
+        case NODE_IDENT:     return sym_type_of(c, n->ident.name);
+        case NODE_CALL: {
+            AstNode *fn = find_fn(c, n->call.name);
+            return fn ? type_from_ref(fn->fn_decl.ret_type) : OTY_UNKNOWN;
+        }
+        case NODE_BUILTIN_CALL:
+            /* @i32(x), @f64(x) etc. infer to the cast target type */
+            return type_from_name(n->call.name);
+        case NODE_BINARY:
+            switch (n->binary.op) {
+                case TOK_EQEQ: case TOK_NEQ:
+                case TOK_LT:   case TOK_GT:
+                case TOK_LEQ:  case TOK_GEQ:
+                case TOK_AND_KW: case TOK_OR_KW:
+                    return OTY(TY_BOOL);
+                default:
+                    return type_of_expr(c, n->binary.left);
+            }
+        case NODE_UNARY:
+            if (n->unary.op == '!')
+                return OTY(TY_BOOL);
+            if (n->unary.op == '-')
+                return type_of_expr(c, n->unary.operand);
+            return OTY_UNKNOWN;
+        case NODE_TRY_EXPR:
+        case NODE_CATCH_EXPR:
+            return type_of_expr(c, n->try_expr.expr);
+        default:
+            return OTY_UNKNOWN;
+    }
 }
 
-/* true when an expression is a .len or .cap field access */
-static int is_usize_expr(AstNode *n)
+/* Human-readable type label for diagnostics */
+static const char *oty_label(OlrnType t)
 {
-    return n && n->kind == NODE_FIELD &&
-           (strcmp(n->field.name, "len") == 0 ||
-            strcmp(n->field.name, "cap") == 0);
+    if (t.kind == TY_NAMED && t.name) return t.name;
+    return ty_name(t.kind);
 }
 
-static void walk(Check *c, AstNode *n);
-
-static void walk_list(Check *c, NodeList *l)
+/* Check that 'from' type is compatible with 'to' type.
+   Emits a warning/error and increments the appropriate counter.
+   Returns 1 if compatible (no error), 0 if hard mismatch. */
+static int check_compat(Check *c, OlrnType from, OlrnType to,
+                         int line, int col, const char *ctx,
+                         AstNode *init_node)
 {
-    for (int i = 0; i < l->count; i++) walk(c, l->items[i]);
+    if (from.kind == TY_UNKNOWN || to.kind == TY_UNKNOWN) return 1;
+    if (from.kind == to.kind) {
+        if (from.kind == TY_NAMED) {
+            if (from.name && to.name && strcmp(from.name, to.name) != 0) {
+                fprintf(stderr,
+                        "error:%d:%d: type mismatch in %s: "
+                        "got '%s', expected '%s'\n",
+                        line, col, ctx, from.name, to.name);
+                c->errors++;
+                return 0;
+            }
+        }
+        return 1;
+    }
+    /* int ↔ int */
+    if (ty_is_int(from.kind) && ty_is_int(to.kind)) {
+        int fb = ty_int_bits(from.kind);
+        int tb = ty_int_bits(to.kind);
+        if (fb > tb) {
+            /* narrowing — if it's a literal we can check the value */
+            if (init_node && init_node->kind == NODE_INT_LIT) {
+                long long v = init_node->int_lit.value;
+                if (!val_fits(v, to.kind)) {
+                    fprintf(stderr,
+                            "error:%d:%d: integer literal %lld is out of "
+                            "range for '%s'\n",
+                            line, col, v, ty_name(to.kind));
+                    c->errors++;
+                    return 0;
+                }
+                /* fits — no warning; codegen handles the cast */
+                return 1;
+            }
+            fprintf(stderr,
+                    "warning:%d:%d: narrowing in %s: "
+                    "'%s' assigned to '%s' — use @%s(...) to cast\n",
+                    line, col, ctx, ty_name(from.kind), ty_name(to.kind),
+                    ty_name(to.kind));
+            c->warnings++;
+        }
+        return 1;  /* widening is always fine */
+    }
+    /* float ↔ float */
+    if (ty_is_float(from.kind) && ty_is_float(to.kind)) {
+        if (from.kind == TY_F64 && to.kind == TY_F32) {
+            /* float literal → f32: user explicitly wrote :f32 = 1.6, skip */
+            if (init_node && init_node->kind == NODE_FLOAT_LIT) return 1;
+            fprintf(stderr,
+                    "warning:%d:%d: narrowing in %s: "
+                    "f64 assigned to f32 — use @f32(...) to cast\n",
+                    line, col, ctx);
+            c->warnings++;
+        }
+        return 1;
+    }
+    /* int → float: implicit widening, always fine */
+    if (ty_is_int(from.kind) && ty_is_float(to.kind)) return 1;
+    /* Everything else is a hard mismatch */
+    fprintf(stderr,
+            "error:%d:%d: type mismatch in %s: "
+            "got '%s', expected '%s'\n",
+            line, col, ctx, oty_label(from), oty_label(to));
+    c->errors++;
+    return 0;
 }
 
-/* validate an error value appearing in 'ret' */
+/* -----------------------------------------------------------------------
+   Error-handling checks (unchanged logic, now uses type model where relevant)
+   ----------------------------------------------------------------------- */
+
 static void check_ret_value(Check *c, AstNode *v, int line, int col)
 {
     if (v->kind == NODE_ERR_LIT) {
@@ -198,7 +442,7 @@ static void check_ret_value(Check *c, AstNode *v, int line, int col)
     }
     if (v->kind == NODE_FIELD && v->field.target->kind == NODE_IDENT) {
         AstNode *set = find_err_set(c, v->field.target->ident.name);
-        if (!set) return; /* not an error value (enum, struct field, ...) */
+        if (!set) return;
         if (!set_has_variant(set, v->field.name)) {
             fprintf(stderr,
                     "error:%d:%d: error set '%s' has no variant '%s'\n",
@@ -215,6 +459,17 @@ static void check_ret_value(Check *c, AstNode *v, int line, int col)
     }
 }
 
+/* -----------------------------------------------------------------------
+   AST walk
+   ----------------------------------------------------------------------- */
+
+static void walk(Check *c, AstNode *n);
+
+static void walk_list(Check *c, NodeList *l)
+{
+    for (int i = 0; i < l->count; i++) walk(c, l->items[i]);
+}
+
 static void walk(Check *c, AstNode *n)
 {
     if (!n) return;
@@ -224,6 +479,7 @@ static void walk(Check *c, AstNode *n)
             walk_list(c, &n->block.stmts);
             pop_scope(c);
             break;
+
         case NODE_RET:
             if (n->ret.value) {
                 if (!c->fn_ret_type) {
@@ -232,6 +488,11 @@ static void walk(Check *c, AstNode *n)
                             "explicit return type or use bare 'ret'\n",
                             n->line, n->col, c->fn_name);
                     c->errors++;
+                } else {
+                    OlrnType declared = type_from_ref(c->fn_ret_type);
+                    OlrnType actual   = type_of_expr(c, n->ret.value);
+                    check_compat(c, actual, declared,
+                                 n->line, n->col, "return", n->ret.value);
                 }
                 check_ret_value(c, n->ret.value, n->line, n->col);
                 walk(c, n->ret.value);
@@ -243,8 +504,8 @@ static void walk(Check *c, AstNode *n)
                 c->errors++;
             }
             break;
+
         case NODE_TRY_EXPR: {
-            /* try'd call must not propagate a different named set */
             AstNode *e = n->try_expr.expr;
             if (c->fn_set && e->kind == NODE_CALL) {
                 AstNode *callee = find_fn(c, e->call.name);
@@ -260,16 +521,18 @@ static void walk(Check *c, AstNode *n)
             walk(c, e);
             break;
         }
+
         case NODE_CATCH_EXPR:
             walk(c, n->catch_expr.expr);
             walk(c, n->catch_expr.fallback);
             if (n->catch_expr.body) {
                 push_scope(c);
-                declare(c, n->catch_expr.err_var, n->line, n->col, 0);
+                declare(c, n->catch_expr.err_var, n->line, n->col, 0, OTY_UNKNOWN);
                 walk(c, n->catch_expr.body);
                 pop_scope(c);
             }
             break;
+
         case NODE_ASSIGN:
             if (n->assign.rhs && n->assign.rhs->kind == NODE_NULL_LIT &&
                 n->assign.lhs && n->assign.lhs->kind == NODE_IDENT &&
@@ -280,38 +543,52 @@ static void walk(Check *c, AstNode *n)
                         n->line, n->col, n->assign.lhs->ident.name);
                 c->errors++;
             }
+            if (n->assign.lhs && n->assign.lhs->kind == NODE_IDENT &&
+                n->assign.rhs) {
+                OlrnType lhs_t = sym_type_of(c, n->assign.lhs->ident.name);
+                OlrnType rhs_t = type_of_expr(c, n->assign.rhs);
+                check_compat(c, rhs_t, lhs_t,
+                             n->line, n->col, "assignment", n->assign.rhs);
+            }
             walk(c, n->assign.lhs);
             walk(c, n->assign.rhs);
             break;
-        case NODE_WHILE:     walk(c, n->while_loop.cond); walk(c, n->while_loop.body); break;
+
+        case NODE_WHILE:
+            walk(c, n->while_loop.cond); walk(c, n->while_loop.body);
+            break;
+
         case NODE_LOOP:
-            push_scope(c); /* loop init declares into the loop's scope */
+            push_scope(c);
             walk(c, n->loop_stmt.init); walk(c, n->loop_stmt.cond);
             walk(c, n->loop_stmt.step); walk(c, n->loop_stmt.body);
             pop_scope(c);
             break;
-        case NODE_FOR_RANGE: walk(c, n->for_range.lo); walk(c, n->for_range.hi); walk(c, n->for_range.body); break;
+
+        case NODE_FOR_RANGE:
+            walk(c, n->for_range.lo); walk(c, n->for_range.hi);
+            walk(c, n->for_range.body);
+            break;
+
         case NODE_FOR_EACH:
             walk(c, n->for_each.iter);
             push_scope(c);
-            declare(c, n->for_each.elem, n->line, n->col, 0);
-            declare(c, n->for_each.idx,  n->line, n->col, 0);
+            declare(c, n->for_each.elem, n->line, n->col, 0, OTY_UNKNOWN);
+            declare(c, n->for_each.idx,  n->line, n->col, 0, OTY(TY_USIZE));
             walk(c, n->for_each.body);
             pop_scope(c);
             break;
+
         case NODE_VAR_DECL: {
-            walk(c, n->var_decl.init);   /* init may reference outer names */
-            if (n->var_decl.init && is_usize_expr(n->var_decl.init) &&
-                is_signed_int_type(n->var_decl.type_ref)) {
-                fprintf(stderr,
-                        "warning:%d:%d: '%s' is declared as '%s' but '.%s' "
-                        "returns usize — use usize or cast with @%s(...)\n",
-                        n->line, n->col, n->var_decl.name,
-                        n->var_decl.type_ref->type_ref.name,
-                        n->var_decl.init->field.name,
-                        n->var_decl.type_ref->type_ref.name);
-                c->warnings++;
+            walk(c, n->var_decl.init);
+            OlrnType decl_t = type_from_ref(n->var_decl.type_ref);
+            OlrnType init_t = type_of_expr(c, n->var_decl.init);
+            /* type-compatibility check when type is explicit */
+            if (n->var_decl.type_ref && n->var_decl.init) {
+                check_compat(c, init_t, decl_t,
+                             n->line, n->col, "assignment", n->var_decl.init);
             }
+            /* null pointer check */
             if (n->var_decl.init && n->var_decl.init->kind == NODE_NULL_LIT &&
                 var_decl_ptr_kind(n) == 0) {
                 fprintf(stderr,
@@ -319,30 +596,48 @@ static void walk(Check *c, AstNode *n)
                         n->line, n->col);
                 c->errors++;
             }
-            declare(c, n->var_decl.name, n->line, n->col, var_decl_ptr_kind(n));
+            /* inferred type: prefer declared; fall back to init type */
+            OlrnType stored_t = (decl_t.kind != TY_UNKNOWN) ? decl_t : init_t;
+            declare(c, n->var_decl.name, n->line, n->col,
+                    var_decl_ptr_kind(n), stored_t);
             break;
         }
+
         case NODE_VAR_DECL_GROUP:
             for (int i = 0; i < n->var_decl_group.entries.count; i++) {
                 AstNode *e = n->var_decl_group.entries.items[i];
                 walk(c, e->var_decl.init);
-                declare(c, e->var_decl.name, e->line, e->col, type_ptr_kind(n->var_decl_group.type_ref));
+                OlrnType grp_t = type_from_ref(n->var_decl_group.type_ref);
+                declare(c, e->var_decl.name, e->line, e->col,
+                        type_ptr_kind(n->var_decl_group.type_ref), grp_t);
             }
             break;
+
         case NODE_IF:
             walk(c, n->if_expr.cond); walk(c, n->if_expr.then_block);
             walk(c, n->if_expr.else_block);
             break;
-        case NODE_WHEN:      walk(c, n->when_expr.subject); walk_list(c, &n->when_expr.arms); break;
-        case NODE_WHEN_ARM:  walk(c, n->when_arm.pattern); walk(c, n->when_arm.body); break;
-        case NODE_BINARY:    walk(c, n->binary.left); walk(c, n->binary.right); break;
-        case NODE_UNARY:     walk(c, n->unary.operand); break;
+
+        case NODE_WHEN:
+            walk(c, n->when_expr.subject); walk_list(c, &n->when_expr.arms);
+            break;
+
+        case NODE_WHEN_ARM:
+            walk(c, n->when_arm.pattern); walk(c, n->when_arm.body);
+            break;
+
+        case NODE_BINARY:
+            walk(c, n->binary.left); walk(c, n->binary.right);
+            break;
+
+        case NODE_UNARY:      walk(c, n->unary.operand); break;
         case NODE_FIELD:
-        case NODE_FIELD_PTR: walk(c, n->field.target); break;
-        case NODE_SUBSCRIPT: walk(c, n->subscript.target); walk(c, n->subscript.index); break;
-        case NODE_DEREF:     walk(c, n->deref.target); break;
-        case NODE_DEFER:     walk(c, n->defer_stmt.expr); break;
-        case NODE_ERRDEFER:  walk(c, n->errdefer_stmt.expr); break;
+        case NODE_FIELD_PTR:  walk(c, n->field.target); break;
+        case NODE_SUBSCRIPT:  walk(c, n->subscript.target); walk(c, n->subscript.index); break;
+        case NODE_DEREF:      walk(c, n->deref.target); break;
+        case NODE_DEFER:      walk(c, n->defer_stmt.expr); break;
+        case NODE_ERRDEFER:   walk(c, n->errdefer_stmt.expr); break;
+
         case NODE_BUILTIN_CALL:
             if (strcmp(n->call.name, "free") == 0 && n->call.args.count == 1) {
                 AstNode *arg = n->call.args.items[0];
@@ -366,25 +661,43 @@ static void walk(Check *c, AstNode *n)
             }
             walk_list(c, &n->call.args);
             break;
+
         case NODE_CALL: {
             AstNode *callee = find_fn(c, n->call.name);
-            if (callee && n->call.args.count != callee->fn_decl.params.count) {
-                fprintf(stderr,
-                        "error:%d:%d: fn '%s' expects %d argument%s, got %d\n",
-                        n->line, n->col, n->call.name, callee->fn_decl.params.count,
-                        callee->fn_decl.params.count == 1 ? "" : "s",
-                        n->call.args.count);
-                c->errors++;
+            if (callee) {
+                if (n->call.args.count != callee->fn_decl.params.count) {
+                    fprintf(stderr,
+                            "error:%d:%d: fn '%s' expects %d argument%s, got %d\n",
+                            n->line, n->col, n->call.name,
+                            callee->fn_decl.params.count,
+                            callee->fn_decl.params.count == 1 ? "" : "s",
+                            n->call.args.count);
+                    c->errors++;
+                } else {
+                    /* type-check each argument */
+                    for (int i = 0; i < callee->fn_decl.params.count; i++) {
+                        AstNode *pm  = callee->fn_decl.params.items[i];
+                        OlrnType pt  = type_from_ref(pm->param.type);
+                        OlrnType at  = type_of_expr(c, n->call.args.items[i]);
+                        check_compat(c, at, pt,
+                                     n->line, n->col, "argument",
+                                     n->call.args.items[i]);
+                    }
+                }
             }
             walk_list(c, &n->call.args);
             break;
         }
-        case NODE_CALL_EXPR: walk(c, n->call_expr.callee); walk_list(c, &n->call_expr.args); break;
-        case NODE_ARRAY_LIT: walk_list(c, &n->array_lit.elems); break;
+
+        case NODE_CALL_EXPR:
+            walk(c, n->call_expr.callee); walk_list(c, &n->call_expr.args);
+            break;
+
+        case NODE_ARRAY_LIT:  walk_list(c, &n->array_lit.elems); break;
         case NODE_STRUCT_LIT: walk_list(c, &n->struct_lit.fields); break;
         case NODE_FIELD_INIT: walk(c, n->field_init.value); break;
-        case NODE_IDENT:     mark_import_used(c, n->ident.name); break;
-        default: break; /* literals, decls — no statements inside */
+        case NODE_IDENT:      mark_import_used(c, n->ident.name); break;
+        default: break;
     }
 }
 
@@ -396,7 +709,8 @@ static void check_fn_body(Check *c, AstNode *fn)
     push_scope(c);
     for (int j = 0; j < fn->fn_decl.params.count; j++) {
         AstNode *pm = fn->fn_decl.params.items[j];
-        declare(c, pm->param.name, pm->line, pm->col, type_ptr_kind(pm->param.type));
+        declare(c, pm->param.name, pm->line, pm->col,
+                type_ptr_kind(pm->param.type), type_from_ref(pm->param.type));
     }
     walk(c, fn->fn_decl.body);
     pop_scope(c);
@@ -414,9 +728,9 @@ int check_program(AstNode *program)
 
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *d = program->program.decls.items[i];
-        if (d->kind == NODE_ERR_DECL && c.err_decl_count < MAX_ERR_SETS)
+        if (d->kind == NODE_ERR_DECL && c.err_decl_count < MAX_ERR_SETS) {
             c.err_decls[c.err_decl_count++] = d;
-        else if (d->kind == NODE_FN_DECL && c.fn_count < MAX_FNS) {
+        } else if (d->kind == NODE_FN_DECL && c.fn_count < MAX_FNS) {
             AstNode *prev = find_fn(&c, d->fn_decl.name);
             if (prev) {
                 fprintf(stderr,
@@ -426,9 +740,7 @@ int check_program(AstNode *program)
             } else {
                 c.fns[c.fn_count++] = d;
             }
-        }
-        else if (d->kind == NODE_STRUCT_DECL) {
-            /* 'len' is reserved — it's the length property on str/arrays */
+        } else if (d->kind == NODE_STRUCT_DECL) {
             for (int j = 0; j < d->struct_decl.fields.count; j++) {
                 AstNode *f = d->struct_decl.fields.items[j];
                 if (strcmp(f->param.name, "len") == 0) {
@@ -450,7 +762,6 @@ int check_program(AstNode *program)
         }
     }
 
-    /* top-level constants/vars can reference import aliases too */
     c.fn_name = "<top-level>";
     c.fn_set  = NULL;
     c.fn_ret_type = NULL;
@@ -460,16 +771,14 @@ int check_program(AstNode *program)
             walk(&c, d);
     }
 
-    for (int i = 0; i < c.fn_count; i++) {
+    for (int i = 0; i < c.fn_count; i++)
         check_fn_body(&c, c.fns[i]);
-    }
 
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *d = program->program.decls.items[i];
         if (d->kind != NODE_STRUCT_DECL) continue;
-        for (int j = 0; j < d->struct_decl.methods.count; j++) {
+        for (int j = 0; j < d->struct_decl.methods.count; j++)
             check_fn_body(&c, d->struct_decl.methods.items[j]);
-        }
     }
 
     for (int i = 0; i < c.import_count; i++) {
