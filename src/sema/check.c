@@ -28,6 +28,9 @@ typedef enum {
     TY_PTR,    /* raw pointer *T  */
     TY_SMART,  /* smart pointer ^T */
     TY_NAMED,  /* struct / enum / union / err set — name stored separately */
+    TY_LIST,   /* @ls(T)      — name = elem type name */
+    TY_MAP,    /* @map(K,V)   — name = value type name */
+    TY_SET,    /* @set(T)     — name = elem type name */
 } TyKind;
 
 typedef struct { TyKind kind; const char *name; } OlrnType;
@@ -65,6 +68,9 @@ static const char *ty_name(TyKind k)
         case TY_PTR:     return "*T";
         case TY_SMART:   return "^T";
         case TY_NAMED:   return "<named>";
+        case TY_LIST:    return "@ls";
+        case TY_MAP:     return "@map";
+        case TY_SET:     return "@set";
         default:         return "?";
     }
 }
@@ -138,10 +144,11 @@ static OlrnType type_from_name(const char *n)
 static OlrnType type_from_ref(AstNode *ref)
 {
     if (!ref || ref->kind != NODE_TYPE_REF) return OTY_UNKNOWN;
-    if (ref->type_ref.is_result || ref->type_ref.is_list ||
-        ref->type_ref.is_map    || ref->type_ref.is_set  ||
-        ref->type_ref.tuple.count > 0)
-        return OTY_UNKNOWN;  /* complex generics — skip for now */
+    if (ref->type_ref.is_list) return (OlrnType){TY_LIST, ref->type_ref.name};
+    if (ref->type_ref.is_map)  return (OlrnType){TY_MAP,  ref->type_ref.map_val};
+    if (ref->type_ref.is_set)  return (OlrnType){TY_SET,  ref->type_ref.name};
+    if (ref->type_ref.is_result || ref->type_ref.tuple.count > 0)
+        return OTY_UNKNOWN;
     if (ref->type_ref.is_smart) return OTY(TY_SMART);
     if (ref->type_ref.is_ptr)   return OTY(TY_PTR);
     return type_from_name(ref->type_ref.name);
@@ -353,6 +360,16 @@ static OlrnType type_of_expr(Check *c, AstNode *n)
             if (strcmp(bn, "getenv") == 0 || strcmp(bn, "hex") == 0 ||
                 strcmp(bn, "cin") == 0  || strcmp(bn, "type") == 0)  return OTY(TY_STR);
             if (strcmp(bn, "sizeof") == 0 || strcmp(bn, "alignof") == 0) return OTY(TY_USIZE);
+            /* @ls.init(T, cap) / @map.init(K, V, cap) / @set.init(T, cap) */
+            if (strncmp(bn, "ls.", 3) == 0 && n->call.args.count >= 1 &&
+                n->call.args.items[0]->kind == NODE_IDENT)
+                return (OlrnType){TY_LIST, n->call.args.items[0]->ident.name};
+            if (strncmp(bn, "map.", 4) == 0 && n->call.args.count >= 2 &&
+                n->call.args.items[1]->kind == NODE_IDENT)
+                return (OlrnType){TY_MAP, n->call.args.items[1]->ident.name};
+            if (strncmp(bn, "set.", 4) == 0 && n->call.args.count >= 1 &&
+                n->call.args.items[0]->kind == NODE_IDENT)
+                return (OlrnType){TY_SET, n->call.args.items[0]->ident.name};
             /* @i32(x), @f64(x) etc. — cast to target type; guard against unknown names */
             OlrnType ct = type_from_name(bn);
             return ct.kind == TY_NAMED ? OTY_UNKNOWN : ct;
@@ -382,6 +399,26 @@ static OlrnType type_of_expr(Check *c, AstNode *n)
             if (tt.kind == TY_NAMED && tt.name) {
                 RegField *rf = find_field(c, tt.name, n->field.name);
                 if (rf) return rf->ftype;
+            }
+            return OTY_UNKNOWN;
+        }
+        case NODE_SUBSCRIPT: {
+            OlrnType tt = type_of_expr(c, n->subscript.target);
+            if (tt.kind == TY_LIST && tt.name) return type_from_name(tt.name);
+            return OTY_UNKNOWN;
+        }
+        case NODE_CALL_EXPR: {
+            AstNode *cel = n->call_expr.callee;
+            if (cel->kind == NODE_FIELD) {
+                OlrnType tt = type_of_expr(c, cel->field.target);
+                const char *m = cel->field.name;
+                if ((tt.kind == TY_LIST || tt.kind == TY_SET) && tt.name) {
+                    if (strcmp(m, "get") == 0 || strcmp(m, "pop") == 0)
+                        return type_from_name(tt.name);
+                } else if (tt.kind == TY_MAP && tt.name) {
+                    if (strcmp(m, "get") == 0)
+                        return type_from_name(tt.name);
+                }
             }
             return OTY_UNKNOWN;
         }
@@ -419,6 +456,18 @@ static int check_compat(Check *c, OlrnType from, OlrnType to,
                         "error:%d:%d: type mismatch in %s: "
                         "got '%s', expected '%s'\n",
                         line, col, ctx, from.name, to.name);
+                c->errors++;
+                return 0;
+            }
+        }
+        if (from.kind == TY_LIST || from.kind == TY_MAP || from.kind == TY_SET) {
+            if (from.name && to.name && strcmp(from.name, to.name) != 0) {
+                fprintf(stderr,
+                        "error:%d:%d: type mismatch in %s: "
+                        "got '%s(%s)', expected '%s(%s)'\n",
+                        line, col, ctx,
+                        ty_name(from.kind), from.name,
+                        ty_name(to.kind), to.name);
                 c->errors++;
                 return 0;
             }
@@ -625,14 +674,24 @@ static void walk(Check *c, AstNode *n)
             walk(c, n->for_range.body);
             break;
 
-        case NODE_FOR_EACH:
+        case NODE_FOR_EACH: {
             walk(c, n->for_each.iter);
+            OlrnType iter_t = type_of_expr(c, n->for_each.iter);
+            OlrnType elem_t = OTY_UNKNOWN;
+            OlrnType idx_t  = OTY(TY_USIZE);
+            if ((iter_t.kind == TY_LIST || iter_t.kind == TY_SET) && iter_t.name)
+                elem_t = type_from_name(iter_t.name);
+            else if (iter_t.kind == TY_MAP && iter_t.name && n->for_each.is_kv)
+                idx_t = type_from_name(iter_t.name);  /* val type goes to idx slot */
+            else if (iter_t.kind == TY_MAP && iter_t.name && !n->for_each.is_kv)
+                elem_t = type_from_name(iter_t.name);
             push_scope(c);
-            declare(c, n->for_each.elem, n->line, n->col, 0, OTY_UNKNOWN);
-            declare(c, n->for_each.idx,  n->line, n->col, 0, OTY(TY_USIZE));
+            declare(c, n->for_each.elem, n->line, n->col, 0, elem_t);
+            declare(c, n->for_each.idx,  n->line, n->col, 0, idx_t);
             walk(c, n->for_each.body);
             pop_scope(c);
             break;
+        }
 
         case NODE_VAR_DECL: {
             walk(c, n->var_decl.init);
@@ -744,9 +803,32 @@ static void walk(Check *c, AstNode *n)
             break;
         }
 
-        case NODE_CALL_EXPR:
-            walk(c, n->call_expr.callee); walk_list(c, &n->call_expr.args);
+        case NODE_CALL_EXPR: {
+            walk(c, n->call_expr.callee);
+            walk_list(c, &n->call_expr.args);
+            AstNode *cel = n->call_expr.callee;
+            if (cel->kind != NODE_FIELD) break;
+            OlrnType tt = type_of_expr(c, cel->field.target);
+            const char *meth = cel->field.name;
+            if ((tt.kind == TY_LIST || tt.kind == TY_SET) && tt.name) {
+                OlrnType et = type_from_name(tt.name);
+                if (strcmp(meth, "add") == 0 && n->call_expr.args.count == 1)
+                    check_compat(c, type_of_expr(c, n->call_expr.args.items[0]),
+                                 et, n->line, n->col, "list.add",
+                                 n->call_expr.args.items[0]);
+                if (strcmp(meth, "insert") == 0 && n->call_expr.args.count == 2)
+                    check_compat(c, type_of_expr(c, n->call_expr.args.items[1]),
+                                 et, n->line, n->col, "list.insert",
+                                 n->call_expr.args.items[1]);
+            } else if (tt.kind == TY_MAP && tt.name) {
+                OlrnType vt = type_from_name(tt.name);
+                if (strcmp(meth, "set") == 0 && n->call_expr.args.count == 2)
+                    check_compat(c, type_of_expr(c, n->call_expr.args.items[1]),
+                                 vt, n->line, n->col, "map.set",
+                                 n->call_expr.args.items[1]);
+            }
             break;
+        }
 
         case NODE_ARRAY_LIT:  walk_list(c, &n->array_lit.elems); break;
         case NODE_STRUCT_LIT: {
