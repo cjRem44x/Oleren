@@ -142,21 +142,85 @@ static void load_stdlib_module(AstNode *prog, const char *stdlib_path,
     srcs[(*count)++] = src;
 }
 
-static int seen_import(char **paths, char **aliases, int count,
-                       const char *path, const char *alias, int line)
+/* -----------------------------------------------------------------------
+   Recursive import resolution
+   ----------------------------------------------------------------------- */
+
+#define MAX_VISITED 256
+
+typedef struct {
+    AstNode *top;          /* top-level program — all MODULE nodes pushed here */
+    char    *visited[MAX_VISITED]; /* canonical paths already resolved/in-progress */
+    int      visited_count;
+    char   **extra_srcs;
+    int     *extra_count;
+    int      max;
+} ImportCtx;
+
+static int ctx_seen(ImportCtx *ctx, const char *canon)
 {
-    for (int i = 0; i < count; i++) {
-        if (strcmp(paths[i], path) == 0) {
-            fprintf(stderr,
-                    "error: line %d: module '%s' was already imported as '%s'\n",
-                    line, path, aliases[i]);
-            fprintf(stderr,
-                    "       use the existing alias instead of importing the same file twice as '%s'\n",
-                    alias);
-            return 1;
-        }
-    }
+    for (int i = 0; i < ctx->visited_count; i++)
+        if (strcmp(ctx->visited[i], canon) == 0) return 1;
     return 0;
+}
+
+static void ctx_add(ImportCtx *ctx, char *canon)
+{
+    if (ctx->visited_count < MAX_VISITED)
+        ctx->visited[ctx->visited_count++] = canon;
+    else
+        free(canon);
+}
+
+/* Depth-first recursive resolution of local file imports.
+   Dependencies are pushed to ctx->top->program.decls before their dependents,
+   so the emitted C++ namespaces are in dependency order.
+   A path added to the visited set before recursing handles both diamond deps
+   (same file imported via two paths) and import cycles (silently broken). */
+static int resolve_local_rec(const char *host_path, NodeList *imports,
+                              ImportCtx *ctx)
+{
+    for (int i = 0; i < imports->count; i++) {
+        AstNode *imp = imports->items[i];
+        if (imp->import_decl.is_lib) continue;
+
+        char *resolved = resolve_path(host_path, imp->import_decl.source);
+        if (!resolved) return 0;
+
+        char *canon = canonical_path(resolved);
+
+        if (ctx_seen(ctx, canon)) {
+            /* already emitted — diamond dep or import cycle; skip silently */
+            free(resolved); free(canon);
+            continue;
+        }
+        ctx_add(ctx, canon); /* mark before recursing to break cycles */
+
+        if (*ctx->extra_count >= ctx->max) {
+            fprintf(stderr, "error: too many imports (limit %d)\n", ctx->max);
+            free(resolved); return 0;
+        }
+
+        char *src = NULL;
+        AstNode *imported = resolver_parse_file(resolved, &src);
+        if (!imported) { free(resolved); return 0; }
+
+        /* depth-first: resolve this file's own imports before adding it */
+        if (!resolve_local_rec(resolved, &imported->program.imports, ctx)) {
+            free(resolved); ast_free(imported); free(src); return 0;
+        }
+        free(resolved);
+
+        AstNode *mod = ast_node_new(NODE_MODULE, imp->line, imp->col);
+        mod->module.name = strdup(imp->import_decl.alias); /* own the name; imp freed below */
+        mod->module.decls = imported->program.decls;
+        imported->program.decls.count = 0;
+        imported->program.decls.items = NULL;
+        ast_free(imported);
+        node_list_push(&ctx->top->program.decls, mod);
+        ctx->extra_srcs[(*ctx->extra_count)++] = src;
+    }
+    return 1;
 }
 
 int resolver_merge_imports(AstNode *program, const char *host_path,
@@ -187,53 +251,17 @@ int resolver_merge_imports(AstNode *program, const char *host_path,
         }
     }
 
-    char *host_canon = canonical_path(host_path);
-    char *seen_paths[64];
-    char *seen_aliases[64];
-    int seen_count = 0;
+    ImportCtx ctx = {0};
+    ctx.top = program;
+    ctx.extra_srcs = extra_srcs;
+    ctx.extra_count = extra_count;
+    ctx.max = max;
 
-    for (int i = 0; i < program->program.imports.count; i++) {
-        AstNode *imp = program->program.imports.items[i];
-        if (imp->import_decl.is_lib) continue;
-        char *resolved = resolve_path(host_path, imp->import_decl.source);
-        if (!resolved) { free(host_canon); return 0; }
-        char *canon = canonical_path(resolved);
-        if (strcmp(canon, host_canon) == 0) {
-            fprintf(stderr,
-                    "error: line %d: import cycle: '%s' imports itself via '%s'\n",
-                    imp->line, host_path, imp->import_decl.source);
-            free(resolved); free(canon); free(host_canon);
-            return 0;
-        }
-        if (seen_import(seen_paths, seen_aliases, seen_count, canon,
-                        imp->import_decl.alias, imp->line)) {
-            free(resolved); free(canon); free(host_canon);
-            return 0;
-        }
-        if (seen_count < 64) {
-            seen_paths[seen_count] = canon;
-            seen_aliases[seen_count] = imp->import_decl.alias;
-            seen_count++;
-        } else {
-            free(canon);
-        }
-        if (*extra_count >= max) {
-            fprintf(stderr, "error: too many imports (limit %d)\n", max);
-            free(resolved); free(host_canon); return 0;
-        }
-        char *src = NULL;
-        AstNode *imported = resolver_parse_file(resolved, &src);
-        free(resolved);
-        if (!imported) { free(host_canon); return 0; }
-        AstNode *mod = ast_node_new(NODE_MODULE, 0, 0);
-        mod->module.name = imp->import_decl.alias;
-        mod->module.decls = imported->program.decls;
-        imported->program.decls.count = 0;
-        imported->program.decls.items = NULL;
-        ast_free(imported);
-        node_list_push(&program->program.decls, mod);
-        extra_srcs[(*extra_count)++] = src;
-    }
-    free(host_canon);
-    return 1;
+    /* add the host file itself so circular imports from transitive deps are caught */
+    ctx_add(&ctx, canonical_path(host_path));
+
+    int ok = resolve_local_rec(host_path, &program->program.imports, &ctx);
+
+    for (int i = 0; i < ctx.visited_count; i++) free(ctx.visited[i]);
+    return ok;
 }

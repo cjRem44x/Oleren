@@ -51,11 +51,15 @@ static int is_import_alias(Codegen *cg, const char *name)
     return 0;
 }
 
-/* true if the alias is a local .olrn file module (not a @std lib) */
+/* true if the alias is a local .olrn file module (not a @std lib).
+   Checks both direct imports and transitively-resolved MODULE nodes. */
 static int is_module_alias(Codegen *cg, const char *name)
 {
     for (int i = 0; i < cg->import_alias_count; i++)
         if (!cg->import_is_lib[i] && strcmp(cg->import_aliases[i], name) == 0)
+            return 1;
+    for (int i = 0; i < cg->known_module_count; i++)
+        if (strcmp(cg->known_modules[i]->module.name, name) == 0)
             return 1;
     return 0;
 }
@@ -2103,12 +2107,19 @@ void codegen_emit(Codegen *cg, AstNode *program)
     }
     fputc('\n', cg->out);
 
-    /* imported file modules — each becomes a namespace block */
+    /* pre-register every MODULE node (including transitive deps) so
+       is_module_alias() works correctly inside emit_module calls */
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
         if (decl->kind != NODE_MODULE) continue;
         if (cg->known_module_count < MAX_IMPORT_ALIAS)
             cg->known_modules[cg->known_module_count++] = decl;
+    }
+
+    /* imported file modules — each becomes a namespace block */
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind != NODE_MODULE) continue;
         emit_module(cg, decl);
     }
 
