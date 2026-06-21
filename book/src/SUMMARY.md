@@ -56,6 +56,17 @@
 
 ---
 
+# Crypt — Cryptography Library
+
+- [Overview](crypt/overview.md)
+- [Hashing](crypt/hashing.md)
+- [Symmetric Encryption](crypt/symmetric.md)
+- [Public-Key Cryptography](crypt/pubkey.md)
+- [Signing](crypt/signing.md)
+- [Utilities](crypt/utilities.md)
+
+---
+
 # Gdev — Gamedev Library
 
 - [Overview](gdev/overview.md)
