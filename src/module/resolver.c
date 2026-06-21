@@ -225,7 +225,7 @@ int resolver_merge_imports(AstNode *program, const char *host_path,
         AstNode *imported = resolver_parse_file(resolved, &src);
         free(resolved);
         if (!imported) { free(host_canon); return 0; }
-        AstNode *mod = ast_node_new(NODE_MODULE, 0);
+        AstNode *mod = ast_node_new(NODE_MODULE, 0, 0);
         mod->module.name = imp->import_decl.alias;
         mod->module.decls = imported->program.decls;
         imported->program.decls.count = 0;

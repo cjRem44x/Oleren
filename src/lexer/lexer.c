@@ -8,6 +8,7 @@ void lexer_init(Lexer *l, const char *src)
     l->src       = src;
     l->pos       = 0;
     l->line      = 1;
+    l->col       = 1;
     l->last_type = TOK_EOF; /* nothing emitted yet — won't trigger implicit newline */
     l->has_held  = 0;
 }
@@ -18,7 +19,8 @@ static char peek(Lexer *l) { return l->src[l->pos] ? l->src[l->pos + 1] : '\0'; 
 static char adv(Lexer *l)
 {
     char c = l->src[l->pos++];
-    if (c == '\n') l->line++;
+    if (c == '\n') { l->line++; l->col = 1; }
+    else { l->col++; }
     return c;
 }
 
@@ -34,9 +36,9 @@ static void skip_ws_and_comments(Lexer *l)
     }
 }
 
-static Token make_tok(int line, TokenType type, const char *start, int len)
+static Token make_tok(int line, int col, TokenType type, const char *start, int len)
 {
-    Token t = {type, start, len, line};
+    Token t = {type, start, len, line, col};
     return t;
 }
 
@@ -93,8 +95,9 @@ static Token lex_one(Lexer *l)
 {
     const char *start = l->src + l->pos;
     int line = l->line;
+    int col  = l->col;
 
-    if (!cur(l)) return make_tok(line, TOK_EOF, start, 0);
+    if (!cur(l)) return make_tok(line, col, TOK_EOF, start, 0);
 
     char c = adv(l);
 
@@ -111,7 +114,7 @@ static Token lex_one(Lexer *l)
             }
             int inner_len = (int)(l->src + l->pos - inner);
             if (cur(l)) { adv(l); adv(l); adv(l); } /* consume closing """ */
-            return make_tok(line, TOK_MSTR_LIT, inner, inner_len);
+            return make_tok(line, col, TOK_MSTR_LIT, inner, inner_len);
         }
         /* single-quoted string */
         while (cur(l) && cur(l) != '"') {
@@ -120,7 +123,7 @@ static Token lex_one(Lexer *l)
         }
         if (cur(l) == '"') adv(l);
         /* token value is the inner text, without quotes */
-        return make_tok(line, TOK_STR_LIT, start + 1,
+        return make_tok(line, col, TOK_STR_LIT, start + 1,
                         (int)(l->src + l->pos - start) - 2);
     }
 
@@ -129,14 +132,14 @@ static Token lex_one(Lexer *l)
         if (cur(l) == '\\') adv(l);
         adv(l);
         if (cur(l) == '\'') adv(l);
-        return make_tok(line, TOK_CHAR_LIT, start + 1,
+        return make_tok(line, col, TOK_CHAR_LIT, start + 1,
                         (int)(l->src + l->pos - start) - 2);
     }
 
     /* builtin: @name */
     if (c == '@') {
         while (isalnum(cur(l)) || cur(l) == '_') adv(l);
-        return make_tok(line, TOK_BUILTIN, start + 1,
+        return make_tok(line, col, TOK_BUILTIN, start + 1,
                         (int)(l->src + l->pos - start) - 1);
     }
 
@@ -144,7 +147,7 @@ static Token lex_one(Lexer *l)
     if (isalpha(c) || c == '_') {
         while (isalnum(cur(l)) || cur(l) == '_') adv(l);
         int len = (int)(l->src + l->pos - start);
-        return make_tok(line, check_kw(start, len), start, len);
+        return make_tok(line, col, check_kw(start, len), start, len);
     }
 
     /* number */
@@ -153,65 +156,65 @@ static Token lex_one(Lexer *l)
         if (c == '0' && (cur(l) == 'x' || cur(l) == 'X')) {
             adv(l);
             while (isxdigit(cur(l))) adv(l);
-            return make_tok(line, TOK_INT_LIT, start,
+            return make_tok(line, col, TOK_INT_LIT, start,
                             (int)(l->src + l->pos - start));
         }
         /* binary: 0b... */
         if (c == '0' && (cur(l) == 'b' || cur(l) == 'B')) {
             adv(l);
             while (cur(l) == '0' || cur(l) == '1') adv(l);
-            return make_tok(line, TOK_INT_LIT, start,
+            return make_tok(line, col, TOK_INT_LIT, start,
                             (int)(l->src + l->pos - start));
         }
         while (isdigit(cur(l))) adv(l);
         if (cur(l) == '.' && isdigit(peek(l))) {
             adv(l);
             while (isdigit(cur(l))) adv(l);
-            return make_tok(line, TOK_FLOAT_LIT, start,
+            return make_tok(line, col, TOK_FLOAT_LIT, start,
                             (int)(l->src + l->pos - start));
         }
-        return make_tok(line, TOK_INT_LIT, start,
+        return make_tok(line, col, TOK_INT_LIT, start,
                         (int)(l->src + l->pos - start));
     }
 
     /* two-char and single-char symbols */
     switch (c) {
-        case '+': if (cur(l)=='='){adv(l);return make_tok(line,TOK_PLUS_EQ,   start,2);} return make_tok(line,TOK_PLUS,    start,1);
-        case '=': if (cur(l)=='>'){adv(l);return make_tok(line,TOK_FAT_ARROW,start,2);}
-                  if (cur(l)=='='){adv(l);return make_tok(line,TOK_EQEQ,     start,2);} return make_tok(line,TOK_EQ,       start,1);
-        case ':': if (cur(l)=='='){adv(l);return make_tok(line,TOK_WALRUS, start,2);}
-                  if (cur(l)==':'){adv(l);return make_tok(line,TOK_COLCOL, start,2);} return make_tok(line,TOK_COLON,start,1);
+        case '+': if (cur(l)=='='){adv(l);return make_tok(line, col, TOK_PLUS_EQ,   start,2);} return make_tok(line, col, TOK_PLUS,    start,1);
+        case '=': if (cur(l)=='>'){adv(l);return make_tok(line, col, TOK_FAT_ARROW,start,2);}
+                  if (cur(l)=='='){adv(l);return make_tok(line, col, TOK_EQEQ,     start,2);} return make_tok(line, col, TOK_EQ,       start,1);
+        case ':': if (cur(l)=='='){adv(l);return make_tok(line, col, TOK_WALRUS, start,2);}
+                  if (cur(l)==':'){adv(l);return make_tok(line, col, TOK_COLCOL, start,2);} return make_tok(line, col, TOK_COLON,start,1);
         case '.': if (cur(l)=='.'){adv(l);
-                      if (cur(l)=='='){adv(l);return make_tok(line,TOK_DOTDOTEQ, start,3);}
-                      if (cur(l)=='.'){adv(l);return make_tok(line,TOK_ELLIPSIS,  start,3);}
-                      return make_tok(line,TOK_DOTDOT,start,2);}
+                      if (cur(l)=='='){adv(l);return make_tok(line, col, TOK_DOTDOTEQ, start,3);}
+                      if (cur(l)=='.'){adv(l);return make_tok(line, col, TOK_ELLIPSIS,  start,3);}
+                      return make_tok(line, col, TOK_DOTDOT,start,2);}
                   /* .* deref postfix — consume * here so .*= doesn't become . + *= */
-                  if (cur(l)=='*'){adv(l);return make_tok(line,TOK_DOTDEREF,start,2);}
-                  return make_tok(line,TOK_DOT,start,1);
-        case '!': if (cur(l)=='='){adv(l);return make_tok(line,TOK_NEQ,      start,2);} return make_tok(line,TOK_BANG,     start,1);
-        case '<': if (cur(l)=='='){adv(l);return make_tok(line,TOK_LEQ,    start,2);}
-                  if (cur(l)=='<'){adv(l);return make_tok(line,TOK_LSHIFT,start,2);} return make_tok(line,TOK_LT,start,1);
-        case '>': if (cur(l)=='='){adv(l);return make_tok(line,TOK_GEQ,    start,2);}
-                  if (cur(l)=='>'){adv(l);return make_tok(line,TOK_RSHIFT,start,2);} return make_tok(line,TOK_GT,start,1);
-        case '(': return make_tok(line, TOK_LPAREN,   start, 1);
-        case ')': return make_tok(line, TOK_RPAREN,   start, 1);
-        case '{': return make_tok(line, TOK_LBRACE,   start, 1);
-        case '}': return make_tok(line, TOK_RBRACE,   start, 1);
-        case '[': return make_tok(line, TOK_LBRACKET, start, 1);
-        case ']': return make_tok(line, TOK_RBRACKET, start, 1);
-        case ',': return make_tok(line, TOK_COMMA,    start, 1);
-        case ';': return make_tok(line, TOK_SEMICOLON,start, 1);
-        case '*': if (cur(l)=='='){adv(l);return make_tok(line,TOK_STAR_EQ,   start,2);} return make_tok(line,TOK_STAR,   start,1);
-        case '/': if (cur(l)=='='){adv(l);return make_tok(line,TOK_SLASH_EQ,  start,2);} return make_tok(line,TOK_SLASH,  start,1);
-        case '%': if (cur(l)=='='){adv(l);return make_tok(line,TOK_PERCENT_EQ,start,2);} return make_tok(line,TOK_PERCENT,start,1);
-        case '-': if (cur(l)=='>'){adv(l);return make_tok(line,TOK_ARROW,     start,2);}
-                  if (cur(l)=='='){adv(l);return make_tok(line,TOK_MINUS_EQ,  start,2);} return make_tok(line,TOK_MINUS,  start,1);
-        case '&': return make_tok(line, TOK_AMP,      start, 1);
-        case '^': return make_tok(line, TOK_CARET,    start, 1);
-        case '|': return make_tok(line, TOK_PIPE,     start, 1);
+                  if (cur(l)=='*'){adv(l);return make_tok(line, col, TOK_DOTDEREF,start,2);}
+                  return make_tok(line, col, TOK_DOT,start,1);
+        case '!': if (cur(l)=='='){adv(l);return make_tok(line, col, TOK_NEQ,      start,2);} return make_tok(line, col, TOK_BANG,     start,1);
+        case '<': if (cur(l)=='='){adv(l);return make_tok(line, col, TOK_LEQ,    start,2);}
+                  if (cur(l)=='<'){adv(l);return make_tok(line, col, TOK_LSHIFT,start,2);} return make_tok(line, col, TOK_LT,start,1);
+        case '>': if (cur(l)=='='){adv(l);return make_tok(line, col, TOK_GEQ,    start,2);}
+                  if (cur(l)=='>'){adv(l);return make_tok(line, col, TOK_RSHIFT,start,2);} return make_tok(line, col, TOK_GT,start,1);
+        case '(': return make_tok(line, col, TOK_LPAREN,   start, 1);
+        case ')': return make_tok(line, col, TOK_RPAREN,   start, 1);
+        case '{': return make_tok(line, col, TOK_LBRACE,   start, 1);
+        case '}': return make_tok(line, col, TOK_RBRACE,   start, 1);
+        case '[': return make_tok(line, col, TOK_LBRACKET, start, 1);
+        case ']': return make_tok(line, col, TOK_RBRACKET, start, 1);
+        case ',': return make_tok(line, col, TOK_COMMA,    start, 1);
+        case ';': return make_tok(line, col, TOK_SEMICOLON,start, 1);
+        case '*': if (cur(l)=='='){adv(l);return make_tok(line, col, TOK_STAR_EQ,   start,2);} return make_tok(line, col, TOK_STAR,   start,1);
+        case '/': if (cur(l)=='='){adv(l);return make_tok(line, col, TOK_SLASH_EQ,  start,2);} return make_tok(line, col, TOK_SLASH,  start,1);
+        case '%': if (cur(l)=='='){adv(l);return make_tok(line, col, TOK_PERCENT_EQ,start,2);} return make_tok(line, col, TOK_PERCENT,start,1);
+        case '-': if (cur(l)=='>'){adv(l);return make_tok(line, col, TOK_ARROW,     start,2);}
+                  if (cur(l)=='='){adv(l);return make_tok(line, col, TOK_MINUS_EQ,  start,2);} return make_tok(line, col, TOK_MINUS,  start,1);
+        case '&': return make_tok(line, col, TOK_AMP,      start, 1);
+        case '^': return make_tok(line, col, TOK_CARET,    start, 1);
+        case '|': return make_tok(line, col, TOK_PIPE,     start, 1);
     }
 
-    return make_tok(line, TOK_ERROR, start, 1);
+    return make_tok(line, col, TOK_ERROR, start, 1);
 }
 
 Token lexer_next(Lexer *l)
@@ -232,7 +235,7 @@ Token lexer_next(Lexer *l)
         l->held_tok  = lex_one(l);   /* defer the real token for next call */
         l->has_held  = 1;
         l->last_type = TOK_NEWLINE;
-        return make_tok(line_before, TOK_NEWLINE, l->src + l->pos, 0);
+        return make_tok(line_before, 1, TOK_NEWLINE, l->src + l->pos, 0);
     }
 
     Token t = lex_one(l);

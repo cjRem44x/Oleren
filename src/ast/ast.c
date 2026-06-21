@@ -2,11 +2,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-AstNode *ast_node_new(NodeKind kind, int line)
+AstNode *ast_node_new(NodeKind kind, int line, int col)
 {
     AstNode *n = calloc(1, sizeof(AstNode));
     n->kind = kind;
     n->line = line;
+    n->col  = col;
     return n;
 }
 

@@ -69,6 +69,7 @@ typedef struct {
 struct AstNode {
     NodeKind kind;
     int      line;
+    int      col;
     union {
         /* NODE_PROGRAM */
         struct { NodeList imports; NodeList decls; } program;
@@ -264,7 +265,7 @@ struct AstNode {
     };
 };
 
-AstNode *ast_node_new(NodeKind kind, int line);
+AstNode *ast_node_new(NodeKind kind, int line, int col);
 void     node_list_push(NodeList *list, AstNode *node);
 void     ast_free(AstNode *node);
 void     ast_print(AstNode *node, int indent);

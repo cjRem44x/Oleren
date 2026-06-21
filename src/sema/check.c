@@ -44,7 +44,7 @@ static void pop_scope(Check *c)
         c->sym_count = c->scope_start[c->scope_depth];
 }
 
-static void declare(Check *c, const char *name, int line, int ptr_kind)
+static void declare(Check *c, const char *name, int line, int col, int ptr_kind)
 {
     if (!name || strcmp(name, "_") == 0) return;
     /* shadowing an import alias is banned: codegen treats alias-rooted
@@ -53,9 +53,9 @@ static void declare(Check *c, const char *name, int line, int ptr_kind)
     for (int i = 0; i < c->import_count; i++) {
         if (strcmp(c->imports[i]->import_decl.alias, name) == 0) {
             fprintf(stderr,
-                    "error: line %d: '%s' shadows the import alias "
+                    "error:%d:%d: '%s' shadows the import alias "
                     "declared on line %d\n",
-                    line, name, c->imports[i]->line);
+                    line, col, name, c->imports[i]->line);
             c->errors++;
             break;
         }
@@ -183,14 +183,14 @@ static void walk_list(Check *c, NodeList *l)
 }
 
 /* validate an error value appearing in 'ret' */
-static void check_ret_value(Check *c, AstNode *v, int line)
+static void check_ret_value(Check *c, AstNode *v, int line, int col)
 {
     if (v->kind == NODE_ERR_LIT) {
         if (c->fn_set) {
             fprintf(stderr,
-                    "error: line %d: fn '%s' returns '%s!...' — ad-hoc error "
+                    "error:%d:%d: fn '%s' returns '%s!...' — ad-hoc error "
                     "'err.%s' is not in set '%s'\n",
-                    line, c->fn_name, c->fn_set,
+                    line, col, c->fn_name, c->fn_set,
                     v->err_lit.variant_name, c->fn_set);
             c->errors++;
         }
@@ -201,15 +201,15 @@ static void check_ret_value(Check *c, AstNode *v, int line)
         if (!set) return; /* not an error value (enum, struct field, ...) */
         if (!set_has_variant(set, v->field.name)) {
             fprintf(stderr,
-                    "error: line %d: error set '%s' has no variant '%s'\n",
-                    line, set->err_decl.name, v->field.name);
+                    "error:%d:%d: error set '%s' has no variant '%s'\n",
+                    line, col, set->err_decl.name, v->field.name);
             c->errors++;
         }
         if (c->fn_set && strcmp(set->err_decl.name, c->fn_set) != 0) {
             fprintf(stderr,
-                    "error: line %d: fn '%s' returns '%s!...' but error is "
+                    "error:%d:%d: fn '%s' returns '%s!...' but error is "
                     "from set '%s'\n",
-                    line, c->fn_name, c->fn_set, set->err_decl.name);
+                    line, col, c->fn_name, c->fn_set, set->err_decl.name);
             c->errors++;
         }
     }
@@ -228,18 +228,18 @@ static void walk(Check *c, AstNode *n)
             if (n->ret.value) {
                 if (!c->fn_ret_type) {
                     fprintf(stderr,
-                            "error: line %d: fn '%s' returns void; add an "
+                            "error:%d:%d: fn '%s' returns void; add an "
                             "explicit return type or use bare 'ret'\n",
-                            n->line, c->fn_name);
+                            n->line, n->col, c->fn_name);
                     c->errors++;
                 }
-                check_ret_value(c, n->ret.value, n->line);
+                check_ret_value(c, n->ret.value, n->line, n->col);
                 walk(c, n->ret.value);
             } else if (c->fn_ret_type && !type_is_void_result(c->fn_ret_type)) {
                 fprintf(stderr,
-                        "error: line %d: fn '%s' returns a value; bare 'ret' "
+                        "error:%d:%d: fn '%s' returns a value; bare 'ret' "
                         "is only valid for void returns\n",
-                        n->line, c->fn_name);
+                        n->line, n->col, c->fn_name);
                 c->errors++;
             }
             break;
@@ -251,9 +251,9 @@ static void walk(Check *c, AstNode *n)
                 const char *cs = callee ? fn_err_set(callee) : NULL;
                 if (cs && strcmp(cs, c->fn_set) != 0) {
                     fprintf(stderr,
-                            "error: line %d: fn '%s' returns '%s!...' but "
+                            "error:%d:%d: fn '%s' returns '%s!...' but "
                             "'try %s(...)' propagates set '%s'\n",
-                            n->line, c->fn_name, c->fn_set, e->call.name, cs);
+                            n->line, n->col, c->fn_name, c->fn_set, e->call.name, cs);
                     c->errors++;
                 }
             }
@@ -265,7 +265,7 @@ static void walk(Check *c, AstNode *n)
             walk(c, n->catch_expr.fallback);
             if (n->catch_expr.body) {
                 push_scope(c);
-                declare(c, n->catch_expr.err_var, n->line, 0);
+                declare(c, n->catch_expr.err_var, n->line, n->col, 0);
                 walk(c, n->catch_expr.body);
                 pop_scope(c);
             }
@@ -276,8 +276,8 @@ static void walk(Check *c, AstNode *n)
                 is_local(c, n->assign.lhs->ident.name) &&
                 sym_ptr_kind(c, n->assign.lhs->ident.name) == 0) {
                 fprintf(stderr,
-                        "error: line %d: cannot assign null to non-pointer '%s'\n",
-                        n->line, n->assign.lhs->ident.name);
+                        "error:%d:%d: cannot assign null to non-pointer '%s'\n",
+                        n->line, n->col, n->assign.lhs->ident.name);
                 c->errors++;
             }
             walk(c, n->assign.lhs);
@@ -294,8 +294,8 @@ static void walk(Check *c, AstNode *n)
         case NODE_FOR_EACH:
             walk(c, n->for_each.iter);
             push_scope(c);
-            declare(c, n->for_each.elem, n->line, 0);
-            declare(c, n->for_each.idx,  n->line, 0);
+            declare(c, n->for_each.elem, n->line, n->col, 0);
+            declare(c, n->for_each.idx,  n->line, n->col, 0);
             walk(c, n->for_each.body);
             pop_scope(c);
             break;
@@ -304,9 +304,9 @@ static void walk(Check *c, AstNode *n)
             if (n->var_decl.init && is_usize_expr(n->var_decl.init) &&
                 is_signed_int_type(n->var_decl.type_ref)) {
                 fprintf(stderr,
-                        "warning: line %d: '%s' is declared as '%s' but '.%s' "
+                        "warning:%d:%d: '%s' is declared as '%s' but '.%s' "
                         "returns usize — use usize or cast with @%s(...)\n",
-                        n->line, n->var_decl.name,
+                        n->line, n->col, n->var_decl.name,
                         n->var_decl.type_ref->type_ref.name,
                         n->var_decl.init->field.name,
                         n->var_decl.type_ref->type_ref.name);
@@ -315,18 +315,18 @@ static void walk(Check *c, AstNode *n)
             if (n->var_decl.init && n->var_decl.init->kind == NODE_NULL_LIT &&
                 var_decl_ptr_kind(n) == 0) {
                 fprintf(stderr,
-                        "error: line %d: null requires an explicit pointer type (*T or ^T)\n",
-                        n->line);
+                        "error:%d:%d: null requires an explicit pointer type (*T or ^T)\n",
+                        n->line, n->col);
                 c->errors++;
             }
-            declare(c, n->var_decl.name, n->line, var_decl_ptr_kind(n));
+            declare(c, n->var_decl.name, n->line, n->col, var_decl_ptr_kind(n));
             break;
         }
         case NODE_VAR_DECL_GROUP:
             for (int i = 0; i < n->var_decl_group.entries.count; i++) {
                 AstNode *e = n->var_decl_group.entries.items[i];
                 walk(c, e->var_decl.init);
-                declare(c, e->var_decl.name, e->line, type_ptr_kind(n->var_decl_group.type_ref));
+                declare(c, e->var_decl.name, e->line, e->col, type_ptr_kind(n->var_decl_group.type_ref));
             }
             break;
         case NODE_IF:
@@ -350,16 +350,16 @@ static void walk(Check *c, AstNode *n)
                     int pk = sym_ptr_kind(c, arg->ident.name);
                     if (pk == 2) {
                         fprintf(stderr,
-                                "error: line %d: '@free' called on '%s' which is a "
+                                "error:%d:%d: '@free' called on '%s' which is a "
                                 "smart pointer (^T) — smart pointers free themselves; "
                                 "remove the @free call\n",
-                                n->line, arg->ident.name);
+                                n->line, n->col, arg->ident.name);
                         c->errors++;
                     } else if (pk == 0) {
                         fprintf(stderr,
-                                "error: line %d: '@free' expects a raw pointer (*T), "
+                                "error:%d:%d: '@free' expects a raw pointer (*T), "
                                 "but '%s' is not a pointer\n",
-                                n->line, arg->ident.name);
+                                n->line, n->col, arg->ident.name);
                         c->errors++;
                     }
                 }
@@ -370,8 +370,8 @@ static void walk(Check *c, AstNode *n)
             AstNode *callee = find_fn(c, n->call.name);
             if (callee && n->call.args.count != callee->fn_decl.params.count) {
                 fprintf(stderr,
-                        "error: line %d: fn '%s' expects %d argument%s, got %d\n",
-                        n->line, n->call.name, callee->fn_decl.params.count,
+                        "error:%d:%d: fn '%s' expects %d argument%s, got %d\n",
+                        n->line, n->col, n->call.name, callee->fn_decl.params.count,
                         callee->fn_decl.params.count == 1 ? "" : "s",
                         n->call.args.count);
                 c->errors++;
@@ -396,7 +396,7 @@ static void check_fn_body(Check *c, AstNode *fn)
     push_scope(c);
     for (int j = 0; j < fn->fn_decl.params.count; j++) {
         AstNode *pm = fn->fn_decl.params.items[j];
-        declare(c, pm->param.name, pm->line, type_ptr_kind(pm->param.type));
+        declare(c, pm->param.name, pm->line, pm->col, type_ptr_kind(pm->param.type));
     }
     walk(c, fn->fn_decl.body);
     pop_scope(c);
@@ -420,8 +420,8 @@ int check_program(AstNode *program)
             AstNode *prev = find_fn(&c, d->fn_decl.name);
             if (prev) {
                 fprintf(stderr,
-                        "error: line %d: duplicate fn '%s' (first declared on line %d)\n",
-                        d->line, d->fn_decl.name, prev->line);
+                        "error:%d:%d: duplicate fn '%s' (first declared on line %d)\n",
+                        d->line, d->col, d->fn_decl.name, prev->line);
                 c.errors++;
             } else {
                 c.fns[c.fn_count++] = d;
@@ -433,17 +433,17 @@ int check_program(AstNode *program)
                 AstNode *f = d->struct_decl.fields.items[j];
                 if (strcmp(f->param.name, "len") == 0) {
                     fprintf(stderr,
-                            "error: line %d: struct '%s': field name 'len' "
+                            "error:%d:%d: struct '%s': field name 'len' "
                             "is reserved (the .len length property)\n",
-                            f->line, d->struct_decl.name);
+                            f->line, f->col, d->struct_decl.name);
                     c.errors++;
                 }
                 if (type_is_any(f->param.type)) {
                     fprintf(stderr,
-                            "error: line %d: struct '%s': field '%s' uses "
+                            "error:%d:%d: struct '%s': field '%s' uses "
                             "'any', but generic struct fields are not "
                             "implemented yet; use a concrete type\n",
-                            f->line, d->struct_decl.name, f->param.name);
+                            f->line, f->col, d->struct_decl.name, f->param.name);
                     c.errors++;
                 }
             }
@@ -475,8 +475,8 @@ int check_program(AstNode *program)
     for (int i = 0; i < c.import_count; i++) {
         if (!c.import_used[i]) {
             AstNode *imp = c.imports[i];
-            fprintf(stderr, "error: line %d: unused import '%s'\n",
-                    imp->line, imp->import_decl.alias);
+            fprintf(stderr, "error:%d:%d: unused import '%s'\n",
+                    imp->line, imp->col, imp->import_decl.alias);
             c.errors++;
         }
     }

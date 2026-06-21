@@ -57,12 +57,14 @@ typedef struct {
     const char *start; /* pointer into source buffer */
     int         len;
     int         line;
+    int         col;
 } Token;
 
 typedef struct {
     const char *src;
     int         pos;
     int         line;
+    int         col;
     TokenType   last_type; /* type of the last emitted token */
     int         has_held;  /* 1 = held_tok is valid and should be returned next */
     Token       held_tok;  /* real token deferred behind a TOK_NEWLINE */
