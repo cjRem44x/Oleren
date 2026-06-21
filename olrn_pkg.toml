@@ -1,0 +1,6 @@
+[project]
+name = "Oleren"
+version = "0.2.0"
+
+# external dependencies land here once the package manager exists:
+# [deps]

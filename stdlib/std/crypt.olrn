@@ -1,0 +1,170 @@
+err CryptError { InitFailed, BadKey, BadInput, DecryptFailed, HashFailed, IOFailed }
+
+# strength constants (i32, passed to functions accepting stren)
+FAST    :i32: 0
+DEFAULT :i32: 1
+STRONG  :i32: 2
+
+# hash algorithm constants
+SHA256  :i32: 0
+SHA512  :i32: 1
+BLAKE2B :i32: 2
+
+# CryptKeyPair     { pub_key: str, sec_key: str }   — defined in C++ backend
+# CryptSignKeyPair { verify_key: str, sign_key: str } — defined in C++ backend
+
+# ── Password hashing (Argon2id) ────────────────────────────────
+
+fn crypt_hashpk(s: i32, plain: str) -> CryptError!str
+{
+    ok :: _olrn_crypt_hashpk(s, plain)
+    if !ok { ret CryptError.HashFailed }
+    ret _olrn_crypt_get_result()
+}
+
+fn crypt_auth_hashpk(plain: str, hashed: str) -> CryptError!bool
+{
+    r :i32: _olrn_crypt_auth_hashpk(plain, hashed)
+    if r < 0 { ret CryptError.InitFailed }
+    ret r > 0
+}
+
+# ── Hashing ────────────────────────────────────────────────────
+
+fn crypt_hash(algo: i32, data: str) -> str
+{
+    ret _olrn_crypt_hash(algo, data)
+}
+
+fn crypt_hash_file(algo: i32, path: str) -> CryptError!str
+{
+    ok :: _olrn_crypt_hash_file(algo, path)
+    if !ok { ret CryptError.IOFailed }
+    ret _olrn_crypt_get_result()
+}
+
+fn crypt_hmac(algo: i32, key: str, data: str) -> str
+{
+    ret _olrn_crypt_hmac(algo, key, data)
+}
+
+# ── Symmetric AEAD (XChaCha20-Poly1305) ───────────────────────
+
+fn crypt_keygen() -> str
+{
+    ret _olrn_crypt_keygen()
+}
+
+fn crypt_encrypt(key: str, plain: str) -> CryptError!str
+{
+    ok :: _olrn_crypt_encrypt(key, plain)
+    if !ok { ret CryptError.BadKey }
+    ret _olrn_crypt_get_result()
+}
+
+fn crypt_decrypt(key: str, ct: str) -> CryptError!str
+{
+    ok :: _olrn_crypt_decrypt(key, ct)
+    if !ok { ret CryptError.DecryptFailed }
+    ret _olrn_crypt_get_result()
+}
+
+# ── Asymmetric box (X25519) ────────────────────────────────────
+
+fn crypt_box_keygen() -> CryptKeyPair
+{
+    ret _olrn_crypt_box_keygen()
+}
+
+fn crypt_box_encrypt(our_sk: str, their_pk: str, plain: str) -> CryptError!str
+{
+    ok :: _olrn_crypt_box_encrypt(our_sk, their_pk, plain)
+    if !ok { ret CryptError.BadKey }
+    ret _olrn_crypt_get_result()
+}
+
+fn crypt_box_decrypt(our_sk: str, their_pk: str, ct: str) -> CryptError!str
+{
+    ok :: _olrn_crypt_box_decrypt(our_sk, their_pk, ct)
+    if !ok { ret CryptError.DecryptFailed }
+    ret _olrn_crypt_get_result()
+}
+
+# ── Signatures (Ed25519) ───────────────────────────────────────
+
+fn crypt_sign_keygen() -> CryptSignKeyPair
+{
+    ret _olrn_crypt_sign_keygen()
+}
+
+fn crypt_sign(sk: str, msg: str) -> str
+{
+    ret _olrn_crypt_sign(sk, msg)
+}
+
+fn crypt_verify(vk: str, msg: str, sig: str) -> bool
+{
+    ret _olrn_crypt_verify(vk, msg, sig)
+}
+
+# ── KDF (Argon2id) ─────────────────────────────────────────────
+
+fn crypt_kdf(s: i32, passphrase: str, salt: str, keylen: i32) -> CryptError!str
+{
+    ok :: _olrn_crypt_kdf(s, passphrase, salt, keylen)
+    if !ok { ret CryptError.HashFailed }
+    ret _olrn_crypt_get_result()
+}
+
+# ── Random ─────────────────────────────────────────────────────
+
+fn crypt_rand_bytes(n: i32) -> str
+{
+    ret _olrn_crypt_rand_bytes(n)
+}
+
+fn crypt_rand_hex(n: i32) -> str
+{
+    ret _olrn_crypt_rand_hex(n)
+}
+
+# ── Encoding utilities ─────────────────────────────────────────
+
+fn crypt_base64_encode(data: str) -> str
+{
+    ret _olrn_crypt_base64_encode(data)
+}
+
+fn crypt_base64_decode(b64: str) -> CryptError!str
+{
+    ok :: _olrn_crypt_base64_decode(b64)
+    if !ok { ret CryptError.BadInput }
+    ret _olrn_crypt_get_result()
+}
+
+fn crypt_hex_encode(data: str) -> str
+{
+    ret _olrn_crypt_hex_encode(data)
+}
+
+fn crypt_hex_decode(hex: str) -> CryptError!str
+{
+    ok :: _olrn_crypt_hex_decode(hex)
+    if !ok { ret CryptError.BadInput }
+    ret _olrn_crypt_get_result()
+}
+
+# ── File encryption ────────────────────────────────────────────
+# Format: PLNT magic | ver | stren | cipher | 16-byte salt | 24-byte nonce | ciphertext
+
+fn crypt_enc_file(s: i32, path: str, passphrase: str) -> CryptError!void
+{
+    ok :: _olrn_crypt_enc_file(s, path, passphrase)
+    if !ok { ret CryptError.IOFailed }
+}
+
+fn crypt_dec_file(s: i32, path: str, passphrase: str) -> CryptError!void
+{
+    ok :: _olrn_crypt_dec_file(s, path, passphrase)
+    if !ok { ret CryptError.IOFailed }
+}

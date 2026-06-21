@@ -1,12 +1,12 @@
 @import (
-    crypt = @std.pelentar,
+    crypt = @std.crypt,
 )
 
 fn main() -> !void
 {
     # symmetric round-trip
     key :: crypt.keygen()
-    ct  :: try crypt.encrypt(key, "hello pelentar")
+    ct  :: try crypt.encrypt(key, "hello crypt")
     pt  :: try crypt.decrypt(key, ct)
     @pl("decrypt: " + pt)
 

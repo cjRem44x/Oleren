@@ -1,5 +1,5 @@
 @import (
-    mk = @std.malkur,
+    mk = @std.gdev,
 )
 
 fn main() -> !void
@@ -40,5 +40,5 @@ fn main() -> !void
     bad_mus :: mk.load_music("nonexistent.ogg") catch |_| { @i64(0) }
     if bad_mus != 0 { @panic("expected 0 for missing music") }
 
-    @pl("malkur audio+image test ok")
+    @pl("gdev audio+image test ok")
 }

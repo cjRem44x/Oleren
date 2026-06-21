@@ -3,10 +3,10 @@
 
 #include <stddef.h>
 
-/* System-library dependencies of stdlib modules (e.g. malkur → SDL2).
+/* System-library dependencies of stdlib modules (e.g. gdev → SDL2).
    Resolution order: pkg-config → per-platform fallback flags. */
 typedef struct {
-    const char *module;      /* stdlib module that pulls it in ("malkur") */
+    const char *module;      /* stdlib module that pulls it in ("gdev") */
     const char *lib;         /* human name ("SDL2_mixer") */
     const char *pkg;         /* pkg-config package name ("SDL2_mixer") */
     const char *pkg_pacman;  /* Arch/MSYS2 pacman name ("sdl2_mixer") */

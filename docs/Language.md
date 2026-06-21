@@ -22,7 +22,7 @@
 - [Defer](#defer)
 - [Builtins](#builtins)
 - [Threading](#threading)
-- [Malkur](#malkur)
+- [Gdev](#gdev)
 - [Examples](#examples)
 
 ---
@@ -111,7 +111,7 @@ All imports live in a single `@import` block at the top of the file. Every impor
     y   = "subdir/file.olrn",   # same-tree relative path
 
     std = @std,              # full standard library
-    mk  = @std.malkur,       # one stdlib submodule
+    mk  = @std.gdev,       # one stdlib submodule
     ma  = @std.math,
 )
 ```
@@ -120,7 +120,7 @@ Submodules can also be bound at the top level after the `@import` block:
 
 ```rust
 io :: @std.io
-mk :: @std.malkur
+mk :: @std.gdev
 ```
 
 Rules:
@@ -1066,14 +1066,14 @@ cores := std.thread.cores()  # → i32
 
 ---
 
-## Malkur
+## Gdev
 
-`@std.malkur` is the built-in gamedev library. See [`Malkur.md`](Malkur.md) for the full API.
+`@std.gdev` is the built-in gamedev library. See [`Gdev.md`](Gdev.md) for the full API.
 
 ### Core game loop
 
 ```rust
-@import ( mk = @std.malkur )
+@import ( mk = @std.gdev )
 
 fn main() -> !void
 {
@@ -1416,10 +1416,10 @@ fn main() -> !void
 }
 ```
 
-### Malkur — Simple Game
+### Gdev — Simple Game
 
 ```rust
-@import ( mk = @std.malkur )
+@import ( mk = @std.gdev )
 
 struct Ball {
     x: f32, y: f32,

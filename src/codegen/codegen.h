@@ -21,8 +21,8 @@ typedef struct {
     int         import_is_lib[MAX_IMPORT_ALIAS];  /* 1 = @std/system, 0 = local file module */
     int   import_alias_count;
     int   has_stdlib;    /* @std was imported */
-    int   has_malkur;    /* @std.malkur was bound */
-    int   has_pelentar;  /* @std.pelentar was bound */
+    int   has_gdev;    /* @std.gdev was bound */
+    int   has_crypt;  /* @std.crypt was bound */
     int   defer_counter; /* unique ID for each deferred guard in a function */
     const char *enum_names[MAX_ENUM_NAMES]; /* known enum type names for :: access */
     int   enum_count;

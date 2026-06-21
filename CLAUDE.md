@@ -29,13 +29,13 @@ src/ast/ast.h + ast.c   AST node definitions
 src/sema/check.c        semantic checks
 src/codegen/codegen.c   C++ emitter
 src/module/resolver.c   import resolver
-src/codegen/malkur_impl.h    Malkur SDL2 backend (injected C++ when @std.malkur imported)
+src/codegen/gdev_impl.h    Gdev SDL2 backend (injected C++ when @std.gdev imported)
 src/codegen/stdlib_impl.h    stdlib C++ implementations
-stdlib/std/malkur.olrn       Malkur Oleren wrappers (malkur_* → _olrn_mk_* bridge)
+stdlib/std/gdev.olrn       Gdev Oleren wrappers (gdev_* → _olrn_gd_* bridge)
 ```
 
 The naming convention for stdlib: `mk.pad_btn(0, btn)` → codegen strips alias prefix
-→ `malkur_pad_btn(0, btn)` → calls `_olrn_mk_pad_btn()` from malkur_impl.h.
+→ `gdev_pad_btn(0, btn)` → calls `_olrn_gd_pad_btn()` from gdev_impl.h.
 
 ---
 
@@ -54,8 +54,8 @@ The naming convention for stdlib: `mk.pad_btn(0, btn)` → codegen strips alias 
 - `extern` FFI declarations
 - Module system — file-as-module, `pub fn` enforcement, recursive import resolver
 - CLI: build, run, check, emit, sac, init, deps, view
-- Malkur gamedev library v0.4 (SDL2 backend) — full feature list in Roadmap.md
-- Pelentar crypto library (libsodium backend)
+- Gdev gamedev library v0.4 (SDL2 backend) — full feature list in Roadmap.md
+- Crypt crypto library (libsodium backend)
 
 ### Recently fixed / added (v0.1.6)
 

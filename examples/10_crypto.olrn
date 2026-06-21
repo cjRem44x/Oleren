@@ -2,12 +2,12 @@
 # requires libsodium: sudo pacman -S libsodium  (Arch)
 #                     sudo apt install libsodium-dev  (Debian/Ubuntu)
 
-crypt :: @std.pelentar
+crypt :: @std.crypt
 
 fn main() -> !void
 {
     @pl("── hashing ─────────────────────────────────────────")
-    msg :: "hello, pelentar"
+    msg :: "hello, crypt"
     @pf("blake2b: {}\n", crypt.hash(crypt.BLAKE2B, msg))
     @pf("sha256:  {}\n", crypt.hash(crypt.SHA256,  msg))
 

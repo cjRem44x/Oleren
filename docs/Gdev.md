@@ -1,21 +1,21 @@
-# Malkur — Oleren Gamedev Library
+# Gdev — Oleren Gamedev Library
 
 ## Philosophy
 
-Malkur is the built-in gamedev library for Oleren. Its API is inspired by
+Gdev is the built-in gamedev library for Oleren. Its API is inspired by
 Raylib — simple, flat, and readable — but the implementation compiles down
 to raw backend code (OpenGL, SDL2, Vulkan, etc.) with no managed runtime.
 
 Include via the import block at the top of your file (or a top-level bind:
-`mk :: @std.malkur`). The alias is how all Malkur calls are made — `mk` is
-the conventional short alias. Importing malkur pulls in the SDL2 backend;
+`mk :: @std.gdev`). The alias is how all Gdev calls are made — `mk` is
+the conventional short alias. Importing gdev pulls in the SDL2 backend;
 the compiler resolves the SDL2 flags per platform (pkg-config, with
 Linux/macOS/Windows-MinGW fallbacks). If SDL2 isn't installed, the build
 stops with install instructions for your OS — `olrn deps` checks up front.
 
 ```rust
 @import (
-    mk = @std.malkur,
+    mk = @std.gdev,
 )
 ```
 
@@ -339,7 +339,7 @@ mk.draw_text(text: str, x: f32, y: f32, size: f32, color: Color)
 mk.measure_text(text: str, size: f32) -> Vec2   # Vec2{len*size, size}
 
 # TTF font support (SDL_ttf)
-mk.load_font(path: str, size: i32) -> MalkurError!Font
+mk.load_font(path: str, size: i32) -> GdevError!Font
    # loads a TTF/OTF file at the given pixel size; defer mk.unload_font(font)
 mk.unload_font(font: Font)
 mk.draw_text_ex(font: Font, text: str, pos: Vec2, size: f32, spacing: f32, color: Color)
@@ -514,12 +514,12 @@ mk.check_boxes(min1: Vec3, max1: Vec3, min2: Vec3, max2: Vec3) -> bool
 
 ```rust
 @import (
-    mk = @std.malkur,
+    mk = @std.gdev,
 )
 
 fn main() -> !void
 {
-    try mk.init_window(800, 600, "Hello Malkur")
+    try mk.init_window(800, 600, "Hello Gdev")
     defer mk.close_window()
     mk.set_fps(60)
 

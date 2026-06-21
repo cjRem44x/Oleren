@@ -56,14 +56,14 @@
 
 ---
 
-# Malkur — Gamedev Library
+# Gdev — Gamedev Library
 
-- [Overview](malkur/overview.md)
-- [Window & Rendering](malkur/rendering.md)
-- [Input](malkur/input.md)
-- [Audio](malkur/audio.md)
-- [Textures & Fonts](malkur/textures.md)
-- [Camera](malkur/camera.md)
+- [Overview](gdev/overview.md)
+- [Window & Rendering](gdev/rendering.md)
+- [Input](gdev/input.md)
+- [Audio](gdev/audio.md)
+- [Textures & Fonts](gdev/textures.md)
+- [Camera](gdev/camera.md)
 
 ---
 

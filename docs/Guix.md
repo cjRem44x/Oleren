@@ -1,8 +1,8 @@
-# Glourang — Oleren Native UI Library
+# Guix — Oleren Native UI Library
 
 ## Philosophy
 
-Glourang is the built-in native application library for Oleren. It targets
+Guix is the built-in native application library for Oleren. It targets
 the same simplicity as Swing/AWT — a flat, procedural API where you build
 UIs by composing widgets with function calls — but compiles to Qt6 under the
 hood, giving you native rendering on every platform, hardware-accelerated
@@ -12,10 +12,10 @@ No class hierarchies. No signal/slot boilerplate. No XML layouts. Just
 functions that create widgets, lay them out, and attach callbacks.
 
 ```rust
-@import ( ui = @std.glourang )
+@import ( ui = @std.guix )
 ```
 
-Backend: **Qt6** (`Qt6Widgets`, `Qt6Multimedia`). Importing `@std.glourang`
+Backend: **Qt6** (`Qt6Widgets`, `Qt6Multimedia`). Importing `@std.guix`
 auto-links the required Qt modules via pkg-config. If Qt6 is not installed
 the build stops with OS-specific install instructions.
 
@@ -30,7 +30,7 @@ the build stops with OS-specific install instructions.
 ## Quick Start
 
 ```rust
-@import ( ui = @std.glourang )
+@import ( ui = @std.guix )
 
 fn main() -> !void
 {
@@ -40,7 +40,7 @@ fn main() -> !void
     win := ui.window("My App", 800, 600)
 
     box := ui.vbox(win)
-    lbl := ui.label(box, "Hello, Glourang!")
+    lbl := ui.label(box, "Hello, Guix!")
     btn := ui.button(box, "Click me")
 
     ui.on_click(btn) {
@@ -323,7 +323,7 @@ ui.canvas_update(cv: Widget)   # trigger repaint
 
 ## Media
 
-Glourang handles images, video, and audio natively via Qt Multimedia and
+Guix handles images, video, and audio natively via Qt Multimedia and
 Qt's image pipeline. Supported formats depend on the platform but always
 include the common ones.
 
@@ -518,7 +518,7 @@ ui.color_dialog(win: Window, initial: Color) -> Color
 
 ## Styling
 
-Glourang uses a simple CSS-subset applied per-widget. Fonts and colours
+Guix uses a simple CSS-subset applied per-widget. Fonts and colours
 can also be set with typed helpers.
 
 ```rust
@@ -590,7 +590,7 @@ ui.on_click(tray) { ui.show(win) }
 ## Full Example — Media Browser
 
 ```rust
-@import ( ui = @std.glourang )
+@import ( ui = @std.guix )
 
 fn main() -> !void
 {

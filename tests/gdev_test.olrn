@@ -1,8 +1,8 @@
 @import (
-    mk = @std.malkur,
+    mk = @std.gdev,
 )
 
-# headless-safe malkur test: pure math/color/collision only — no window,
+# headless-safe gdev test: pure math/color/collision only — no window,
 # so it runs under make test. Window/draw/input paths need a display.
 fn main() -> void
 {

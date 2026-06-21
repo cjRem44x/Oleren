@@ -22,7 +22,7 @@ olrn sac <file.olrn> -o=name  # compile to ./name
 | `07_errors.olrn` | `err` sets, `!T` return types, `try`, `catch`, `errdefer` |
 | `08_generics.olrn` | `any` params, `@type` dispatch, generic structs |
 | `09_pointers.olrn` | Raw `*T` and smart `^T` pointers, `defer @free`, `->` |
-| `10_crypto.olrn` | `@std.pelentar`: hashing, AEAD, password hashing, signing |
+| `10_crypto.olrn` | `@std.crypt`: hashing, AEAD, password hashing, signing |
 | `11_lists.olrn` | `@ls(T)` growable list: `add`, `pop`, `insert`, `remove`, `deinit` |
 | `12_collections.olrn` | `@map(K, V)` hash map and `@set(T)` hash set |
 | `13_mstr.olrn`        | `mstr` multiline strings, `"""..."""` literal syntax |

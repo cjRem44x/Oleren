@@ -12,15 +12,15 @@
 const SysDep SYS_DEPS[] = {
     /*  module     lib          pkg          pkg_pacman   pkg_apt
         header              flags_lin          flags_mac          flags_win */
-    { "malkur", "SDL2",       "sdl2",       "sdl2",       "sdl2",
+    { "gdev", "SDL2",       "sdl2",       "sdl2",       "sdl2",
       "SDL2/SDL.h",       "-lSDL2",       "-lSDL2",       "-lmingw32 -lSDL2main -lSDL2" },
-    { "malkur", "SDL2_mixer", "SDL2_mixer", "sdl2_mixer", "sdl2-mixer",
+    { "gdev", "SDL2_mixer", "SDL2_mixer", "sdl2_mixer", "sdl2-mixer",
       "SDL2/SDL_mixer.h", "-lSDL2_mixer", "-lSDL2_mixer", "-lSDL2_mixer" },
-    { "malkur", "SDL2_image", "SDL2_image", "sdl2_image", "sdl2-image",
+    { "gdev", "SDL2_image", "SDL2_image", "sdl2_image", "sdl2-image",
       "SDL2/SDL_image.h", "-lSDL2_image", "-lSDL2_image", "-lSDL2_image" },
-    { "malkur", "SDL2_ttf",   "SDL2_ttf",   "sdl2_ttf",   "sdl2-ttf",
+    { "gdev", "SDL2_ttf",   "SDL2_ttf",   "sdl2_ttf",   "sdl2-ttf",
       "SDL2/SDL_ttf.h",  "-lSDL2_ttf",  "-lSDL2_ttf",  "-lSDL2_ttf" },
-    { "pelentar", "libsodium", "libsodium", "libsodium", "libsodium",
+    { "crypt", "libsodium", "libsodium", "libsodium", "libsodium",
       "sodium.h", "-lsodium", "-lsodium", "-lsodium" },
     { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL }
 };

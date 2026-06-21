@@ -16,7 +16,7 @@ fn main() -> void
 
 - **Close to the metal.** No hidden allocations, no GC pauses, no runtime.
 - **Readable by default.** Snake_case, explicit types where they matter, no sigil soup.
-- **Batteries for media.** First-class gamedev library (Malkur/SDL2), crypto (Pelentar/libsodium), full stdlib.
+- **Batteries for media.** First-class gamedev library (Gdev/SDL2), crypto (Crypt/libsodium), full stdlib.
 - **Fast iteration.** One compiler binary, `olrn build` / `olrn run`, no package server required.
 
 ## Status
@@ -33,4 +33,4 @@ change between minor versions until 1.0.
 - **[Language Reference](language/variables.md)** — every language construct with examples.
 - **[Builtins](builtins/io.md)** — `@`-prefixed compiler intrinsics.
 - **[Standard Library](stdlib/io.md)** — `@std.*` modules.
-- **[Malkur](malkur/overview.md)** — the gamedev library.
+- **[Gdev](gdev/overview.md)** — the gamedev library.

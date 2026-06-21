@@ -238,12 +238,12 @@ int resolver_merge_imports(AstNode *program, const char *host_path,
         if (!stdlib_path) {
             fprintf(stderr, "warning: stdlib not found — @std unavailable\n");
         } else {
-            if (imports_use_module(program, "malkur"))
+            if (imports_use_module(program, "gdev"))
                 load_stdlib_module(program, stdlib_path, "std",
-                                   "malkur", extra_srcs, extra_count, max);
-            if (imports_use_module(program, "pelentar"))
+                                   "gdev", extra_srcs, extra_count, max);
+            if (imports_use_module(program, "crypt"))
                 load_stdlib_module(program, stdlib_path, "std",
-                                   "pelentar", extra_srcs, extra_count, max);
+                                   "crypt", extra_srcs, extra_count, max);
             for (int m = 0; STD_MODULES[m]; m++)
                 load_stdlib_module(program, stdlib_path, "std",
                                    STD_MODULES[m], extra_srcs, extra_count, max);

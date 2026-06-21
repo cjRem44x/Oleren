@@ -33,7 +33,7 @@ olrn sac main.olrn -o=main
 ```rust
 @import (
     std = @std,
-    mk  = @std.malkur,
+    mk  = @std.gdev,
 )
 
 err AppError { BadInput, NotFound }
@@ -133,14 +133,14 @@ fn main() -> !void
 
 ---
 
-## Gamedev — Malkur
+## Gamedev — Gdev
 
-`@std.malkur` is the built-in gamedev library (Raylib-inspired flat API, SDL2
+`@std.gdev` is the built-in gamedev library (Raylib-inspired flat API, SDL2
 backend). `olrn deps` or `olrn build` auto-resolves SDL2, SDL_image, and
 SDL_mixer — install hints are printed per-OS when one is missing.
 
 ```rust
-@import ( mk = @std.malkur )
+@import ( mk = @std.gdev )
 
 fn main() -> !void
 {
@@ -263,9 +263,9 @@ fallbacks) and fails with per-OS install instructions when one is missing.
 ```
 $ olrn deps
 system deps for src/main/olrn/main.olrn
-└─ SDL2       (@std.malkur)  found 2.32.70
-└─ SDL2_image (@std.malkur)  found 2.8.4
-└─ SDL2_mixer (@std.malkur)  found 2.8.1
+└─ SDL2       (@std.gdev)  found 2.32.70
+└─ SDL2_image (@std.gdev)  found 2.8.4
+└─ SDL2_mixer (@std.gdev)  found 2.8.1
 ```
 
 ---
@@ -274,7 +274,7 @@ system deps for src/main/olrn/main.olrn
 
 - [`docs/Language.md`](docs/Language.md) — full language reference
 - [`docs/StdLib.md`](docs/StdLib.md) — standard library: core + all extended tiers (env, path, json, net, http, compress, regex, proc, bytes, date, uuid, toml, ws, csv, xml, test, rand)
-- [`docs/Malkur.md`](docs/Malkur.md) — Malkur gamedev library (`@std.malkur`)
-- [`docs/Pelentar.md`](docs/Pelentar.md) — Pelentar cryptography library (`@std.pelentar`) *(spec — not yet implemented)*
-- [`docs/Glourang.md`](docs/Glourang.md) — Glourang native UI library (`@std.glourang`, Qt6 backend) *(spec — not yet implemented)*
+- [`docs/Gdev.md`](docs/Gdev.md) — Gdev gamedev library (`@std.gdev`)
+- [`docs/Crypt.md`](docs/Crypt.md) — Crypt cryptography library (`@std.crypt`) *(spec — not yet implemented)*
+- [`docs/Guix.md`](docs/Guix.md) — Guix native UI library (`@std.guix`, Qt6 backend) *(spec — not yet implemented)*
 - [`docs/Roadmap.md`](docs/Roadmap.md) — design roadmap and implementation status

@@ -1,7 +1,7 @@
 #include "codegen.h"
 #include "stdlib_impl.h"
-#include "malkur_impl.h"
-#include "pelentar_impl.h"
+#include "gdev_impl.h"
+#include "crypt_impl.h"
 #include "../lexer/lexer.h"
 #include "../parser/parser.h"
 #include <stdlib.h>
@@ -17,8 +17,8 @@ void codegen_init(Codegen *cg, FILE *out)
     cg->type_var_count     = 0;
     cg->import_alias_count = 0;
     cg->has_stdlib         = 0;
-    cg->has_malkur         = 0;
-    cg->has_pelentar       = 0;
+    cg->has_gdev         = 0;
+    cg->has_crypt       = 0;
     cg->enum_count         = 0;
     cg->struct_count       = 0;
     cg->current_struct     = NULL;
@@ -2060,28 +2060,28 @@ void codegen_emit(Codegen *cg, AstNode *program)
         if (imp->import_decl.is_lib && strcmp(imp->import_decl.source, "std") == 0) {
             cg->has_stdlib = 1;
             if (imp->import_decl.module &&
-                strcmp(imp->import_decl.module, "malkur") == 0)
-                cg->has_malkur = 1;
+                strcmp(imp->import_decl.module, "gdev") == 0)
+                cg->has_gdev = 1;
             if (imp->import_decl.module &&
-                strcmp(imp->import_decl.module, "pelentar") == 0)
-                cg->has_pelentar = 1;
+                strcmp(imp->import_decl.module, "crypt") == 0)
+                cg->has_crypt = 1;
         }
     }
 
-    /* emit stdlib C++ preamble if needed; malkur adds the SDL2 backend
-       (defines Color/Vec2/Rect used by the malkur .olrn functions) */
+    /* emit stdlib C++ preamble if needed; gdev adds the SDL2 backend
+       (defines Color/Vec2/Rect used by the gdev .olrn functions) */
     if (cg->has_stdlib)
         fputs(STDLIB_IMPL, cg->out);
-    if (cg->has_malkur)
-        fputs(MALKUR_IMPL, cg->out);
-    if (cg->has_pelentar)
-        fputs(PELENTAR_IMPL, cg->out);
+    if (cg->has_gdev)
+        fputs(GDEV_IMPL, cg->out);
+    if (cg->has_crypt)
+        fputs(CRYPT_IMPL, cg->out);
     if (!cg->has_stdlib && program->program.imports.count)
         fputc('\n', cg->out);
 
     /* emit type aliases, enum namespaces, and function forward declarations before
        local module namespace blocks so stdlib types (File, IOMode, keys etc.) and
-       wrappers (malkur_rgba etc.) are visible inside local module namespaces */
+       wrappers (gdev_rgba etc.) are visible inside local module namespaces */
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
         if (decl->kind == NODE_MODULE)     continue;

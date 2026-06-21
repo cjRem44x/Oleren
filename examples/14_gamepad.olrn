@@ -1,7 +1,7 @@
 # olrn sac 14_gamepad.olrn -o=gamepad
 # Requires SDL2 + a connected gamepad.
 
-@import ( mk = @std.malkur )
+@import ( mk = @std.gdev )
 
 fn main() -> !void
 {

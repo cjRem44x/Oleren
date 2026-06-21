@@ -5,8 +5,8 @@
 - `gcc` / `g++` (C++17, tested with GCC 12+)
 - `make`
 - `pkg-config` (for optional library deps)
-- **Optional:** SDL2, SDL2_mixer, SDL2_image, SDL2_ttf (for Malkur gamedev)
-- **Optional:** libsodium (for Pelentar crypto)
+- **Optional:** SDL2, SDL2_mixer, SDL2_image, SDL2_ttf (for Gdev gamedev)
+- **Optional:** libsodium (for Crypt crypto)
 
 ## Build from source
 

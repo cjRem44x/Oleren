@@ -53,7 +53,7 @@ static int exec_wait(char *const argv[])
 }
 
 /* compile a generated .cpp to a binary; system-library deps (e.g.
-   SDL2 for malkur) are detected from the file and resolved via
+   SDL2 for gdev) are detected from the file and resolved via
    pkg-config or platform fallbacks. pch_path: if non-NULL, pass
    -include <pch_path> so g++ uses the precompiled header. */
 static int gxx_compile(const char *cpp_path, const char *output,

@@ -169,9 +169,9 @@ old := std.thread.atomic_add(cnt, 1)        # fetch-add; returns prev
 won := std.thread.atomic_cas(cnt, 0, 1)     # compare-and-swap; -> bool
 ```
 
-## `std.malkur` — Gamedev
+## `std.gdev` — Gamedev
 
-See [`Malkur.md`](Malkur.md) for the full API surface. Raylib-inspired flat API
+See [`Gdev.md`](Gdev.md) for the full API surface. Raylib-inspired flat API
 on an SDL2 backend. v0.4 shipped: window/loop, keyboard, mouse, gamepad, 2D
 shapes, textures (PNG/JPG via SDL_image), camera 2D, embedded 8×8 bitmap font,
 TTF/OTF fonts (SDL_ttf), audio — sounds + streaming music (SDL_mixer), colors,
@@ -319,7 +319,7 @@ hash.from_hex(s: str)    -> ![]u8
 
 ### `std.crypto` — Encryption
 
-For the full high-level API see [`Pelentar.md`](Pelentar.md) (`@std.pelentar`).
+For the full high-level API see [`Crypt.md`](Crypt.md) (`@std.crypt`).
 The `std.crypto` surface is the lower-level symmetric/asymmetric layer:
 
 ```rust

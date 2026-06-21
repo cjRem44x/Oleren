@@ -164,7 +164,7 @@ Submodules can also be bound top-level: `io :: @std.io`. See Language.md § Impo
     x   = "file.olrn",          # local file by path
     y   = "subdir/file.olrn",   # same-tree relative path
     std = @std,          # full stdlib — access as std.file, std.enc, std.hash ...
-    mk  = @std.malkur,       # Malkur gamedev library
+    mk  = @std.gdev,       # Gdev gamedev library
 )
 ```
 
@@ -347,7 +347,7 @@ cwd := std.fs.cwd()
 
 **`std.time`** — timing (critical for game loops)
 
-**`@std.malkur` (Malkur)** — built-in gamedev library. See `docs/Malkur.md` for the full API surface. Raylib-inspired flat API on an SDL2 backend; importing auto-links `-lSDL2`. v0.4 shipped: window/loop, keyboard, mouse, gamepad (4 slots, hotplug, `pad_btn_released`, `pad_count`, `pad_name`, `pad_rumble`), 2D shapes, `draw_rect_rot`, textures (BMP + PNG + JPG via SDL_image, subrect), camera 2D (pan/zoom, world↔screen), embedded 8×8 bitmap font (`draw_text`/`measure_text`), TTF fonts (`load_font`/`draw_text_ex`/`measure_text_ex` via SDL_ttf), audio (sounds + streaming music via SDL_mixer), colors + `hex()`, Vec2 math, 2D collision.
+**`@std.gdev` (Gdev)** — built-in gamedev library. See `docs/Gdev.md` for the full API surface. Raylib-inspired flat API on an SDL2 backend; importing auto-links `-lSDL2`. v0.4 shipped: window/loop, keyboard, mouse, gamepad (4 slots, hotplug, `pad_btn_released`, `pad_count`, `pad_name`, `pad_rumble`), 2D shapes, `draw_rect_rot`, textures (BMP + PNG + JPG via SDL_image, subrect), camera 2D (pan/zoom, world↔screen), embedded 8×8 bitmap font (`draw_text`/`measure_text`), TTF fonts (`load_font`/`draw_text_ex`/`measure_text_ex` via SDL_ttf), audio (sounds + streaming music via SDL_mixer), colors + `hex()`, Vec2 math, 2D collision.
 ```rust
 t0 := std.time.now()          # nanosecond timestamp
 dt := std.time.since(t0)      # elapsed as f64 seconds
@@ -440,7 +440,7 @@ See Language.md § Generics.
 - [x] Heap allocation (`@alo`, `@free`), raw and smart pointers
 - [x] Standard library — `std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`, `std.thread`
 - [x] CLI — `build`, `run`, `build-src`, `build-out`, `check`, `emit`, `sac`, `init`
-- [x] Malkur gamedev library v0.4 — gamepad, camera 2D, rotated/subrect draws, embedded + TTF fonts, hex(), PNG/JPG textures (SDL_image), audio sounds + music (SDL_mixer) via `@std.malkur` (SDL2 backend)
+- [x] Gdev gamedev library v0.4 — gamepad, camera 2D, rotated/subrect draws, embedded + TTF fonts, hex(), PNG/JPG textures (SDL_image), audio sounds + music (SDL_mixer) via `@std.gdev` (SDL2 backend)
 - [x] Sema pass — `ErrSet!T` enforcement, unused-import + alias-shadowing errors
 - [x] System deps — `olrn deps` + build-time resolution via pkg-config with per-OS fallbacks
 - [x] Multi-return / tuples — `fn f() -> (T1, T2)`, `a, b := f()`, `_` discard
@@ -451,7 +451,7 @@ See Language.md § Generics.
 - [x] Smart pointer postfix deref (`p.^`) and pointer-to-pointer types (`**T`, `***T`)
 - [x] Integer literal formats — hex (`0xFF`) and binary (`0b1010`)
 - [x] `@hex(v)` builtin — integer to lowercase hex string
-- [x] **Pelentar** (`@std.pelentar`) — cryptography library (libsodium backend)
+- [x] **Crypt** (`@std.crypt`) — cryptography library (libsodium backend)
 - [x] **File-as-module** — each imported `.olrn` file is a namespace; `pub fn` is accessible as `alias.func()`, bare `fn` is private with compile-time enforcement
 - [x] `mstr` multiline string type (`"""..."""` triple-quote literals, shared `str` methods)
 - [x] `olrn view <file>` — SDL2 viewer for images, animated GIFs, and video (zoom, pan, enhance)
@@ -468,6 +468,6 @@ See Language.md § Generics.
 - [ ] `olrn_pkg.toml` — deferred; only needed for *outside* resources
   (vendored C/C++ deps, link flags). Builtin libs don't need it.
 - [ ] **Extended stdlib** — all tiers specced in `docs/StdLib.md`; Tier 1: `std.env`, `std.path`, `std.json`, `std.net`, `std.http`, `std.compress`, `std.regex`; Tier 2: `std.proc`, `std.bytes`, `std.date`, `std.uuid`, `std.toml`, `std.ws`; Tier 3: `std.csv`, `std.xml`, `std.test`, `std.rand`
-- [ ] **Glourang** (`@std.glourang`) — native UI library (Qt6 backend); designed, not yet implemented.
-  See `docs/Glourang.md` for full API spec. Flat procedural API: windows, layouts, widgets, media
+- [ ] **Guix** (`@std.guix`) — native UI library (Qt6 backend); designed, not yet implemented.
+  See `docs/Guix.md` for full API spec. Flat procedural API: windows, layouts, widgets, media
   (jpg/png/gif/webp/svg images, video, audio), menus, dialogs, canvas, system tray, timers, styling.

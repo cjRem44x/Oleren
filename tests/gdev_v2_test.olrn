@@ -1,10 +1,10 @@
 @import (
-    mk = @std.malkur,
+    mk = @std.gdev,
 )
 
 fn main() -> !void
 {
-    try mk.init_window(640, 360, "Malkur v0.2 test")
+    try mk.init_window(640, 360, "Gdev v0.2 test")
     defer mk.close_window()
     mk.set_fps(60)
 
@@ -30,7 +30,7 @@ fn main() -> !void
         mk.end_camera2d()
 
         # draw_text — embedded 8x8 font
-        mk.draw_text("Malkur v0.2", 10.0, 10.0, 16.0, mk.WHITE)
+        mk.draw_text("Gdev v0.2", 10.0, 10.0, 16.0, mk.WHITE)
         mk.draw_text("gamepad + camera + text", 10.0, 30.0, 8.0, mk.YELLOW)
 
         # measure_text — check it returns a non-zero Vec2
@@ -57,5 +57,5 @@ fn main() -> !void
         if frame >= 3 { break }
     }
 
-    @pl("malkur v0.2 test ok")
+    @pl("gdev v0.2 test ok")
 }

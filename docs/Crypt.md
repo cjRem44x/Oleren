@@ -1,8 +1,8 @@
-# Pelentar — Oleren Cryptography Library
+# Crypt — Oleren Cryptography Library
 
 ## Philosophy
 
-Pelentar is the built-in cryptography library for Oleren. It exposes two
+Crypt is the built-in cryptography library for Oleren. It exposes two
 layers:
 
 - **Easy API** — opinionated, hard to misuse. One enum controls security
@@ -16,11 +16,11 @@ Files are encrypted in-place; originals are overwritten (see enc_file /
 dec_file for the convention).
 
 Backend: **libsodium** (Argon2id, XChaCha20-Poly1305, Ed25519, BLAKE2b).
-Importing `@std.pelentar` auto-links `-lsodium` via pkg-config; if libsodium
+Importing `@std.crypt` auto-links `-lsodium` via pkg-config; if libsodium
 is not installed the build stops with OS-specific install instructions.
 
 ```rust
-@import ( crypt = @std.pelentar )
+@import ( crypt = @std.crypt )
 ```
 
 ---
@@ -91,7 +91,7 @@ fn crypt.auth_hashpk(s: i32, plain: str, hashed: str) -> !bool
 **Example:**
 
 ```rust
-@import ( crypt = @std.pelentar )
+@import ( crypt = @std.crypt )
 
 fn register(password: str) -> !str
 {
@@ -126,7 +126,7 @@ fn crypt.dec_file(stren: stren, path: str, pk: str) -> !void
 **Example:**
 
 ```rust
-@import ( crypt = @std.pelentar )
+@import ( crypt = @std.crypt )
 
 fn backup(path: str, passphrase: str) -> !void
 {
@@ -325,11 +325,11 @@ fn crypt.hex_decode(data: str) -> !str      # LoadFailed on bad input
 
 ## Error Handling
 
-All fallible Pelentar functions return `!T` using the built-in error
+All fallible Crypt functions return `!T` using the built-in error
 mechanism. The error set is:
 
 ```rust
-err PelentrError {
+err CryptError {
     InitFailed,    # libsodium init failed
     BadKey,        # key is wrong length or malformed
     BadInput,      # bad base64/hex/format
@@ -352,7 +352,7 @@ The build system detects it automatically — `olrn deps` shows status:
 ```
 $ olrn deps
 system deps for src/main/olrn/main.olrn
-└─ libsodium (@std.pelentar)  found 1.0.20
+└─ libsodium (@std.crypt)  found 1.0.20
 ```
 
 Install if missing:
@@ -374,7 +374,7 @@ brew install libsodium
 
 ```rust
 @import (
-    crypt = @std.pelentar,
+    crypt = @std.crypt,
     io    = @std.io,
 )
 

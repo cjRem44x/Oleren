@@ -1,7 +1,7 @@
 # both imports are unused — compilation must FAIL with 2 errors
 @import (
     std = @std,
-    mk  = @std.malkur,
+    mk  = @std.gdev,
 )
 
 fn main() -> void
