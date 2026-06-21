@@ -44,3 +44,8 @@ fn io_eof(f: File) -> bool
 {
     ret _olrn_io_eof(f)
 }
+
+fn io_writeln(f: File, s: str)
+{
+    _olrn_io_writeln(f, s)
+}

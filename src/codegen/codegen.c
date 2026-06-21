@@ -1611,8 +1611,13 @@ static void emit_method(Codegen *cg, AstNode *fn)
         if (i > param_start) fputs(", ", cg->out);
         if (param_is_any(param))
             fprintf(cg->out, "T_%s", param->param.name);
-        else
+        else {
             emit_type(cg, param->param.type);
+            if (param->param.type && (param->param.type->type_ref.is_list ||
+                param->param.type->type_ref.is_map ||
+                param->param.type->type_ref.is_set))
+                fputc('&', cg->out);
+        }
         fprintf(cg->out, " %s", param->param.name);
     }
     /* instance methods are const — fields are mutable so self mutation still works */
@@ -1677,8 +1682,13 @@ static void emit_fn_fwd(Codegen *cg, AstNode *fn)
         if (i > 0) fputs(", ", cg->out);
         if (param_is_any(param))
             fprintf(cg->out, "T_%s", param->param.name);
-        else
+        else {
             emit_type(cg, param->param.type);
+            if (param->param.type && (param->param.type->type_ref.is_list ||
+                param->param.type->type_ref.is_map ||
+                param->param.type->type_ref.is_set))
+                fputc('&', cg->out);
+        }
         fprintf(cg->out, " %s", param->param.name);
     }
     fputs(");\n", cg->out);
@@ -1771,8 +1781,13 @@ static void emit_fn(Codegen *cg, AstNode *fn)
         if (i > 0) fputs(", ", cg->out);
         if (param_is_any(param))
             fprintf(cg->out, "T_%s", param->param.name);
-        else
+        else {
             emit_type(cg, param->param.type);
+            if (param->param.type && (param->param.type->type_ref.is_list ||
+                param->param.type->type_ref.is_map ||
+                param->param.type->type_ref.is_set))
+                fputc('&', cg->out);
+        }
         fprintf(cg->out, " %s", param->param.name);
     }
 
