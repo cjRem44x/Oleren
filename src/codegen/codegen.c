@@ -30,6 +30,7 @@ void codegen_init(Codegen *cg, FILE *out)
     cg->err_ret_cpp[0]     = '\0';
     cg->in_module          = 0;
     cg->known_module_count = 0;
+    cg->emitted_ns_count   = 0;
 }
 
 static void codegen_reset_fn_state(Codegen *cg)
@@ -1838,6 +1839,11 @@ static void emit_module(Codegen *cg, AstNode *mod)
     const char *ns = mod->module.name;
     NodeList   *dl = &mod->module.decls;
     fprintf(cg->out, "namespace %s {\n", ns);
+    /* bring all previously emitted sibling modules into scope */
+    for (int i = 0; i < cg->emitted_ns_count; i++)
+        fprintf(cg->out, "using namespace %s;\n", cg->emitted_ns[i]);
+    if (cg->emitted_ns_count < MAX_IMPORT_ALIAS)
+        cg->emitted_ns[cg->emitted_ns_count++] = ns;
     cg->in_module = 1;
 
     /* pre-register names so :: dispatch works from the main file */
@@ -2016,6 +2022,87 @@ void codegen_emit(Codegen *cg, AstNode *program)
     if (!cg->has_stdlib && program->program.imports.count)
         fputc('\n', cg->out);
 
+    /* emit type aliases, enum namespaces, and function forward declarations before
+       local module namespace blocks so stdlib types (File, IOMode, keys etc.) and
+       wrappers (malkur_rgba etc.) are visible inside local module namespaces */
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE)     continue;
+        if (decl->kind != NODE_TYPE_ALIAS) continue;
+        fputs("using ", cg->out);
+        fputs(decl->type_alias.name, cg->out);
+        fputs(" = ", cg->out);
+        emit_type(cg, decl->type_alias.target);
+        fputs(";\n", cg->out);
+    }
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE)    continue;
+        if (decl->kind != NODE_ENUM_DECL) continue;
+        /* register so mk.keys.UP → keys::UP works in module bodies */
+        if (cg->enum_count < MAX_ENUM_NAMES)
+            cg->enum_names[cg->enum_count++] = decl->enum_decl.name;
+        if (!decl->enum_decl.base_type) {
+            fprintf(cg->out, "enum class %s {", decl->enum_decl.name);
+            for (int j = 0; j < decl->enum_decl.variants.count; j++) {
+                AstNode *v = decl->enum_decl.variants.items[j];
+                fprintf(cg->out, "%s%s", j == 0 ? " " : ", ", v->enum_variant.name);
+            }
+            fputs(" };\n", cg->out);
+        } else {
+            fprintf(cg->out, "namespace %s {\n", decl->enum_decl.name);
+            for (int j = 0; j < decl->enum_decl.variants.count; j++) {
+                AstNode *v = decl->enum_decl.variants.items[j];
+                fputs("    static constexpr ", cg->out);
+                emit_type(cg, decl->enum_decl.base_type);
+                fprintf(cg->out, " %s", v->enum_variant.name);
+                if (v->enum_variant.value) {
+                    fputs(" = ", cg->out);
+                    AstNode *val = v->enum_variant.value;
+                    if (val->kind == NODE_INT_LIT)
+                        fprintf(cg->out, "%lld", val->int_lit.value);
+                    else if (val->kind == NODE_FLOAT_LIT) {
+                        char _fb[32];
+                        snprintf(_fb, sizeof(_fb), "%g", val->float_lit.value);
+                        fputs(_fb, cg->out);
+                        if (!strchr(_fb,'.') && !strchr(_fb,'e') && !strchr(_fb,'E'))
+                            fputs(".0", cg->out);
+                    } else
+                        emit_expr(cg, val);
+                }
+                fputs(";\n", cg->out);
+            }
+            fputs("}\n", cg->out);
+        }
+    }
+    /* emit immutable constants before module blocks (WHITE, BLUE, PAL_*, OV_*, etc.) */
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE)   continue;
+        if (decl->kind != NODE_VAR_DECL) continue;
+        if (!decl->var_decl.is_imu)      continue;
+        int is_str = decl->var_decl.type_ref &&
+                     decl->var_decl.type_ref->kind == NODE_TYPE_REF &&
+                     (strcmp(decl->var_decl.type_ref->type_ref.name, "str")  == 0 ||
+                      strcmp(decl->var_decl.type_ref->type_ref.name, "mstr") == 0);
+        fputs(is_str ? "const " : "constexpr ", cg->out);
+        if (decl->var_decl.type_ref) emit_type(cg, decl->var_decl.type_ref);
+        else                         fputs("auto", cg->out);
+        fprintf(cg->out, " %s", decl->var_decl.name);
+        if (decl->var_decl.init) {
+            fputs(" = ", cg->out);
+            emit_expr(cg, decl->var_decl.init);
+        }
+        fputs(";\n", cg->out);
+    }
+    for (int i = 0; i < program->program.decls.count; i++) {
+        AstNode *decl = program->program.decls.items[i];
+        if (decl->kind == NODE_MODULE) continue;
+        if (decl->kind != NODE_FN_DECL) continue;
+        emit_fn_fwd(cg, decl);
+    }
+    fputc('\n', cg->out);
+
     /* imported file modules — each becomes a namespace block */
     for (int i = 0; i < program->program.decls.count; i++) {
         AstNode *decl = program->program.decls.items[i];
@@ -2024,6 +2111,11 @@ void codegen_emit(Codegen *cg, AstNode *program)
             cg->known_modules[cg->known_module_count++] = decl;
         emit_module(cg, decl);
     }
+
+    /* bring all local module namespaces into global scope for the root file */
+    for (int i = 0; i < cg->emitted_ns_count; i++)
+        fprintf(cg->out, "using namespace %s;\n", cg->emitted_ns[i]);
+    if (cg->emitted_ns_count) fputc('\n', cg->out);
 
     /* error set declarations */
     int has_err_sets = 0;
@@ -2066,6 +2158,8 @@ void codegen_emit(Codegen *cg, AstNode *program)
         AstNode *decl = program->program.decls.items[i];
         if (decl->kind == NODE_MODULE)    continue;
         if (decl->kind != NODE_ENUM_DECL) continue;
+        /* skip enums already emitted in the early pre-module pass */
+        if (is_enum_name(cg, decl->enum_decl.name)) continue;
         has_enums = 1;
         /* register name for :: access in emit_expr */
         if (cg->enum_count < MAX_ENUM_NAMES)
@@ -2221,6 +2315,12 @@ void codegen_emit(Codegen *cg, AstNode *program)
         AstNode *decl = program->program.decls.items[i];
         if (decl->kind == NODE_MODULE) continue;
         if (decl->kind != NODE_VAR_DECL && decl->kind != NODE_VAR_DECL_GROUP) continue;
+        /* immutable constants were already emitted in the early pre-module pass */
+        if (decl->kind == NODE_VAR_DECL && decl->var_decl.is_imu) continue;
+        if (decl->kind == NODE_VAR_DECL_GROUP) {
+            AstNode *g = decl;
+            if (g->var_decl_group.is_imu) continue;
+        }
         has_globals = 1;
         if (decl->kind == NODE_VAR_DECL) {
             if (decl->var_decl.is_imu) {

@@ -40,6 +40,9 @@ typedef struct {
     /* registered module nodes for access checking */
     struct AstNode *known_modules[MAX_IMPORT_ALIAS];
     int             known_module_count;
+    /* names of namespaces emitted so far (for cross-module using directives) */
+    const char *emitted_ns[MAX_IMPORT_ALIAS];
+    int         emitted_ns_count;
 } Codegen;
 
 void codegen_init(Codegen *cg, FILE *out);

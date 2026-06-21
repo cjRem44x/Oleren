@@ -231,12 +231,7 @@ int resolver_merge_imports(AstNode *program, const char *host_path,
         imported->program.decls.count = 0;
         imported->program.decls.items = NULL;
         ast_free(imported);
-        NodeList tmp = program->program.decls;
-        memset(&program->program.decls, 0, sizeof(NodeList));
         node_list_push(&program->program.decls, mod);
-        for (int j = 0; j < tmp.count; j++)
-            node_list_push(&program->program.decls, tmp.items[j]);
-        free(tmp.items);
         extra_srcs[(*extra_count)++] = src;
     }
     free(host_canon);
