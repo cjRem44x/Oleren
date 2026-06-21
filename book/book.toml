@@ -1,0 +1,18 @@
+[book]
+title       = "The Oleren Programming Language"
+authors     = ["cjRem44x"]
+language    = "en"
+src         = "src"
+
+[build]
+build-dir   = "../book_out"
+
+[output.html]
+site-url            = "/Oleren/"
+git-repository-url  = "https://github.com/cjRem44x/Oleren"
+edit-url-template   = "https://github.com/cjRem44x/Oleren/edit/main/book/src/{path}"
+no-section-label    = false
+
+[output.html.fold]
+enable    = true
+level     = 1
