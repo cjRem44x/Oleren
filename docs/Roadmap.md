@@ -43,22 +43,13 @@ No runtime, no GC, no OOP. Close to the metal; readable by default.
 
 ### Current Next Steps
 
-1. **Struct field type registry.** — NEXT
-   `type_of_expr` returns `TY_UNKNOWN` for any field access (`p.x`, `obj.count`).
-   A struct name → field → type table would let sema check field reads/writes,
-   catch struct literal field mismatches, and complete the narrowing story for
-   brace-init.
-2. **Sema for imported module functions.**
-   The current `check_program` only walks top-level `NODE_FN_DECL` nodes;
-   functions inside `NODE_MODULE` wrappers are skipped. Extend the walk to recurse
-   into module decls so every function in the import graph is type-checked.
-3. **Generic collection element types.**
-   `@ls(T)`, `@map(K,V)`, `@set(T)` carry element types in the AST but `type_of_expr`
-   returns `TY_UNKNOWN` for them. Representing `@ls(i32)` as a typed slot would catch
-   element-type mismatches on `add`, `get`, and `for e => list`.
-4. **Stdlib depth.**
-   Prioritize `std.str.fmt`/builder, fallible buffered file I/O, `std.path`, and
-   process/env helpers before adding new large domains.
+1. **Stdlib depth.**
+   `std.str.fmt`/builder, fallible buffered file I/O (`file_rd`/`file_wr` — partially
+   done), and process/env helpers before adding new large domains.
+2. **Windows/macOS validation** — dep layer is written portably but only Linux is
+   exercised.
+3. **`olrn_pkg.toml`** — only needed for vendored C/C++ deps and link flags;
+   builtin libs don't need it.
 
 ### Completed
 
@@ -438,8 +429,9 @@ See Language.md § Generics.
 - [x] Error handling — `err`, `!T`, `ErrSet!T`, `try`, `catch`, `errdefer`
 - [x] Structs, enums, unions
 - [x] Heap allocation (`@alo`, `@free`), raw and smart pointers
-- [x] Standard library — `std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`, `std.thread`
-- [x] CLI — `build`, `run`, `build-src`, `build-out`, `check`, `emit`, `sac`, `init`
+- [x] Standard library — `std.io`, `std.fs`, `std.math`, `std.mem`, `std.str`, `std.time`, `std.log`, `std.thread`, `std.env`, `std.path`
+- [x] `std.str` additions — `trim_start`, `trim_end`, `pad_start`, `pad_end`, `rev`, `count`
+- [x] CLI — `build [--release]`, `run [--release]`, `sac [--release]`, `build-src`, `build-out`, `check`, `emit`, `init`; default `-O0`, `--release` uses `-O2`
 - [x] Gdev gamedev library v0.4 — gamepad, camera 2D, rotated/subrect draws, embedded + TTF fonts, hex(), PNG/JPG textures (SDL_image), audio sounds + music (SDL_mixer) via `@std.gdev` (SDL2 backend)
 - [x] Sema pass — `ErrSet!T` enforcement, unused-import + alias-shadowing errors
 - [x] System deps — `olrn deps` + build-time resolution via pkg-config with per-OS fallbacks
@@ -460,14 +452,19 @@ See Language.md § Generics.
 - [x] **Recursive module graph** — transitive imports resolved depth-first; diamond deps deduplicated; import cycles silently broken; transitive module aliases recognized in codegen
 - [x] **Expression type model** — `OlrnType` in symbol table; `type_of_expr()` for literals/idents/calls/casts/binary; `check_compat()` at var decl, assignment, return, call args; int out-of-range → error; computed narrowing → warning; `-Wno-narrowing` on g++ (sema owns narrowing)
 - [x] **System builtins** — `@exit(code)`, `@cmd("...") -> i32`, `@getenv("VAR") -> str`, `@pid() -> i32`, `@sleep(ms)`, `@args -> []str` (argv\[1..\] with `.len`/index/for)
+- [x] **Struct field type registry** — sema resolves field access types for `type_of_expr`; catches narrowing on field reads and struct literal brace-init
+- [x] **Sema for module functions** — `check_module()` runs a full isolated sema pass over every imported module's fn bodies and struct methods
+- [x] **Collection element types in sema** — `TY_LIST`/`TY_MAP`/`TY_SET` carry elem type; `type_of_expr` resolves subscripts, `get`/`pop` returns, and loop variable types; `add`/`insert`/`set` args type-checked
 
-## Next (v0.6.0 candidates)
+## Next (v0.2.0 candidates)
 
 - [ ] Windows/macOS validation — dep layer and compiler are written portably
   (MinGW shims in place) but only Linux is exercised; needs CI + testing
 - [ ] `olrn_pkg.toml` — deferred; only needed for *outside* resources
   (vendored C/C++ deps, link flags). Builtin libs don't need it.
-- [ ] **Extended stdlib** — all tiers specced in `docs/StdLib.md`; Tier 1: `std.env`, `std.path`, `std.json`, `std.net`, `std.http`, `std.compress`, `std.regex`; Tier 2: `std.proc`, `std.bytes`, `std.date`, `std.uuid`, `std.toml`, `std.ws`; Tier 3: `std.csv`, `std.xml`, `std.test`, `std.rand`
+- [ ] **Extended stdlib** — all tiers specced in `docs/StdLib.md`; Tier 1: `std.json`, `std.net`, `std.http`, `std.compress`, `std.regex`; Tier 2: `std.proc`, `std.bytes`, `std.date`, `std.uuid`, `std.toml`, `std.ws`; Tier 3: `std.csv`, `std.xml`, `std.test`, `std.rand`
+- [ ] **`std.str.fmt`** — formatted string builder (`str.fmt("x={}", x)`)
+- [ ] **`std.io` buffered readers/writers** — `file_rd`/`file_wr` (partially done), `byte_rd`/`byte_wr`
 - [ ] **Guix** (`@std.guix`) — native UI library (Qt6 backend); designed, not yet implemented.
   See `docs/Guix.md` for full API spec. Flat procedural API: windows, layouts, widgets, media
   (jpg/png/gif/webp/svg images, video, audio), menus, dialogs, canvas, system tray, timers, styling.

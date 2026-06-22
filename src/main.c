@@ -566,7 +566,7 @@ static void print_help(void)
     printf("  olrn build-src <file.olrn>     emit C++ to olrn_out/<file>.cpp (project) or ./<file>.cpp\n");
     printf("  olrn build-out <file.cpp>      compile C++ to bin/<name> (project) or ./<name>\n");
     printf("  olrn check <file.olrn>         parse and check for errors\n");
-    printf("  olrn sac <file(s)> [-o=name]   compile to native binary\n");
+    printf("  olrn sac <file(s)> [-o=name] [--release]   compile to native binary\n");
     printf("  olrn build [--release]         build project (main.olrn → binary); default -O0, --release uses -O2\n");
     printf("  olrn run [--release]           build and run project\n");
     printf("  olrn init                      scaffold a new project in cwd\n");

@@ -16,7 +16,7 @@ SRCS = \
 OBJS = $(SRCS:.c=.o)
 HDRS = $(wildcard src/*.h src/*/*.h)
 
-.PHONY: all clean test
+.PHONY: all clean test install
 
 all: $(TARGET)
 
@@ -40,6 +40,9 @@ test: $(TARGET)
 		fi; \
 	done
 	@echo "all tests passed"
+
+install: $(TARGET)
+	cp $(TARGET) /usr/local/bin/$(TARGET)
 
 clean:
 	rm -f $(OBJS) $(TARGET)

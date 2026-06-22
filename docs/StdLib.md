@@ -110,16 +110,30 @@ std.mem.gb(n: i64) -> i64
 compare with `==`, index with `[i]`, length via `.len`. No manual free.
 
 ```rust
-std.str.from_int(n: i64)               -> str
-std.str.from_f64(x: f64)               -> str
-std.str.parse_int(s: str)              -> i64   # 0 on bad input
-std.str.parse_f64(s: str)              -> f64
-std.str.to_upper(s: str)               -> str
-std.str.to_lower(s: str)               -> str
-std.str.trim(s: str)                   -> str
+std.str.len(s: str)                      -> i64
+std.str.from_int(n: i64)                 -> str
+std.str.from_f64(x: f64)                 -> str
+std.str.parse_int(s: str)                -> i64   # 0 on bad input
+std.str.parse_f64(s: str)                -> f64
+std.str.to_upper(s: str)                 -> str
+std.str.to_lower(s: str)                 -> str
+std.str.trim(s: str)                     -> str
+std.str.trim_start(s: str)               -> str
+std.str.trim_end(s: str)                 -> str
+std.str.pad_start(s: str, w: i64, pad: str) -> str
+std.str.pad_end(s: str, w: i64, pad: str)   -> str
+std.str.rev(s: str)                      -> str
 std.str.starts_with(s: str, prefix: str) -> bool
 std.str.ends_with(s: str, suffix: str)   -> bool
 std.str.contains(s: str, sub: str)       -> bool
+std.str.count(s: str, sub: str)          -> i64
+std.str.index_of(s: str, sub: str)       -> i64   # -1 if not found
+std.str.substr(s: str, start: i64, len: i64) -> str
+std.str.replace(s: str, from: str, to: str) -> str
+std.str.split(s: str, delim: str)        -> []str
+std.str.join(parts: []str, sep: str)     -> str
+std.str.char_at(s: str, i: i64)         -> str
+std.str.repeat(s: str, n: i64)          -> str
 ```
 
 Prefer the cast builtins for fallible parsing: `n := try @i32(s)` returns `!i32`.
@@ -167,6 +181,26 @@ std.thread.atomic_store(cnt, 1)
 val := std.thread.atomic_load(cnt)          # -> i32
 old := std.thread.atomic_add(cnt, 1)        # fetch-add; returns prev
 won := std.thread.atomic_cas(cnt, 0, 1)     # compare-and-swap; -> bool
+```
+
+## `std.env` — Environment
+
+```rust
+env.get(key: str) -> str    # "" if unset
+```
+
+## `std.path` — Path Manipulation
+
+Pure string operations — no I/O. For filesystem calls see `std.fs`.
+
+```rust
+path.join(a: str, b: str)  -> str   # "/usr" + "local" → "/usr/local"
+path.dir(p: str)            -> str   # "/a/b/c.txt" → "/a/b"
+path.base(p: str)           -> str   # "c.txt"
+path.stem(p: str)           -> str   # "c"
+path.ext(p: str)            -> str   # ".txt"
+path.abs(p: str)            -> str   # resolve relative to cwd
+path.is_abs(p: str)         -> bool
 ```
 
 ## `std.gdev` — Gamedev
@@ -274,13 +308,9 @@ struct FileInfo {
     is_dir:  bool,
     modTime: i64,
 }
-
-fs.path_join(a: str, b: str) -> str
-fs.path_dir(path: str)       -> str
-fs.path_base(path: str)      -> str
-fs.path_ext(path: str)       -> str
-fs.path_stem(path: str)      -> str
 ```
+
+Path manipulation moved to `std.path` (implemented).
 
 ---
 
@@ -471,72 +501,6 @@ n    := try ser.toml_get_i32(cfg, "build.workers")
 ---
 
 ## Tier 1 Extended
-
-### `std.env` — Environment & Process
-
-Access command-line arguments, environment variables, and process state.
-
-```rust
-@import ( env = @std.env )
-
-# arguments
-env.args() -> []str
-env.arg(i: i32) -> str       # "" if out of range
-env.arg_count() -> i32
-
-# env vars
-env.get(key: str) -> str
-env.get_or(key: str, def: str) -> str
-env.set(key: str, val: str)
-env.del(key: str)
-env.has(key: str) -> bool
-env.all() -> []str            # ["KEY=VAL", ...]
-
-# process
-env.exit(code: i32)
-env.pid() -> i32
-env.exe() -> str              # absolute path of running binary
-env.cwd() -> str
-env.set_cwd(path: str) -> !void
-```
-
----
-
-### `std.path` — Path Manipulation
-
-Pure string operations on paths. No I/O — for actual filesystem calls see `std.fs`.
-Separator is always `/` internally; Windows paths normalised on input.
-
-```rust
-@import ( path = @std.path )
-
-# decompose
-path.dirname(p: str) -> str      # "/a/b/c.txt" → "/a/b"
-path.basename(p: str) -> str     # "c.txt"
-path.stem(p: str) -> str         # "c"
-path.ext(p: str) -> str          # ".txt"
-path.split(p: str) -> (str, str) # (dirname, basename)
-path.split_ext(p: str) -> (str, str)  # ("path/c", ".txt")
-
-# construct
-path.join(a: str, b: str) -> str
-path.join3(a: str, b: str, c: str) -> str
-path.with_ext(p: str, ext: str) -> str
-path.with_name(p: str, name: str) -> str
-
-# normalise
-path.normalize(p: str) -> str
-path.abs(p: str) -> !str          # resolve relative to cwd
-path.rel(p: str, base: str) -> !str
-path.is_abs(p: str) -> bool
-path.is_rel(p: str) -> bool
-
-# glob
-path.glob_match(pattern: str, p: str) -> bool  # * = any, ** = any depth
-path.glob(pattern: str) -> ![]str              # expand against filesystem
-```
-
----
 
 ### `std.json` — JSON
 
