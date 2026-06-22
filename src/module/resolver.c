@@ -103,7 +103,7 @@ static char *find_stdlib(void)
 }
 
 static const char *STD_MODULES[] = {
-    "io", "fs", "time", "math", "mem", "str", "log", "thread", "env", NULL
+    "io", "fs", "time", "math", "mem", "str", "log", "thread", "env", "path", NULL
 };
 
 static int imports_use_module(AstNode *program, const char *name)

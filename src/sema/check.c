@@ -178,6 +178,7 @@ typedef struct {
     AstNode    *fn_ret_type;
     int         errors;
     int         warnings;
+    int         check_shadow; /* 1 when declaring user variables (not fn params) */
     RegStruct   struct_reg[MAX_STRUCT_REG];
     int         struct_reg_count;
 } Check;
@@ -200,14 +201,16 @@ static void declare(Check *c, const char *name, int line, int col,
                     int ptr_kind, OlrnType otype)
 {
     if (!name || strcmp(name, "_") == 0) return;
-    for (int i = 0; i < c->import_count; i++) {
-        if (strcmp(c->imports[i]->import_decl.alias, name) == 0) {
-            fprintf(stderr,
-                    "error:%d:%d: '%s' shadows the import alias "
-                    "declared on line %d\n",
-                    line, col, name, c->imports[i]->line);
-            c->errors++;
-            break;
+    if (c->check_shadow) {
+        for (int i = 0; i < c->import_count; i++) {
+            if (strcmp(c->imports[i]->import_decl.alias, name) == 0) {
+                fprintf(stderr,
+                        "error:%d:%d: '%s' shadows the import alias "
+                        "declared on line %d\n",
+                        line, col, name, c->imports[i]->line);
+                c->errors++;
+                break;
+            }
         }
     }
     if (c->sym_count < MAX_SYMS) {
@@ -632,7 +635,9 @@ static void walk(Check *c, AstNode *n)
             walk(c, n->catch_expr.fallback);
             if (n->catch_expr.body) {
                 push_scope(c);
+                c->check_shadow = 1;
                 declare(c, n->catch_expr.err_var, n->line, n->col, 0, OTY_UNKNOWN);
+                c->check_shadow = 0;
                 walk(c, n->catch_expr.body);
                 pop_scope(c);
             }
@@ -686,8 +691,10 @@ static void walk(Check *c, AstNode *n)
             else if (iter_t.kind == TY_MAP && iter_t.name && !n->for_each.is_kv)
                 elem_t = type_from_name(iter_t.name);
             push_scope(c);
+            c->check_shadow = 1;
             declare(c, n->for_each.elem, n->line, n->col, 0, elem_t);
             declare(c, n->for_each.idx,  n->line, n->col, 0, idx_t);
+            c->check_shadow = 0;
             walk(c, n->for_each.body);
             pop_scope(c);
             break;
@@ -712,8 +719,10 @@ static void walk(Check *c, AstNode *n)
             }
             /* inferred type: prefer declared; fall back to init type */
             OlrnType stored_t = (decl_t.kind != TY_UNKNOWN) ? decl_t : init_t;
+            c->check_shadow = 1;
             declare(c, n->var_decl.name, n->line, n->col,
                     var_decl_ptr_kind(n), stored_t);
+            c->check_shadow = 0;
             break;
         }
 
@@ -722,8 +731,10 @@ static void walk(Check *c, AstNode *n)
                 AstNode *e = n->var_decl_group.entries.items[i];
                 walk(c, e->var_decl.init);
                 OlrnType grp_t = type_from_ref(n->var_decl_group.type_ref);
+                c->check_shadow = 1;
                 declare(c, e->var_decl.name, e->line, e->col,
                         type_ptr_kind(n->var_decl_group.type_ref), grp_t);
+                c->check_shadow = 0;
             }
             break;
 

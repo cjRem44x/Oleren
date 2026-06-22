@@ -1,0 +1,36 @@
+# std.path — filesystem path utilities
+
+fn path_join(a: str, b: str) -> str
+{
+    ret _olrn_path_join(a, b)
+}
+
+fn path_dir(p: str) -> str
+{
+    ret _olrn_path_dir(p)
+}
+
+fn path_base(p: str) -> str
+{
+    ret _olrn_path_base(p)
+}
+
+fn path_stem(p: str) -> str
+{
+    ret _olrn_path_stem(p)
+}
+
+fn path_ext(p: str) -> str
+{
+    ret _olrn_path_ext(p)
+}
+
+fn path_abs(p: str) -> str
+{
+    ret _olrn_path_abs(p)
+}
+
+fn path_is_abs(p: str) -> bool
+{
+    ret _olrn_path_is_abs(p)
+}

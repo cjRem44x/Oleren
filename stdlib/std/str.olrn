@@ -89,3 +89,33 @@ fn str_repeat(s: str, n: i64) -> str
 {
     ret _olrn_str_repeat(s, n)
 }
+
+fn str_trim_start(s: str) -> str
+{
+    ret _olrn_str_trim_start(s)
+}
+
+fn str_trim_end(s: str) -> str
+{
+    ret _olrn_str_trim_end(s)
+}
+
+fn str_pad_start(s: str, width: i64, pad: str) -> str
+{
+    ret _olrn_str_pad_start(s, width, pad)
+}
+
+fn str_pad_end(s: str, width: i64, pad: str) -> str
+{
+    ret _olrn_str_pad_end(s, width, pad)
+}
+
+fn str_rev(s: str) -> str
+{
+    ret _olrn_str_rev(s)
+}
+
+fn str_count(s: str, sub: str) -> i64
+{
+    ret _olrn_str_count(s, sub)
+}
