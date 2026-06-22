@@ -1891,7 +1891,11 @@ static void emit_module(Codegen *cg, AstNode *mod)
 {
     const char *ns = mod->module.name;
     NodeList   *dl = &mod->module.decls;
-    fprintf(cg->out, "namespace %s {\n", ns);
+    fprintf(cg->out,
+            "// ════════════════════════════════════════════════\n"
+            "// MODULE: %s\n"
+            "// ════════════════════════════════════════════════\n"
+            "namespace %s {\n", ns, ns);
     /* bring all previously emitted sibling modules into scope */
     for (int i = 0; i < cg->emitted_ns_count; i++)
         fprintf(cg->out, "using namespace %s;\n", cg->emitted_ns[i]);
