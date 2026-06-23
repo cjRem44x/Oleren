@@ -60,6 +60,25 @@ static Token expect(Parser *p, TokenType t)
     return next_tok(p);
 }
 
+/* map an operator token type to its symbol string (NULL if not an operator) */
+static const char *tok_op_sym(TokenType t)
+{
+    switch (t) {
+        case TOK_PLUS:    return "+";
+        case TOK_MINUS:   return "-";
+        case TOK_STAR:    return "*";
+        case TOK_SLASH:   return "/";
+        case TOK_PERCENT: return "%";
+        case TOK_EQEQ:   return "==";
+        case TOK_NEQ:     return "!=";
+        case TOK_LT:      return "<";
+        case TOK_GT:      return ">";
+        case TOK_LEQ:     return "<=";
+        case TOK_GEQ:     return ">=";
+        default:          return NULL;
+    }
+}
+
 /* copy token text into a heap-allocated C string */
 static char *tok_dup(Token t)
 {
@@ -1142,8 +1161,35 @@ static AstNode *parse_fn_decl(Parser *p)
 {
     AstNode *n = ast_node_new(NODE_FN_DECL, p->cur.line, p->cur.col);
     n->fn_decl.is_pub = 1; /* default public; struct context overrides for bare fn */
+    n->fn_decl.is_op  = 0;
+
+    if (check(p, TOK_OP)) {
+        n->fn_decl.is_op = 1;
+        next_tok(p); /* consume 'op' */
+    }
+
     expect(p, TOK_FN);
-    n->fn_decl.name = tok_dup(expect(p, TOK_IDENT));
+
+    if (n->fn_decl.is_op) {
+        if (check(p, TOK_LBRACKET)) {
+            /* op fn [] — index operator; consume [ ] */
+            next_tok(p);
+            expect(p, TOK_RBRACKET);
+            n->fn_decl.name = strdup("[]");
+        } else {
+            const char *sym = tok_op_sym(p->cur.type);
+            if (!sym) {
+                fprintf(stderr, "error:%d:%d: expected operator symbol after 'op fn'\n",
+                        p->cur.line, p->cur.col);
+                n->fn_decl.name = strdup("+"); /* recover */
+            } else {
+                n->fn_decl.name = strdup(sym);
+            }
+            next_tok(p);
+        }
+    } else {
+        n->fn_decl.name = tok_dup(expect(p, TOK_IDENT));
+    }
     parse_params(p, &n->fn_decl.params);
     skip_newlines(p);
 
@@ -1204,10 +1250,10 @@ AstNode *parser_parse_program(Parser *p)
         if (check(p, TOK_EOF)) break;
         if (check(p, TOK_EXTERN)) {
             node_list_push(&prog->program.decls, parse_extern_fn(p));
-        } else if (check(p, TOK_FN) || check(p, TOK_PUB)) {
+        } else if (check(p, TOK_FN) || check(p, TOK_PUB) || check(p, TOK_OP)) {
             int had_pub = check(p, TOK_PUB);
             match(p, TOK_PUB);
-            AstNode *fn = parse_fn_decl(p);
+            AstNode *fn = parse_fn_decl(p); /* parse_fn_decl handles 'op' prefix */
             fn->fn_decl.is_pub = had_pub;
             node_list_push(&prog->program.decls, fn);
         } else if (check(p, TOK_STRUCT)) {

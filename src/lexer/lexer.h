@@ -19,6 +19,7 @@ typedef enum {
     TOK_TRY,                        /* try   */
     TOK_CATCH,                      /* catch */
     TOK_ERRDEFER,                   /* errdefer */
+    TOK_OP,                         /* op       */
 
     /* identifiers / builtins */
     TOK_IDENT,

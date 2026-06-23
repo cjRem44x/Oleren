@@ -945,14 +945,19 @@ int check_program(AstNode *program)
         if (d->kind == NODE_ERR_DECL && c.err_decl_count < MAX_ERR_SETS) {
             c.err_decls[c.err_decl_count++] = d;
         } else if (d->kind == NODE_FN_DECL && c.fn_count < MAX_FNS) {
-            AstNode *prev = find_fn(&c, d->fn_decl.name);
-            if (prev) {
-                fprintf(stderr,
-                        "error:%d:%d: duplicate fn '%s' (first declared on line %d)\n",
-                        d->line, d->col, d->fn_decl.name, prev->line);
-                c.errors++;
-            } else {
+            if (d->fn_decl.is_op) {
+                /* operator overloads share symbol names — C++ resolves by param types */
                 c.fns[c.fn_count++] = d;
+            } else {
+                AstNode *prev = find_fn(&c, d->fn_decl.name);
+                if (prev) {
+                    fprintf(stderr,
+                            "error:%d:%d: duplicate fn '%s' (first declared on line %d)\n",
+                            d->line, d->col, d->fn_decl.name, prev->line);
+                    c.errors++;
+                } else {
+                    c.fns[c.fn_count++] = d;
+                }
             }
         } else if (d->kind == NODE_STRUCT_DECL) {
             /* register fields for type_of_expr resolution */

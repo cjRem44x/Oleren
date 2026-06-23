@@ -59,6 +59,7 @@ static struct { const char *w; TokenType t; } kw_table[] = {
     {"try",      TOK_TRY},
     {"catch",    TOK_CATCH},
     {"errdefer", TOK_ERRDEFER},
+    {"op",       TOK_OP},
     {NULL, 0},
 };
 
@@ -282,6 +283,7 @@ const char *tok_type_name(TokenType t)
         case TOK_TRY:       return "try";
         case TOK_CATCH:     return "catch";
         case TOK_ERRDEFER:  return "errdefer";
+        case TOK_OP:        return "op";
         case TOK_IDENT:     return "IDENT";
         case TOK_BUILTIN:   return "BUILTIN";
         case TOK_LPAREN:    return "(";

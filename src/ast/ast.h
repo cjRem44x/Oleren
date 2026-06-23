@@ -81,6 +81,7 @@ struct AstNode {
             AstNode *ret_type; /* NULL means void */
             AstNode *body;
             int      is_pub;   /* 0 = private to struct; 1 = public (default) */
+            int      is_op;    /* 1 = operator overload (op fn +) */
         } fn_decl;
 
         /* NODE_PARAM */

@@ -1700,6 +1700,7 @@ static void emit_method(Codegen *cg, AstNode *fn)
 static void emit_fn_fwd(Codegen *cg, AstNode *fn)
 {
     if (strcmp(fn->fn_decl.name, "main") == 0) return; /* main never needs fwd decl */
+    if (fn->fn_decl.is_op) return; /* inline ops defined after structs; no fwd decl needed */
 
     int has_any = 0;
     for (int i = 0; i < fn->fn_decl.params.count; i++)
@@ -1719,9 +1720,13 @@ static void emit_fn_fwd(Codegen *cg, AstNode *fn)
         fputs(">\n", cg->out);
     }
 
-    if (cg->in_module && !fn->fn_decl.is_pub) fputs("static ", cg->out);
+    if (fn->fn_decl.is_op) fputs("inline ", cg->out);
+    else if (cg->in_module && !fn->fn_decl.is_pub) fputs("static ", cg->out);
     emit_type(cg, fn->fn_decl.ret_type);
-    fprintf(cg->out, " %s(", fn->fn_decl.name);
+    if (fn->fn_decl.is_op)
+        fprintf(cg->out, " operator%s(", fn->fn_decl.name);
+    else
+        fprintf(cg->out, " %s(", fn->fn_decl.name);
     for (int i = 0; i < fn->fn_decl.params.count; i++) {
         AstNode *param = fn->fn_decl.params.items[i];
         if (i > 0) fputs(", ", cg->out);
@@ -1816,14 +1821,18 @@ static void emit_fn(Codegen *cg, AstNode *fn)
     }
 
     /* C++ main always returns int; error-returning fns get _OlrnResult<T> */
-    if (cg->in_module && !fn->fn_decl.is_pub && !is_main) fputs("static ", cg->out);
+    if (fn->fn_decl.is_op) fputs("inline ", cg->out);
+    else if (cg->in_module && !fn->fn_decl.is_pub && !is_main) fputs("static ", cg->out);
     if (is_main) fputs("int", cg->out);
     else         emit_type(cg, fn->fn_decl.ret_type);
 
     if (is_main) {
         fputs(" main(int _olrn_argc, char** _olrn_argv)\n{\n", cg->out);
     } else {
-        fprintf(cg->out, " %s(", fn->fn_decl.name);
+        if (fn->fn_decl.is_op)
+            fprintf(cg->out, " operator%s(", fn->fn_decl.name);
+        else
+            fprintf(cg->out, " %s(", fn->fn_decl.name);
         for (int i = 0; i < fn->fn_decl.params.count; i++) {
             AstNode *param = fn->fn_decl.params.items[i];
             if (i > 0) fputs(", ", cg->out);
