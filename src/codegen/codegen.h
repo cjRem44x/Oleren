@@ -37,6 +37,7 @@ typedef struct {
     int   has_errdefer;     /* 1 if current function has errdefer stmts */
     int   try_counter;      /* unique ID for _r_N try/catch temporaries */
     int   in_module;        /* 1 while emitting inside a namespace module block */
+    int   in_main;          /* 1 while emitting the main() function body */
     /* registered module nodes for access checking */
     struct AstNode *known_modules[MAX_IMPORT_ALIAS];
     int             known_module_count;

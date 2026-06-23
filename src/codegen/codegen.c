@@ -29,6 +29,7 @@ void codegen_init(Codegen *cg, FILE *out)
     cg->try_counter        = 0;
     cg->err_ret_cpp[0]     = '\0';
     cg->in_module          = 0;
+    cg->in_main            = 0;
     cg->known_module_count = 0;
     cg->emitted_ns_count   = 0;
 }
@@ -1288,7 +1289,7 @@ static void emit_stmt(Codegen *cg, AstNode *node)
                     emit_expr(cg, node->ret.value);
                     fputs(";\n", cg->out);
                 } else {
-                    fputs("return;\n", cg->out);
+                    fputs(cg->in_main ? "return 0;\n" : "return;\n", cg->out);
                 }
             }
             break;
@@ -1860,6 +1861,7 @@ static void emit_fn(Codegen *cg, AstNode *fn)
 
     /* populate _olrn_args from argv (skip argv[0]) */
     if (is_main) {
+        cg->in_main = 1;
         emit_indent(cg);
         fputs("for (int _i = 1; _i < _olrn_argc; _i++) _olrn_args.push_back(_olrn_argv[_i]);\n", cg->out);
     }
@@ -1867,6 +1869,7 @@ static void emit_fn(Codegen *cg, AstNode *fn)
     AstNode *body = fn->fn_decl.body;
     for (int i = 0; i < body->block.stmts.count; i++)
         emit_stmt(cg, body->block.stmts.items[i]);
+    cg->in_main = 0;
 
     /* main: explicit return 0 if not present */
     if (is_main) {
